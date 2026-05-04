@@ -1,0 +1,252 @@
+<mxfile host="65bd71144e">
+    <diagram id="cartoVpsMonitor" name="Architecture VPS Monitor">
+        <mxGraphModel dx="846" dy="488" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="internet" value="Internet&#xa;(Navigateur)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="15" y="295" width="110" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="vps" value="VPS  ·  🐧 Ubuntu Linux  ·  Machine virtuelle" style="swimlane;fontStyle=1;fontSize=13;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#1a4f1a;startSize=30;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="145" y="20" width="1005" height="780" as="geometry"/>
+                </mxCell>
+                <mxCell id="ufw" value="🔥 UFW — ports exposés : :22 TCP (SSH)  ·  :80 TCP (HTTP)  ·  :443 TCP (HTTPS)" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="165" y="57" width="965" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx" value="Nginx (Reverse Proxy)" style="swimlane;fontStyle=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;startSize=25;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="165" y="91" width="965" height="155" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-p80" value=":80 HTTP" style="rounded=1;fillColor=#6c8ebf;strokeColor=#4a6a9e;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="185" y="124" width="90" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-p443" value=":443 HTTPS" style="rounded=1;fillColor=#4a6a9e;strokeColor=#2d4f8a;fontColor=#ffffff;fontStyle=1;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="287" y="124" width="100" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-ssl" value="SSL/TLS · Let&#39;s Encrypt · HTTP→HTTPS (301)" style="text;html=1;fontSize=10;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="402" y="130" width="310" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-multiapp" value="Multi-applications hébergées" style="text;html=1;fontSize=10;align=right;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="130" width="315" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-r1" value="location  /              →  127.0.0.1:3000   (vps-monitor)" style="text;html=1;fontSize=11;align=left;fontFamily=Courier New;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="185" y="160" width="460" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-r2" value="location  /cinemap/      →  127.0.0.1:8001" style="text;html=1;fontSize=11;align=left;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="185" y="181" width="380" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-r3" value="location  /lucky7/       →  127.0.0.1:8002" style="text;html=1;fontSize=11;align=left;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="185" y="200" width="380" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="nginx-r4" value="location  /saintbarth/   →  127.0.0.1:8003   ·  …" style="text;html=1;fontSize=11;align=left;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="185" y="219" width="430" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="monitor" value="vps-monitor  🐳  ·  Node.js + Express  ·  :3000 TCP" style="swimlane;fontStyle=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;startSize=28;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="268" width="695" height="315" as="geometry"/>
+                </mxCell>
+                <mxCell id="monitor-refresh" value="⟳  Tableau de bord mis à jour automatiquement toutes les 5 secondes" style="text;html=1;fontSize=10;align=center;fontStyle=1;" parent="monitor" vertex="1">
+                    <mxGeometry x="170" y="12" width="330" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="monitor-routes" value="Routes :  GET /  (page publique)  ·  GET /dashboard  (admin protégé)  ·  GET /api/docker/*  ·  GET /api/apps/*" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="298" width="675" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-svc" value="api/services/docker.js" style="swimlane;fontStyle=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="325" width="295" height="115" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-svc-lib" value="Dockerode (npm)" style="rounded=1;fillColor=#2496ed;strokeColor=#1a6fa8;fontColor=#ffffff;fontSize=10;fontStyle=1;" parent="docker-svc" vertex="1">
+                    <mxGeometry x="75" y="25" width="145" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-svc-ops" value="list · inspect · start · stop · restart&#xa;logs · stats · uptime · ports exposés" style="text;html=1;fontSize=10;align=center;" parent="docker-svc" vertex="1">
+                    <mxGeometry x="5" y="52" width="280" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-svc-status" value="→ statut : running / stopped / restarting" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="docker-svc" vertex="1">
+                    <mxGeometry x="5" y="90" width="280" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-sock" value="/var/run/docker.sock  (Docker Engine API)" style="swimlane;fontStyle=1;fontSize=11;fillColor=#2496ed;strokeColor=#1a6fa8;fontColor=#ffffff;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="457" width="295" height="53" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-sock-detail" value="Unix socket · volume Docker monté en lecture/écriture&#xa;dans le conteneur vps-monitor" style="text;html=1;fontSize=10;align=center;fontColor=#ffffff;" parent="docker-sock" vertex="1">
+                    <mxGeometry x="5" y="24" width="280" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="http-svc" value="api/services/http.js" style="swimlane;fontStyle=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="325" width="320" height="115" as="geometry"/>
+                </mxCell>
+                <mxCell id="http-svc-lib" value="fetch()  (natif Node.js)" style="rounded=1;fillColor=#82b366;strokeColor=#5d9040;fontColor=#ffffff;fontSize=10;fontStyle=1;" parent="http-svc" vertex="1">
+                    <mxGeometry x="80" y="25" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="http-svc-detail" value="health check HTTP (timeout 5 s)&#xa;GET → app → 200 OK / KO / Degraded" style="text;html=1;fontSize=10;align=center;" parent="http-svc" vertex="1">
+                    <mxGeometry x="5" y="52" width="305" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="http-svc-target" value="fetch → 172.18.0.1 (Docker gateway)" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="http-svc" vertex="1">
+                    <mxGeometry x="5" y="90" width="305" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="gateway" value="172.18.0.1  —  Gateway Docker  (réseau bridge docker0)" style="swimlane;fontStyle=1;fontSize=11;fillColor=#68a063;strokeColor=#3d8b3a;fontColor=#ffffff;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="457" width="320" height="53" as="geometry"/>
+                </mxCell>
+                <mxCell id="gateway-detail" value="Point d&#39;entrée depuis vps-monitor vers les conteneurs&#xa;Atteint les ports exposés par Docker sur l&#39;hôte" style="text;html=1;fontSize=10;align=center;fontColor=#ffffff;" parent="gateway" vertex="1">
+                    <mxGeometry x="5" y="24" width="305" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="app-cinemap" value="cinemap&#xa;🐳 Docker" style="swimlane;fontStyle=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="165" y="610" width="180" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="cinemap-port" value=":8001 TCP (interne)" style="rounded=1;fillColor=#6c8ebf;strokeColor=#4a6a9e;fontColor=#ffffff;fontSize=10;" parent="app-cinemap" vertex="1">
+                    <mxGeometry x="10" y="26" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="cinemap-tech" value="Node.js + Express" style="text;html=1;fontSize=10;align=center;" parent="app-cinemap" vertex="1">
+                    <mxGeometry x="5" y="55" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="cinemap-desc" value="Application CineMap" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="app-cinemap" vertex="1">
+                    <mxGeometry x="5" y="75" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="cinemap-status" value="status : running / stopped" style="rounded=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=9;" parent="app-cinemap" vertex="1">
+                    <mxGeometry x="10" y="105" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="app-lucky7" value="lucky7&#xa;🐳 Docker" style="swimlane;fontStyle=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="365" y="610" width="180" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="lucky7-port" value=":8002 TCP (interne)" style="rounded=1;fillColor=#82b366;strokeColor=#5d9040;fontColor=#ffffff;fontSize=10;" parent="app-lucky7" vertex="1">
+                    <mxGeometry x="10" y="26" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="lucky7-tech" value="Node.js" style="text;html=1;fontSize=10;align=center;" parent="app-lucky7" vertex="1">
+                    <mxGeometry x="5" y="55" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="lucky7-desc" value="Jeu Lucky7" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="app-lucky7" vertex="1">
+                    <mxGeometry x="5" y="75" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="lucky7-status" value="status : running / stopped" style="rounded=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=9;" parent="app-lucky7" vertex="1">
+                    <mxGeometry x="10" y="105" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="app-saintbarth" value="saintbarth&#xa;🐳 Docker" style="swimlane;fontStyle=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="565" y="610" width="180" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="saintbarth-port" value=":8003 TCP (interne)" style="rounded=1;fillColor=#d6b656;strokeColor=#b8962e;fontColor=#ffffff;fontSize=10;" parent="app-saintbarth" vertex="1">
+                    <mxGeometry x="10" y="26" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="saintbarth-tech" value="Node.js + Express" style="text;html=1;fontSize=10;align=center;" parent="app-saintbarth" vertex="1">
+                    <mxGeometry x="5" y="55" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="saintbarth-desc" value="Saint Barth Volley" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="app-saintbarth" vertex="1">
+                    <mxGeometry x="5" y="75" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="saintbarth-status" value="status : running / stopped" style="rounded=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=9;" parent="app-saintbarth" vertex="1">
+                    <mxGeometry x="10" y="105" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="app-qwapp" value="qw-app&#xa;🐳 Docker" style="swimlane;fontStyle=1;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="765" y="610" width="180" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="qwapp-port" value=":8004 TCP (interne)" style="rounded=1;fillColor=#b85450;strokeColor=#8a3c3a;fontColor=#ffffff;fontSize=10;" parent="app-qwapp" vertex="1">
+                    <mxGeometry x="10" y="26" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="qwapp-tech" value="Next.js + NestJS" style="text;html=1;fontSize=10;align=center;" parent="app-qwapp" vertex="1">
+                    <mxGeometry x="5" y="55" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="qwapp-desc" value="QW-app  (LCB-FT)" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="app-qwapp" vertex="1">
+                    <mxGeometry x="5" y="75" width="165" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="qwapp-status" value="status : running / stopped" style="rounded=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=9;" parent="app-qwapp" vertex="1">
+                    <mxGeometry x="10" y="105" width="160" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="app-others" value="autres apps…&#xa;🐳 Docker" style="swimlane;fontStyle=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;startSize=22;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="965" y="610" width="165" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="others-port" value=":8005, :8006… (internes)" style="rounded=1;fillColor=#666666;strokeColor=#444444;fontColor=#ffffff;fontSize=9;" parent="app-others" vertex="1">
+                    <mxGeometry x="10" y="26" width="145" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="others-desc" value="Bot Discord · Monitoring&#xa;autres projets…" style="text;html=1;fontSize=10;align=center;fontStyle=2;" parent="app-others" vertex="1">
+                    <mxGeometry x="5" y="55" width="150" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="others-status" value="status : running / stopped" style="rounded=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=9;" parent="app-others" vertex="1">
+                    <mxGeometry x="10" y="105" width="145" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-inet-nginx" value=":80 / :443&#xa;HTTPS" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;startArrow=block;fontStyle=1;fontSize=10;strokeColor=#4a6a9e;fillColor=#4a6a9e;" parent="1" source="internet" target="nginx" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="220" y="333"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-nginx-monitor" value="/ → :3000" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;fontStyle=1;fontSize=11;strokeColor=#d6b656;fillColor=#d6b656;" parent="1" source="nginx" target="monitor" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-nginx-cinemap" value="/cinemap/ → :8001" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#9673a6;dashed=1;" parent="1" source="nginx" target="app-cinemap" edge="1">
+                    <mxGeometry x="0.2188" y="-20" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="240" y="340"/>
+                            <mxPoint x="240" y="340"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-nginx-lucky7" value="/lucky7/ → :8002" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#9673a6;dashed=1;" parent="1" source="nginx" target="app-lucky7" edge="1">
+                    <mxGeometry x="-0.439" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="270" y="590"/>
+                            <mxPoint x="400" y="590"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-nginx-saintbarth" value="/saintbarth/ → :8003" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#9673a6;dashed=1;" parent="1" source="nginx" target="app-saintbarth" edge="1">
+                    <mxGeometry x="-0.3834" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1050" y="590"/>
+                            <mxPoint x="720" y="590"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-dockersvc-sock" value="Unix socket" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;fontSize=10;strokeColor=#2496ed;fillColor=#2496ed;" parent="1" source="docker-svc" target="docker-sock" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-sock-apps" value="start / stop / restart" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#2496ed;dashed=1;" parent="1" source="docker-sock" target="app-lucky7" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="455" y="540"/>
+                            <mxPoint x="455" y="540"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-httpsvc-gw" value="fetch()" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;fontSize=10;strokeColor=#68a063;fillColor=#68a063;" parent="1" source="http-svc" target="gateway" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-gw-cinemap" value="GET :8001" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#68a063;dashed=1;" parent="1" source="gateway" target="app-cinemap" edge="1">
+                    <mxGeometry x="0.3157" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="610" y="484"/>
+                            <mxPoint x="610" y="530"/>
+                            <mxPoint x="255" y="530"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-gw-lucky7" value="GET :8002" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#68a063;dashed=1;" parent="1" source="gateway" target="app-lucky7" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="497"/>
+                            <mxPoint x="620" y="540"/>
+                            <mxPoint x="500" y="540"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-gw-saintbarth" value="GET :8003" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#68a063;dashed=1;" parent="1" source="gateway" target="app-saintbarth" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="740" y="560"/>
+                            <mxPoint x="655" y="560"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-gw-qwapp" value="GET :8004" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;fontSize=9;strokeColor=#68a063;dashed=1;" parent="1" source="gateway" target="app-qwapp" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="855" y="540"/>
+                            <mxPoint x="855" y="540"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="title" value="Architecture VPS Monitor — Multi-applications  ·  QW-app" style="text;html=1;fontSize=13;fontStyle=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="800" width="640" height="20" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
