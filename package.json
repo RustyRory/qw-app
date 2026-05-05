@@ -1,0 +1,77 @@
+{
+  "name": "qw-app",
+  "version": "1.0.0",
+  "description": "App pour QW conseil",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "prepare": "husky",
+    "dev": "concurrently \"npm run start --prefix backend\" \"npm run dev --prefix frontend\""
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "concurrently": "^9.2.1",
+    "eslint": "^10.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3"
+  },
+  "dependencies": {
+    "ansi-escapes": "^7.3.0",
+    "ansi-regex": "^6.2.2",
+    "ansi-styles": "^6.2.3",
+    "cli-cursor": "^5.0.0",
+    "cli-truncate": "^5.2.0",
+    "colorette": "^2.0.20",
+    "commander": "^14.0.3",
+    "emoji-regex": "^10.6.0",
+    "environment": "^1.1.0",
+    "eventemitter3": "^5.0.4",
+    "get-east-asian-width": "^1.5.0",
+    "is-fullwidth-code-point": "^5.1.0",
+    "listr2": "^9.0.5",
+    "log-update": "^6.1.0",
+    "mimic-function": "^5.0.1",
+    "onetime": "^7.0.0",
+    "picomatch": "^4.0.4",
+    "restore-cursor": "^5.1.0",
+    "rfdc": "^1.4.1",
+    "signal-exit": "^4.1.0",
+    "slice-ansi": "^8.0.0",
+    "string-argv": "^0.3.2",
+    "string-width": "^8.2.1",
+    "strip-ansi": "^7.2.0",
+    "tinyexec": "^1.1.2",
+    "wrap-ansi": "^9.0.2",
+    "yaml": "^2.8.4"
+  },
+  "lint-staged": {
+    "backend/**/*.{js,ts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "frontend/**/*.{js,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RustyRory/QW-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RustyRory/QW-app/issues"
+  },
+  "homepage": "https://github.com/RustyRory/QW-app#readme"
+}
