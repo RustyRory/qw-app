@@ -40,7 +40,6 @@ docker -v
 
 Créer un `.env` à la racine de chaque service (ne jamais committer) :
 
-
 **Backend (`backend/.env`) :**
 ```env
 DATABASE_URL=postgresql://qwuser:password@localhost:5432/qwapp
@@ -56,21 +55,23 @@ NODE_ENV=development
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ```
 
-Ajouter `.env` dans `.gitignore`
+Ajouter dans `.gitignore` :
 ```
 .env
 .env.local
 ```
 
-Et créer un fichier exemple :
-`backend/.env.example`
-`frontend/.env.example`
+Créer les fichiers exemples à committer :
+- `backend/.env.example`
+- `frontend/.env.example`
 
-Exemple :
 ```env
 DATABASE_URL=
 REDIS_URL=
 JWT_SECRET=
+JWT_EXPIRES_IN=
+PORT=
+NODE_ENV=
 ```
 
 ### 1.3 Dossier deployment
@@ -85,103 +86,107 @@ project-root/
 ├── deployment/
 │   ├── docker/
 │   │   ├── docker-compose.yml
-│   │   ├── .env
-│   │   └── README.md
+│   │   └── .env.example
 │   │
 │   ├── nginx/
 │   │   └── nginx.conf
 │   │
 │   └── scripts/
-│       └── deploy.sh
+│       ├── deploy.sh
+│       ├── start.sh
+│       └── backup.sh
 │
-├── .gitignore
+├── .github/
+│   └── workflows/
+├── docs/
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── INSTALL.md
+├── LICENSE
 └── README.md
 ```
 
-#### 📁 deployment/docker/
+**`deployment/docker/`** — configuration Docker (compose, variables d'environnement de staging)
 
-Tout ce qui concerne Docker
+**`deployment/nginx/`** — reverse proxy exposant frontend et backend sous un même domaine
 
-- `docker-compose.yml`
-- `.env` (ou `.env.example`)
-- éventuellement `Dockerfile` spécifiques
-
-#### 📁 deployment/nginx/
-
-Si reverse proxy sur machine local
-
-config pour exposer :
-- frontend
-- backend
-
-#### 📁 deployment/scripts/
-
-scripts utiles :
-
-- `deploy.sh`
-- `start.sh`
-- `backup.sh`
+**`deployment/scripts/`** — scripts opérationnels (`deploy.sh`, `start.sh`, `backup.sh`)
 
 ### 1.4 Hooks locaux (Husky)
 
+Husky, lint-staged et commitlint sont installés à la racine du monorepo (pas dans les workspaces).
+
 #### Étape 1 : installer Husky
+
 ```bash
 npm install husky --save-dev
 npx husky init
 ```
 
-Ça crée :
-- `.husky/`
-
 #### Étape 2 : pre-commit (lint + format)
 
-Installer :
 ```bash
 npm install lint-staged --save-dev
 ```
 
-Ajouter dans package.json :
-```json
-"lint-staged": {
-  "*.{js,ts,tsx}": [
-    "eslint --fix",
-    "prettier --write"
-  ]
-}
+Créer `.lintstagedrc.cjs` à la racine (utilise le binaire ESLint de chaque workspace pour éviter les conflits de version) :
+
+```javascript
+const path = require('path');
+
+const backendEslint = path.join(__dirname, 'backend/node_modules/.bin/eslint');
+const frontendEslint = path.join(__dirname, 'frontend/node_modules/.bin/eslint');
+
+module.exports = {
+  'backend/**/*.{js,ts}': (files) => [
+    `${backendEslint} --fix --config backend/eslint.config.mjs ${files.join(' ')}`,
+    `prettier --write ${files.join(' ')}`,
+  ],
+  'frontend/**/*.{js,ts,tsx}': (files) => [
+    `${frontendEslint} --fix --config frontend/eslint.config.mjs ${files.join(' ')}`,
+    `prettier --write ${files.join(' ')}`,
+  ],
+};
 ```
 
-Modifier .husky/pre-commit :
+`.husky/pre-commit` :
 ```bash
 npx lint-staged
 ```
 
+> Ne pas mettre la config `lint-staged` dans `package.json` — utiliser `.lintstagedrc.cjs` pour pouvoir utiliser la syntaxe fonction (nécessaire ici pour passer les chemins absolus).
+
 #### Étape 3 : commit-msg (convention de commit)
 
-Installer :
 ```bash
 npm install @commitlint/{config-conventional,cli} --save-dev
 ```
 
-Créer `commitlint.config.js`
+Créer `commitlint.config.js` à la racine :
 ```javascript
 module.exports = {
   extends: ['@commitlint/config-conventional'],
+  rules: {
+    // Autorise la majuscule pour le format "Fixes #12 - message"
+    'subject-case': [0],
+  },
 };
 ```
 
-Ajouter hook :
+`.husky/commit-msg` :
 ```bash
-npx husky add .husky/commit-msg 'npx --no -- commitlint --edit $1'
+npx --no -- commitlint --edit "$1"
 ```
 
 Format attendu des commits :
 ```
-type(scope): message
+type(scope): Fixes #<issue> - description courte
 
+Types : feat | fix | refactor | test | docs | chore | ci
 Exemples :
-feat(auth): add JWT login
-fix(api): correct validation bug
-docs(readme): update installation steps
+  feat(auth): Fixes #12 - ajouter le guard JWT
+  fix(scoring): Fixes #34 - corriger le calcul PEP
+  docs(readme): Fixes #5 - mettre à jour les instructions d'installation
 ```
 
 ---
@@ -192,16 +197,32 @@ docs(readme): update installation steps
 
 ```
 qw-app/
-├── backend/          ← NestJS
-├── frontend/         ← Next.js
-├── docker-compose.yml
+├── backend/                ← NestJS
+├── frontend/               ← Next.js
+├── deployment/
+│   ├── docker/
+│   │   ├── docker-compose.yml
+│   │   └── .env.example
+│   ├── nginx/
+│   │   └── nginx.conf
+│   └── scripts/
+│       ├── deploy.sh
+│       ├── start.sh
+│       └── backup.sh
 ├── .github/
-│   └── workflows/    ← CI/CD GitHub Actions
+│   └── workflows/          ← CI/CD GitHub Actions
+├── .husky/
+│   ├── pre-commit
+│   └── commit-msg
 ├── docs/
+├── .lintstagedrc.cjs
+├── commitlint.config.js
+├── package.json            ← racine monorepo (workspaces)
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── INSTALL.md
-└── LICENSE
+├── LICENSE
+└── README.md
 ```
 
 ### 2.2 Initialisation backend
@@ -228,10 +249,11 @@ npm install class-variance-authority clsx tailwind-merge tw-animate-css
 npm install @tabler/icons-react
 ```
 
-### 2.4 Docker Compose local
+### 2.4 Docker Compose local (développement)
+
+Le fichier de développement se trouve dans `deployment/docker/docker-compose.yml` :
 
 ```yaml
-# docker-compose.yml (développement)
 services:
   postgres:
     image: postgres:16-alpine
@@ -251,6 +273,7 @@ volumes:
 ```
 
 ```bash
+cd deployment/docker
 docker compose up -d  # démarrer postgres + redis
 ```
 
@@ -605,23 +628,50 @@ npm run test:cov      # rapport de couverture
 
 ## 8. CI/CD — Intégration et déploiement continus
 
-### 8.1 Workflows GitHub Actions (`.github/workflows/`)
+### 8.1 Architecture des workflows
+
+Les workflows sont organisés en deux couches :
+
+- **Workflows réutilisables** (`lint.yml`, `tests.yml`, `audit.yml`, `docker-build.yml`) : déclenchés via `workflow_call`, ne s'exécutent jamais seuls.
+- **Workflows orchestrateurs** (`ci.yml`, `deploy.yml`, `release.yml`, `hotfix-release.yml`) : déclenchés par des événements GitHub, ils appellent les workflows réutilisables.
+- **Workflows de validation PR** (`branch-name.yml`, `commit-msg.yml`, `structure.yml`) : déclenchés directement sur `pull_request`, légers et indépendants.
+
+### 8.2 Tableau des workflows (`.github/workflows/`)
 
 | Fichier | Déclencheur | Rôle |
 |---------|-------------|------|
-| `ci.yml` | PR vers `dev`, `staging`, `main` | Orchestrateur : lance lint, tests, audit en parallèle |
-| `lint.yml` | PR | ESLint + Prettier (backend et frontend) |
-| `tests.yml` | PR | Jest (backend et frontend en parallèle via matrix) |
-| `audit.yml` | PR | `npm audit --audit-level=high` — bloque si vulnérabilité critique |
-| `branch-name.yml` | PR | Vérifie le format : `feat/123-desc`, `fix/123-desc`, `hotfix/123-desc` |
-| `commit-msg.yml` | PR | Vérifie : `type(scope): Fixes #<issue> - message` |
-| `ticket.yml` | PR | Vérifie qu'un numéro d'issue est référencé |
-| `structure.yml` | PR | Vérifie la présence de `README.md`, `CONTRIBUTING.md`, `INSTALL.md`, `LICENSE` |
-| `deploy.yml` | Push sur `staging` | Déploiement automatique sur le VPS |
-| `release.yml` | Merge `dev` → `main` | Calcul SemVer mineur, tag Git, GitHub Release |
-| `hotfix-release.yml` | Merge `hotfix/*` → `main` | Calcul SemVer patch, tag Git, PR de sync `main` → `dev` |
+| `ci.yml` | PR vers `dev`, `staging`, `main` | Orchestrateur : appelle `lint.yml`, `tests.yml`, `audit.yml`, `docker-build.yml` en parallèle via `workflow_call` |
+| `lint.yml` | `workflow_call` (appelé par `ci.yml`) | ESLint + Prettier sur backend et frontend |
+| `tests.yml` | `workflow_call` (appelé par `ci.yml`) | Jest unitaires + e2e sur backend et frontend en parallèle via matrix |
+| `audit.yml` | `workflow_call` (appelé par `ci.yml`) | `npm audit --audit-level=high` — bloque si vulnérabilité critique |
+| `docker-build.yml` | `workflow_call` (appelé par `ci.yml`) | Vérifie que les images Docker backend et frontend se construisent sans erreur |
+| `branch-name.yml` | PR | Vérifie le format du nom de branche : `feat/123-desc`, `fix/123-desc`, `hotfix/123-desc` |
+| `commit-msg.yml` | PR | Vérifie le format et la présence du numéro d'issue : `type(scope): Fixes #<issue> - message` |
+| `structure.yml` | PR vers `main` | Vérifie la présence de `README.md`, `CONTRIBUTING.md`, `INSTALL.md`, `LICENSE` |
+| `deploy.yml` | Push sur `staging` | Déploiement automatique sur le VPS via SSH |
+| `release.yml` | Push sur `main` depuis `dev` | Calcul SemVer mineur, tag Git, création GitHub Release |
+| `hotfix-release.yml` | Push sur `main` depuis `hotfix/*` | Calcul SemVer patch, tag Git, ouverture automatique d'une PR de sync `main` → `dev` |
 
-### 8.2 Workflow de déploiement (`deploy.yml`)
+> `ticket.yml` est supprimé : la vérification du numéro d'issue est déjà assurée par `commit-msg.yml` qui impose `Fixes #<issue>` dans le message de commit.
+
+### 8.3 Workflow orchestrateur (`ci.yml`)
+
+```yaml
+# Déclenché sur toute PR vers dev, staging ou main
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+  tests:
+    uses: ./.github/workflows/tests.yml
+  audit:
+    uses: ./.github/workflows/audit.yml
+  docker-build:
+    uses: ./.github/workflows/docker-build.yml
+```
+
+Tous les jobs s'exécutent en parallèle. La PR est bloquée si l'un d'eux échoue.
+
+### 8.4 Workflow de déploiement (`deploy.yml`)
 
 ```yaml
 # Déclenché sur push vers staging
@@ -631,10 +681,34 @@ steps:
   - docker compose build clb-back clb-front
   - docker compose up -d --remove-orphans
   - docker image prune -f
-  - Vérification : docker compose ps (tous les services doivent être "running")
+  - Vérification : docker compose ps — tous les services doivent être "running"
+  - En cas d'échec : docker compose rollback (retour à l'image précédente via tag Git)
 ```
 
-### 8.3 Secrets GitHub à configurer
+### 8.5 Workflow de release (`release.yml`)
+
+```yaml
+# Déclenché sur push vers main (merge depuis dev)
+steps:
+  - Récupérer le dernier tag Git (ex. v1.2.0)
+  - Incrémenter le mineur → v1.3.0
+  - Créer le tag Git et pousser
+  - Créer une GitHub Release avec le contenu de CHANGELOG.md
+```
+
+### 8.6 Workflow hotfix (`hotfix-release.yml`)
+
+```yaml
+# Déclenché sur push vers main (merge depuis hotfix/*)
+steps:
+  - Récupérer le dernier tag Git (ex. v1.3.0)
+  - Incrémenter le patch → v1.3.1
+  - Créer le tag Git et pousser
+  - Créer une GitHub Release
+  - Ouvrir automatiquement une PR de sync main → dev
+```
+
+### 8.7 Secrets GitHub à configurer
 
 | Secret | Valeur |
 |--------|--------|
@@ -642,11 +716,13 @@ steps:
 | `VPS_USER` | Utilisateur SSH dédié |
 | `VPS_SSH_KEY` | Clé privée SSH (sans passphrase) |
 | `VPS_PORT` | Port SSH (défaut : 22) |
+| `GITHUB_TOKEN` | Fourni automatiquement par GitHub Actions (pour créer les releases et PR) |
 
-### 8.4 Rulesets GitHub
+### 8.8 Rulesets GitHub
 
-- Branches `main` et `dev` : **aucune fusion sans que tous les checks CI soient verts**
+- Branches `main` et `dev` : **aucune fusion sans que tous les checks de `ci.yml` soient verts**
 - Branche `main` : fusion uniquement depuis `dev` (release) ou `hotfix/*`
+- Branche `dev` : fusion uniquement depuis `feat/*`, `fix/*`, ou `hotfix/*`
 
 ---
 

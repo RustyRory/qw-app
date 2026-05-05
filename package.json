@@ -53,16 +53,6 @@
     "wrap-ansi": "^9.0.2",
     "yaml": "^2.8.4"
   },
-  "lint-staged": {
-    "backend/**/*.{js,ts}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "frontend/**/*.{js,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RustyRory/QW-app.git"
