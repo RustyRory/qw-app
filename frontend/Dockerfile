@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+ARG BACKEND_URL=http://qw-app-backend:3001
+ENV BACKEND_URL=$BACKEND_URL
 ENV NODE_ENV=production
 RUN npm run build
 
