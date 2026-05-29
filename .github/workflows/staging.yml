@@ -1,0 +1,19 @@
+name: Deploy staging
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger deploy via vps-monitor webhook
+        run: |
+          curl -f -s -X POST "${{ secrets.VPS_MONITOR_URL }}/api/webhook/deploy" \
+            -H "Authorization: Bearer ${{ secrets.WEBHOOK_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "qw-app"}'
