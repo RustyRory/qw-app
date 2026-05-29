@@ -22,7 +22,9 @@
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
-    "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run --dataSource dist/data-source.js"
+    "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run --dataSource dist/data-source.js",
+    "seed": "../node_modules/.bin/ts-node --transpile-only --project tsconfig.cli.json src/database/seed.ts",
+    "seed:prod": "node -e \"require('./dist/database/seed.js')\""
   },
   "dependencies": {
     "@nestjs/cache-manager": "^3.1.2",
@@ -51,6 +53,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
