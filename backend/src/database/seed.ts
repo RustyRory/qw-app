@@ -34,6 +34,15 @@ async function seed() {
     isActive: true,
   });
 
+  const responsable = userRepo.create({
+    email: 'responsable@qwconseil.fr',
+    passwordHash: await hash('Resp1234!', 12),
+    role: UserRole.RESPONSABLE,
+    prenom: 'Claire',
+    nom: 'Leroy',
+    isActive: true,
+  });
+
   const collaborateur = userRepo.create({
     email: 'collab@qwconseil.fr',
     passwordHash: await hash('Collab1234!', 12),
@@ -43,7 +52,7 @@ async function seed() {
     isActive: true,
   });
 
-  await userRepo.save([admin, collaborateur]);
+  await userRepo.save([admin, responsable, collaborateur]);
   console.log('✓ Utilisateurs créés');
 
   // ── Clients + KYC ─────────────────────────────────────────────
@@ -145,8 +154,9 @@ async function seed() {
 
   console.log('✓ Clients et KYC créés');
   console.log('\nComptes de test :');
-  console.log('  admin@qwconseil.fr       / Admin1234!');
-  console.log('  collab@qwconseil.fr      / Collab1234!');
+  console.log('  admin@qwconseil.fr         / Admin1234!');
+  console.log('  responsable@qwconseil.fr  / Resp1234!');
+  console.log('  collab@qwconseil.fr       / Collab1234!');
 
   await AppDataSource.destroy();
 }
