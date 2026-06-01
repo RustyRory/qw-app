@@ -10,6 +10,7 @@ import { Document } from './documents/entities/document.entity';
 import { RiskScore } from './scoring/entities/risk-score.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { AuthModule } from './auth/auth.module';
+import { ClientsModule } from './clients/clients.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './auth/auth.module';
       synchronize: false,
     }),
     AuthModule,
+    ClientsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
