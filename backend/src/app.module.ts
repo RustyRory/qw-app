@@ -14,6 +14,7 @@ import { ClientsModule } from './clients/clients.module';
 import { KycModule } from './kyc/kyc.module';
 import { DocumentsModule } from './documents/documents.module';
 import { ScoringModule } from './scoring/scoring.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ScoringModule } from './scoring/scoring.module';
     KycModule,
     DocumentsModule,
     ScoringModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],
