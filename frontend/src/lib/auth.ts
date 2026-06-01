@@ -17,12 +17,8 @@ export function decodeToken(token: string): JwtPayload | null {
 }
 
 export function getDashboardPath(role: string): string {
-  if (
-    role === "admin" ||
-    role === "responsable" ||
-    role === "expert-comptable"
-  ) {
-    return "/dashboard/admin";
-  }
+  if (role === "admin") return "/dashboard/admin";
+  if (role === "responsable") return "/dashboard/responsable";
+  if (role === "expert-comptable") return "/dashboard/admin";
   return "/dashboard/collaborateur";
 }

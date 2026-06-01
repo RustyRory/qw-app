@@ -11,6 +11,7 @@ import { RiskScore } from './scoring/entities/risk-score.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { AuthModule } from './auth/auth.module';
 import { ClientsModule } from './clients/clients.module';
+import { KycModule } from './kyc/kyc.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ClientsModule } from './clients/clients.module';
     }),
     AuthModule,
     ClientsModule,
+    KycModule,
   ],
   controllers: [AppController],
   providers: [AppService],
