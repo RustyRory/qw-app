@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { ClientsModule } from './clients/clients.module';
 import { KycModule } from './kyc/kyc.module';
 import { DocumentsModule } from './documents/documents.module';
+import { ScoringModule } from './scoring/scoring.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { DocumentsModule } from './documents/documents.module';
     ClientsModule,
     KycModule,
     DocumentsModule,
+    ScoringModule,
   ],
   controllers: [AppController],
   providers: [AppService],
