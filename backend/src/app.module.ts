@@ -12,6 +12,7 @@ import { AuditLog } from './audit/entities/audit-log.entity';
 import { AuthModule } from './auth/auth.module';
 import { ClientsModule } from './clients/clients.module';
 import { KycModule } from './kyc/kyc.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { KycModule } from './kyc/kyc.module';
     AuthModule,
     ClientsModule,
     KycModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
