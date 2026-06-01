@@ -64,7 +64,7 @@ export class KycService {
       }),
     );
 
-    await this.redis.del(this.cacheKey(clientId));
+    await this.redis.del(this.cacheKey(clientId), `client:${clientId}`);
 
     return saved;
   }

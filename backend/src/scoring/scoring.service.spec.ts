@@ -177,7 +177,7 @@ describe('ScoringService', () => {
 
       expect(redisMock.setex).toHaveBeenCalledWith(
         'scoring:client-1',
-        3600,
+        300,
         JSON.stringify(saved),
       );
     });

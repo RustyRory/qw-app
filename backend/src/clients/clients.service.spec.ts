@@ -60,8 +60,15 @@ describe('ClientsService', () => {
     transaction: jest.fn((cb) => cb(managerMock)),
   };
 
+  const redisMock = {
+    get: jest.fn(),
+    setex: jest.fn(),
+    del: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    redisMock.get.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -70,6 +77,7 @@ describe('ClientsService', () => {
         { provide: getRepositoryToken(Kyc), useValue: kycRepoMock },
         { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
         { provide: DataSource, useValue: dataSourceMock },
+        { provide: 'REDIS_CLIENT', useValue: redisMock },
       ],
     }).compile();
 
@@ -153,7 +161,17 @@ describe('ClientsService', () => {
 
   // --------------------------------------------------------------- findOne
   describe('findOne', () => {
-    it('retourne le client avec ses relations', async () => {
+    it('retourne le client depuis le cache Redis si présent', async () => {
+      const client = makeClient();
+      redisMock.get.mockResolvedValue(JSON.stringify(client));
+
+      const result = await service.findOne('client-1');
+
+      expect(result).toEqual(client);
+      expect(clientsRepoMock.findOne).not.toHaveBeenCalled();
+    });
+
+    it('interroge la base et met en cache si le cache est vide', async () => {
       const client = makeClient();
       clientsRepoMock.findOne.mockResolvedValue(client);
 
@@ -164,6 +182,11 @@ describe('ClientsService', () => {
         where: { id: 'client-1' },
         relations: expect.arrayContaining(['kyc', 'documents', 'riskScores']),
       });
+      expect(redisMock.setex).toHaveBeenCalledWith(
+        'client:client-1',
+        300,
+        JSON.stringify(client),
+      );
     });
 
     it('lève NotFoundException si le client est introuvable', async () => {
@@ -177,7 +200,7 @@ describe('ClientsService', () => {
 
   // ---------------------------------------------------------------- update
   describe('update', () => {
-    it('met à jour les champs et enregistre un audit UPDATE', async () => {
+    it('met à jour les champs, enregistre un audit UPDATE et invalide le cache', async () => {
       const client = makeClient();
       clientsRepoMock.findOne.mockResolvedValue(client);
       clientsRepoMock.save.mockResolvedValue({ ...client, nom: 'Nouveau' });
@@ -190,12 +213,13 @@ describe('ClientsService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.UPDATE }),
       );
+      expect(redisMock.del).toHaveBeenCalledWith('client:client-1');
     });
   });
 
   // -------------------------------------------------------------- validate
   describe('validate', () => {
-    it('passe le statut à VALIDE et enregistre un audit VALIDATE', async () => {
+    it('passe le statut à VALIDE, enregistre un audit VALIDATE et invalide le cache', async () => {
       const client = makeClient();
       clientsRepoMock.findOneBy.mockResolvedValue(client);
       clientsRepoMock.save.mockResolvedValue({
@@ -211,6 +235,7 @@ describe('ClientsService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.VALIDATE }),
       );
+      expect(redisMock.del).toHaveBeenCalledWith('client:client-1');
     });
 
     it('lève NotFoundException si le client est introuvable', async () => {
@@ -224,13 +249,14 @@ describe('ClientsService', () => {
 
   // ---------------------------------------------------------------- remove
   describe('remove', () => {
-    it('soft-delete le client et enregistre un audit DELETE', async () => {
+    it('soft-delete le client, invalide le cache et enregistre un audit DELETE', async () => {
       clientsRepoMock.findOneBy.mockResolvedValue(makeClient());
       clientsRepoMock.softDelete.mockResolvedValue({});
 
       await service.remove('client-1', ADMIN);
 
       expect(clientsRepoMock.softDelete).toHaveBeenCalledWith('client-1');
+      expect(redisMock.del).toHaveBeenCalledWith('client:client-1');
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.DELETE }),
       );

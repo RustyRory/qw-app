@@ -123,13 +123,16 @@ describe('KycService', () => {
       );
     });
 
-    it('invalide le cache Redis après la mise à jour', async () => {
+    it('invalide les clés kyc:{id} et client:{id} après la mise à jour', async () => {
       kycRepoMock.findOne.mockResolvedValue(makeKyc());
       kycRepoMock.save.mockResolvedValue(makeKyc());
 
       await service.update('client-1', { estPep: true }, COLLAB);
 
-      expect(redisMock.del).toHaveBeenCalledWith('kyc:client-1');
+      expect(redisMock.del).toHaveBeenCalledWith(
+        'kyc:client-1',
+        'client:client-1',
+      );
     });
 
     it('lève NotFoundException si la fiche KYC est introuvable', async () => {

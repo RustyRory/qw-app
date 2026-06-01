@@ -23,7 +23,7 @@ const SECTEURS_RISQUE = [
 ];
 
 const CA_ELEVE_SEUIL = 500_000;
-const SCORING_CACHE_TTL = 3600;
+const SCORING_CACHE_TTL = 300;
 
 interface ScoreResult {
   score: number;

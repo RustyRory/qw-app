@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Like, Repository } from 'typeorm';
+import type { Redis } from 'ioredis';
 import { Client, ClientStatut } from './entities/client.entity';
 import { Kyc } from '../kyc/entities/kyc.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
@@ -9,6 +10,8 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 type AuthUser = { id: string; role: UserRole };
+
+const CLIENT_CACHE_TTL = 300;
 
 @Injectable()
 export class ClientsService {
@@ -20,6 +23,8 @@ export class ClientsService {
     @InjectRepository(AuditLog)
     private readonly auditRepo: Repository<AuditLog>,
     private readonly dataSource: DataSource,
+    @Inject('REDIS_CLIENT')
+    private readonly redis: Redis,
   ) {}
 
   async create(dto: CreateClientDto, authUser: AuthUser): Promise<Client> {
@@ -69,11 +74,17 @@ export class ClientsService {
   }
 
   async findOne(id: string): Promise<Client> {
+    const key = `client:${id}`;
+    const cached = await this.redis.get(key);
+    if (cached) return JSON.parse(cached) as Client;
+
     const client = await this.clientsRepo.findOne({
       where: { id },
       relations: ['kyc', 'documents', 'riskScores', 'createur', 'validateur'],
     });
     if (!client) throw new NotFoundException('Client introuvable');
+
+    await this.redis.setex(key, CLIENT_CACHE_TTL, JSON.stringify(client));
     return client;
   }
 
@@ -82,7 +93,13 @@ export class ClientsService {
     dto: UpdateClientDto,
     authUser: AuthUser,
   ): Promise<Client> {
-    const client = await this.findOne(id);
+    // Bypass findOne() cache — TypeORM needs a real entity instance for save()
+    const client = await this.clientsRepo.findOne({
+      where: { id },
+      relations: ['kyc', 'documents', 'riskScores', 'createur', 'validateur'],
+    });
+    if (!client) throw new NotFoundException('Client introuvable');
+
     Object.assign(client, dto);
     const saved = await this.clientsRepo.save(client);
 
@@ -95,6 +112,8 @@ export class ClientsService {
         utilisateur: { id: authUser.id } as User,
       }),
     );
+
+    await this.redis.del(`client:${id}`);
 
     return saved;
   }
@@ -117,6 +136,8 @@ export class ClientsService {
       }),
     );
 
+    await this.redis.del(`client:${id}`);
+
     return saved;
   }
 
@@ -125,6 +146,7 @@ export class ClientsService {
     if (!client) throw new NotFoundException('Client introuvable');
 
     await this.clientsRepo.softDelete(id);
+    await this.redis.del(`client:${id}`);
 
     await this.auditRepo.save(
       this.auditRepo.create({
