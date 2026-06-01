@@ -11,6 +11,8 @@ services:
       PORT: 3001
     ports:
       - "127.0.0.1:3007:3001"
+    networks:
+      - qw-app-net
     depends_on:
       - qw-app-postgres
       - qw-app-redis
@@ -25,6 +27,8 @@ services:
     environment:
       NODE_ENV: production
       BACKEND_URL: http://qw-app-backend:3001
+    networks:
+      - qw-app-net
     depends_on:
       - qw-app-backend
   qw-app-postgres:
@@ -34,9 +38,16 @@ services:
     env_file: .env
     volumes:
       - qw_postgres_data:/var/lib/postgresql/data
+    networks:
+      - qw-app-net
   qw-app-redis:
     image: redis:7-alpine
     container_name: qw-app-redis
     restart: unless-stopped
+    networks:
+      - qw-app-net
+networks:
+  qw-app-net:
+    name: qw-app-net
 volumes:
   qw_postgres_data:
