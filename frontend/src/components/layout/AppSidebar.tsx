@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,7 +12,14 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  exact?: boolean;
+};
+
+const NAV: NavItem[] = [
   {
     href: "/dashboard",
     label: "Vue globale",
@@ -20,11 +28,11 @@ const NAV = [
   },
   { href: "/dashboard/clients", label: "Clients", icon: IconUsers },
   { href: "/dashboard/scoring", label: "Scoring", icon: IconShieldCheck },
-] as const;
+];
 
-const ADMIN_NAV = [
+const ADMIN_NAV: NavItem[] = [
   { href: "/dashboard/admin", label: "Administration", icon: IconSettings },
-] as const;
+];
 
 export function AppSidebar({
   role,
