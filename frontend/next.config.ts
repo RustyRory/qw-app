@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   basePath: process.env.NODE_ENV === "production" ? "/qw-app" : "",
+  trailingSlash: true,
   async rewrites() {
     return [
       {
