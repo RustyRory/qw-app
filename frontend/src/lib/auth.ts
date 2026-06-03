@@ -16,9 +16,7 @@ export function decodeToken(token: string): JwtPayload | null {
   }
 }
 
-export function getDashboardPath(role: string): string {
-  if (role === "admin") return "/dashboard/admin";
-  if (role === "responsable") return "/dashboard/responsable";
-  if (role === "expert-comptable") return "/dashboard/admin";
-  return "/dashboard/collaborateur";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getDashboardPath(_role: string): string {
+  return "/dashboard";
 }
