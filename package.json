@@ -13,6 +13,8 @@
   ],
   "scripts": {
     "prepare": "husky",
+    "infra:up": "docker compose -f deployment/docker-compose.dev.yml up -d",
+    "infra:down": "docker compose -f deployment/docker-compose.dev.yml down",
     "dev": "concurrently \"PORT=3001 npm run start --prefix backend\" \"npm run dev --prefix frontend\""
   },
   "devDependencies": {

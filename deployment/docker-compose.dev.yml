@@ -1,0 +1,28 @@
+services:
+  qw-app-postgres:
+    image: postgres:16-alpine
+    container_name: qw-app-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: qwapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - qw_postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qw-app-redis:
+    image: redis:7-alpine
+    container_name: qw-app-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  qw_postgres_dev_data:
