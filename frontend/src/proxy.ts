@@ -9,28 +9,25 @@ export function proxy(request: NextRequest) {
   const payload = token ? decodeToken(token) : null;
   const isAuthenticated = !!payload && payload.exp * 1000 > Date.now();
 
+  const redirect = (path: string) => {
+    const url = request.nextUrl.clone();
+    url.pathname = path;
+    return NextResponse.redirect(url);
+  };
+
   if (pathname === "/" || pathname === "") {
-    if (isAuthenticated) {
-      return NextResponse.redirect(
-        new URL(getDashboardPath(payload.role), request.url),
-      );
-    }
-    return NextResponse.redirect(new URL("/login", request.url));
+    return isAuthenticated
+      ? redirect(getDashboardPath(payload!.role))
+      : redirect("/login");
   }
 
   if (pathname === "/login") {
-    if (isAuthenticated) {
-      return NextResponse.redirect(
-        new URL(getDashboardPath(payload.role), request.url),
-      );
-    }
+    if (isAuthenticated) return redirect(getDashboardPath(payload!.role));
     return NextResponse.next();
   }
 
   if (pathname.startsWith("/dashboard")) {
-    if (!isAuthenticated) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
+    if (!isAuthenticated) return redirect("/login");
     return NextResponse.next();
   }
 
