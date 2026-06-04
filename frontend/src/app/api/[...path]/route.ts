@@ -7,7 +7,19 @@ async function handler(request: NextRequest) {
   const backendUrl = BACKEND_URL + pathname + search;
 
   const headers = new Headers(request.headers);
-  headers.delete("host");
+  // Hop-by-hop headers must not be forwarded
+  for (const h of [
+    "host",
+    "connection",
+    "keep-alive",
+    "transfer-encoding",
+    "te",
+    "trailer",
+    "upgrade",
+    "proxy-authorization",
+  ]) {
+    headers.delete(h);
+  }
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
