@@ -42,16 +42,9 @@ L’objectif principal du projet est de centraliser les données clients, de str
 Pour répondre à ces besoins, une architecture complète a été mise en place, reposant sur un frontend développé avec Next.js, un backend construit avec NestJS exposant une API REST, ainsi qu’une base de données PostgreSQL. L’ensemble de l’application est déployé sur un VPS Linux à l’aide de Docker, avec une approche multi-applications et un début d’automatisation via des pipelines CI/CD.
 Ce projet a permis de mobiliser et de développer des compétences clés en conception d’applications, en développement web full-stack, en gestion de bases de données, en sécurité applicative et en déploiement d’infrastructures.
 Il met également en évidence une progression réalisée en grande partie en autonomie, avec une montée en compétences progressive basée sur la pratique, l’expérimentation et l’adaptation aux besoins rencontrés.
-Abstract (English)
-This document is part of the Application Developer Designer (CDA) training program at MyDigitalSchool Angers. It presents the design, development, and deployment of a web application dedicated to managing regulatory compliance (AML/CFT – Anti-Money Laundering / Counter-Terrorism Financing), developed during an internship at the consulting firm QW.
-The main objective of the project is to centralize client data, structure compliance monitoring processes, and improve traceability through a secure and maintainable platform.
-To achieve these goals, a full-stack architecture was implemented, including a frontend built with Next.js, a backend developed with NestJS exposing a REST API, and a PostgreSQL database. The application is deployed on a Linux VPS using Docker, with a multi-application setup and initial CI/CD pipelines.
-This project enabled the development of key skills in application design, full-stack web development, database management, application security, and infrastructure deployment.
-It also highlights a learning approach based largely on autonomy, with progressive skill acquisition driven by practical implementation, experimentation, and adaptation to real-world requirements.
 Sommaire
 Remerciements	2
 Résumé	3
-Abstract (English)	3
 Sommaire	4
 Liste des acronymes	9
 1. Introduction	10
@@ -85,7 +78,16 @@ Liste des acronymes	9
 6.3.3 Evaluation des risques	19
 6.3.4 Validation d'un dossier	20
 6.4 Maquettes	21
-7. Conception technique	22
+6.4.1 Wireframes	21
+6.4.2 Maquettes	22
+6.5 Conception de la base de données	23
+6.5.1 Dictionnaire de données	23
+6.5.2 MCD (Modèle Conceptuel de Données)	23
+Entités	23
+Associations, liaisons et cardinalités	23
+6.5.3 MCD (Modèle Logique de Données)	25
+6.5.3 MPD (Modèle Physique de Données)	25
+7. Conception technique	26
 7.1 Architecture globale	22
 7.1.1 Frontend / Backend / Base de données	22
 7.1.2 Cartographie technique	22
@@ -98,11 +100,9 @@ Liste des acronymes	9
 7.3.2 Modules métier	23
 7.3.3 Services métier	23
 7.4 Base de données	24
-7.4.1 PostgreSQL	24
-CONCEPTION MERISE	24
-Tables principales	24
-7.4.2 Redis	24
-7.4.3 Stockage de documents	24
+7.4.1 PostgreSQL	28
+7.4.2 Redis	28
+7.4.3 Stockage de documents	28
 8. Réalisation technique	25
 8.1 Environnement de développement	25
 8.1.1 VPS et Linux	25
@@ -150,14 +150,14 @@ Matrice des droits par opération	32
 8.7.1 Stratégie de tests	38
 8.7.2 Cas de tests	38
 8.7.3 Résultats	38
-8.8 Déploiement & infrastructure	39
-8.8.1 Architecture de déploiement	39
-8.8.2 Cartographie de déploiement	39
-8.8.3 Environnement de test (staging)	40
-8.8.4 Procédure de déploiement (CD)	40
-8.8.5 Monitoring de l'infrastructure	40
-Application VPS Monitor	40
-Fonctionnalités	40
+8.8 Déploiement & infrastructure	44
+8.8.1 Cartographie de déploiement	44
+8.8.2 Architecture de déploiement	45
+8.8.3 Environnement de test (staging)	45
+8.8.4 Procédure de déploiement (CD)	45
+8.8.5 Monitoring de l'infrastructure	45
+Application VPS Monitor	45
+Fonctionnalités	46
 8.9 CI / CD	41
 8.9.1 Intégration continue (CI)	41
 Qualité du code	41
@@ -180,57 +180,63 @@ Hooks locaux (Husky)	41
 9.4 Améliorations possibles	46
 9.5 Perspectives	46
 10. Conclusion	47
-Annexes	48
-USE CASE	48
-Diagrammes séquence	48
-Mise à jour KYC	48
-Validation d’un dossier	49
-Annexes — VPS Monitor	49
-A1. Architecture globale	49
-A2. Diagramme de séquence — Authentification	51
-A3. Diagramme de séquence — Cycle de monitoring	52
-A4. Diagramme de séquence — Action Docker	52
-A5. Routing — Page d'accueil selon session	53
-A6. Endpoints API	53
-A7. Structure des fichiers	55
-A8. Pipeline CI/CD (VPS Monitor)	56
-Annexes — CI/CD	57
-B1. Vue d'ensemble des workflows	57
-B2. Diagramme — Intégration continue (PR)	58
-B3. Diagramme — Déploiement continu (CD)	58
-B4. Diagramme — Release automatique	59
-B5. Stratégie de branches	60
-B6. Contenu des workflows principaux	60
-ci.yml	60
-deploy.yml	61
-release.yml (extrait — logique de versioning)	62
-Annexes — C. Code QWapp	62
-C1. Entité User (TypeORM)	62
-C2. Route de login — POST /api/auth/login	63
-C3. JwtAuthGuard	63
-C4. RolesGuard	64
-C5. Hook useAuth (Next.js)	64
-C6. LoginForm — soumission du formulaire	65
-C7. Helper apiFetch	65
-C8. Layout du dashboard (dashboard/layout.tsx)	66
-C9. Composant SectionCards	66
-C10. Entité Client (TypeORM)	67
-Annexes — D. Infrastructure VPS	68
-D1. docker-compose.yml — Orchestration multi-applications	68
-D2. Configuration Nginx — Reverse proxy	71
-D3. Tableau de routage — Ports et routes	74
-D4. Procédure de configuration du serveur VPS	74
-1. Connexion initiale et mise à jour du système	74
-2. Création d'un utilisateur dédié	75
-3. Sécurisation de l'accès SSH	75
-4. Configuration du pare-feu (UFW)	75
-5. Installation de Docker	76
-6. Installation de Nginx	77
-7. Structure des dossiers de travail	77
-8. Configuration Nginx	77
-9. Démarrage des applications	77
-10. Vérification finale	78
-Récapitulatif — ordre des opérations	78
+Annexes	53
+USE CASE	53
+Diagrammes séquence	53
+Mise à jour KYC	53
+Validation d’un dossier	54
+Base de données	55
+Dictionnaire de données	55
+MPD	58
+Types énumérés (PostgreSQL ENUM)	58
+Tables	59
+Captures d’écran	64
+Documentation technique — VPS Monitor	65
+A1. Architecture globale	65
+A2. Diagramme de séquence — Authentification	66
+A3. Diagramme de séquence — Cycle de monitoring	67
+A4. Diagramme de séquence — Action Docker	67
+A5. Routing — Page d’accueil selon session	68
+A6. Endpoints API	68
+A7. Structure des fichiers	70
+A8. Pipeline CI/CD (VPS Monitor)	71
+Annexes — CI/CD	72
+B1. Vue d’ensemble des workflows	72
+B2. Diagramme — Intégration continue (PR)	73
+B3. Diagramme — Déploiement continu (CD)	73
+B4. Diagramme — Release automatique	74
+B5. Stratégie de branches	75
+B6. Contenu des workflows principaux	75
+ci.yml	75
+deploy.yml	76
+release.yml (extrait — logique de versioning)	77
+Annexes — C. Code QWapp	77
+C1. Entité User (TypeORM)	77
+C2. Route de login — POST /api/auth/login	78
+C3. JwtAuthGuard	78
+C4. RolesGuard	79
+C5. Hook useAuth (Next.js)	79
+C6. LoginForm — soumission du formulaire	80
+C7. Helper apiFetch	80
+C8. Layout du dashboard (dashboard/layout.tsx)	81
+C9. Composant SectionCards	81
+C10. Entité Client (TypeORM)	82
+Annexes — D. Infrastructure VPS	83
+D1. docker-compose.yml — Orchestration multi-applications	83
+D2. Configuration Nginx — Reverse proxy	86
+D3. Tableau de routage — Ports et routes	89
+D4. Procédure de configuration du serveur VPS	89
+1. Connexion initiale et mise à jour du système	89
+2. Création d’un utilisateur dédié	90
+3. Sécurisation de l’accès SSH	90
+4. Configuration du pare-feu (UFW)	90
+5. Installation de Docker	91
+6. Installation de Nginx	92
+7. Structure des dossiers de travail	92
+8. Configuration Nginx	92
+9. Démarrage des applications	92
+10. Vérification finale	93
+Récapitulatif — ordre des opérations	93
 
 Liste des acronymes
 API — Application Programming Interface : interface permettant la communication entre différentes applications
@@ -392,10 +398,81 @@ Administrateur : gestion des comptes, des rôles, des paramètres système et su
 6.3.4 Validation d'un dossier
 
 6.4 Maquettes
-Dashboard
-Fiche client
-Gestion des dossiers
+6.4.1 Wireframes
 
+6.4.2 Maquettes
+
+
+
+6.5 Conception de la base de données
+La base de données de QW-app est conçue selon la méthodologie Merise, en trois étapes successives : MCD → MLD → MPD. Le SGBD retenu est PostgreSQL 16, accédé via TypeORM (ORM TypeScript).
+6.5.1 Dictionnaire de données
+Le dictionnaire recense l'ensemble des informations à stocker dans la base de données. Voir l'annexe Base de données - Dictionnaire de données.
+6.5.2 MCD (Modèle Conceptuel de Données)
+Le schéma visuel du MCD est à réaliser avec Looping ou JMerise à partir des entités et associations ci-dessous.
+Entités
+Entité
+Propriétés principales
+UTILISATEUR
+id, email, password_hash, role, prenom, nom, is_active, last_login_at
+CLIENT
+id, reference, prenom, nom, raison_sociale, email, telephone, statut, deleted_at
+KYC
+id, nationalite, pays_residence, secteur_activite, forme_juridique, est_pep, pays_haut_risque, chiffre_affaires
+DOCUMENT
+id, nom_fichier, chemin_stockage, type_mime, taille
+SCORE_RISQUE
+id, score, niveau, details, calculated_at
+AUDIT_LOG
+id, action, entite_type, entite_id, details, created_at
+
+Associations, liaisons et cardinalités
+
+UTILISATEUR (1,n) ────── crée ────── (0,n) CLIENT
+   Un utilisateur peut créer 0 ou plusieurs clients.
+   Un client est créé par exactement 1 utilisateur.
+UTILISATEUR (0,n) ──── valide ──── (0,1) CLIENT
+   Un utilisateur peut valider 0 ou plusieurs dossiers.
+   Un client peut être validé par au plus 1 utilisateur.
+CLIENT (1,1) ──── possède ──── (1,1) KYC
+   Un client possède exactement 1 fiche KYC.
+   Une fiche KYC appartient à exactement 1 client.
+CLIENT (1,n) ──── détient ──── (0,n) DOCUMENT
+   Un client peut avoir 0 ou plusieurs documents.
+   Un document est rattaché à exactement 1 client.
+UTILISATEUR (1,n) ── uploade ── (0,n) DOCUMENT
+   Un utilisateur peut uploader 0 ou plusieurs documents.
+   Un document est uploadé par exactement 1 utilisateur.
+CLIENT (1,n) ──── fait_lobjet ──── (0,n) SCORE_RISQUE
+   Un client peut avoir 0 ou plusieurs scores (historique).
+   Un score concerne exactement 1 client.
+UTILISATEUR (1,n) ── calcule ── (0,n) SCORE_RISQUE
+   Un utilisateur peut calculer 0 ou plusieurs scores.
+   Un score est calculé par exactement 1 utilisateur.
+UTILISATEUR (1,n) ──── genere ──── (0,n) AUDIT_LOG
+   Un utilisateur peut générer 0 ou plusieurs entrées d'audit.
+   Une entrée d'audit est générée par exactement 1 utilisateur.
+
+
+6.5.3 MCD (Modèle Logique de Données)
+Traduction du MCD en tables relationnelles. Les clés primaires sont en MAJUSCULES, les clés étrangères entre [crochets].
+UTILISATEUR (ID, email, password_hash, role, prenom, nom, is_active, last_login_at, created_at, updated_at)
+CLIENT (ID, reference, prenom, nom, raison_sociale, email, telephone, statut, deleted_at, created_at, updated_at,
+        [id_createur → UTILISATEUR.id], [id_validateur → UTILISATEUR.id])
+KYC (ID, nationalite, pays_residence, secteur_activite, forme_juridique, est_pep, pays_haut_risque,
+     chiffre_affaires, created_at, updated_at,
+     [id_client → CLIENT.id])                    ← relation 1-1 (UNIQUE)
+DOCUMENT (ID, nom_fichier, chemin_stockage, type_mime, taille, created_at,
+          [id_client → CLIENT.id], [id_utilisateur → UTILISATEUR.id])
+SCORE_RISQUE (ID, score, niveau, details, calculated_at,
+              [id_client → CLIENT.id], [id_utilisateur → UTILISATEUR.id])
+AUDIT_LOG (ID, action, entite_type, entite_id, details, created_at,
+           [id_utilisateur → UTILISATEUR.id])
+
+
+
+6.5.3 MPD (Modèle Physique de Données)
+Implémentation concrète pour PostgreSQL 16 avec TypeORM. Les types sont définis précisément, les contraintes d'intégrité et les index sont inclus. Voir l'annexe Base de données - MPD.
 
 Conception technique
 7.1 Architecture globale
@@ -435,8 +512,6 @@ Services utilitaires : validation, règles métier transverses.
 7.4 Base de données
 7.4.1 PostgreSQL
 PostgreSQL a été choisi pour sa robustesse, sa fiabilité et sa conformité aux standards SQL. Il permet de gérer efficacement des données structurées avec des relations complexes, ce qui correspond parfaitement aux besoins d'une application de gestion de conformité où l'intégrité des données est primordiale.
-CONCEPTION MERISE
-TODO MCD MLD MPD
 Tables principales
 clients : informations d'identification et données KYC ;
 dossiers : informations liées aux dossiers de conformité ;
@@ -790,7 +865,9 @@ Une validation automatisée des fonctionnalités critiques.
 
 
 8.8 Déploiement & infrastructure
-8.8.1 Architecture de déploiement
+8.8.1 Cartographie de déploiement
+
+8.8.2 Architecture de déploiement
 L'application est déployée sur un VPS (Virtual Private Server) utilisé comme environnement de test, reproduisant des conditions proches de la production.
 Le VPS héberge l'ensemble des composants :
 Frontend (Next.js)
@@ -800,7 +877,6 @@ Cache (Redis)
 Outils annexes (monitoring)
 Tous les services sont conteneurisés via Docker et orchestrés avec docker-compose, garantissant reproductibilité, isolation et simplicité de déploiement.
 Nginx assure la répartition des requêtes entre les différentes applications selon la configuration définie.
-8.8.2 Cartographie de déploiement
 8.8.3 Environnement de test (staging)
 L'application est déployée dans un environnement de type staging, permettant de valider les développements dans des conditions proches de la production, sans utilisateurs réels. Aucune mise en production réelle n'a été effectuée dans le cadre du projet.
 8.8.4 Procédure de déploiement (CD)
@@ -974,12 +1050,13 @@ Mise à jour KYC
 
 Validation d’un dossier
 
-Maquettes
-MCD / MLD
-Captures d'écran
-Documentation technique
-
-Annexes — VPS Monitor
+Base de données
+Dictionnaire de données
+MPD
+Types énumérés (PostgreSQL ENUM)
+Tables
+Captures d’écran
+Documentation technique — VPS Monitor
 A1. Architecture globale
 ┌─────────────────────────────────────────────────────────────────┐
 │                        VPS (Ubuntu)                             │

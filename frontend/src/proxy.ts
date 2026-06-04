@@ -2,9 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { decodeToken, getDashboardPath } from "@/lib/auth";
 
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+
 export function proxy(request: NextRequest) {
-  const token = request.cookies.get("qw_token")?.value;
   const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith("/api/")) {
+    const target = new URL(BACKEND_URL + pathname + request.nextUrl.search);
+    return NextResponse.rewrite(target);
+  }
+
+  const token = request.cookies.get("qw_token")?.value;
 
   const payload = token ? decodeToken(token) : null;
   const isAuthenticated = !!payload && payload.exp * 1000 > Date.now();
@@ -35,5 +43,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/dashboard/:path*"],
+  matcher: ["/", "/login", "/dashboard/:path*", "/api/:path*"],
 };
