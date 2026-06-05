@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   IconLayoutDashboard,
   IconUsers,
+  IconUserSearch,
   IconShieldCheck,
   IconSettings,
   IconLogout,
@@ -27,6 +28,7 @@ const NAV: NavItem[] = [
     exact: true,
   },
   { href: "/dashboard/clients", label: "Clients", icon: IconUsers },
+  { href: "/dashboard/prospects", label: "Prospects", icon: IconUserSearch },
   { href: "/dashboard/scoring", label: "Scoring", icon: IconShieldCheck },
 ];
 
