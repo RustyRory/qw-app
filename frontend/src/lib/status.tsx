@@ -5,6 +5,9 @@ export const STATUS_LABEL: Record<string, string> = {
   en_cours: "En cours",
   valide: "Validé",
   rejete: "Rejeté",
+  nouveau: "Nouveau",
+  en_analyse: "En analyse",
+  converti: "Converti",
 };
 
 export const STATUS_CLASS: Record<string, string> = {
@@ -14,6 +17,9 @@ export const STATUS_CLASS: Record<string, string> = {
   en_cours: "bg-yellow-100 text-yellow-800",
   valide: "bg-green-100 text-green-800",
   rejete: "bg-red-100 text-red-800",
+  nouveau: "bg-blue-100 text-blue-800",
+  en_analyse: "bg-orange-100 text-orange-800",
+  converti: "bg-green-100 text-green-800",
 };
 
 export const RISK_LABEL: Record<string, string> = {

@@ -61,6 +61,21 @@ Le dictionnaire recense l'ensemble des informations à stocker dans la base de d
 | risk_scores | calculated_at | Date et heure du calcul du score |
 | risk_scores | id_client | Référence vers le client évalué |
 | risk_scores | id_utilisateur | Référence vers l'utilisateur ayant déclenché le calcul |
+| prospects | id | Identifiant unique (UUID) |
+| prospects | prenom | Prénom du prospect (personne physique) |
+| prospects | nom | Nom de famille du prospect |
+| prospects | raison_sociale | Raison sociale (personne morale, optionnel) |
+| prospects | email | Adresse e-mail du prospect |
+| prospects | telephone | Numéro de téléphone du prospect |
+| prospects | secteur_activite | Secteur d'activité (pré-qualification) |
+| prospects | pays_residence | Pays de résidence (pré-qualification) |
+| prospects | est_pep | Personne Politiquement Exposée (booléen, pré-qualification) |
+| prospects | notes | Notes libres sur le prospect |
+| prospects | statut | Statut : nouveau · en_analyse · converti · rejete |
+| prospects | client_id | Référence vers le client créé lors de la conversion (nullable) |
+| prospects | created_at | Date de création |
+| prospects | updated_at | Date de dernière modification |
+| prospects | id_createur | Référence vers l'utilisateur ayant créé le prospect |
 | audit_logs | id | Identifiant unique (UUID) |
 | audit_logs | action | Type d'action : CREATE · UPDATE · DELETE · READ · VALIDATE · LOGIN |
 | audit_logs | entite_type | Type d'entité concernée (client, kyc, document…) |
@@ -84,6 +99,7 @@ Le dictionnaire recense l'ensemble des informations à stocker dans la base de d
 | **KYC** | id, nationalite, pays_residence, secteur_activite, forme_juridique, est_pep, pays_haut_risque, chiffre_affaires |
 | **DOCUMENT** | id, nom_fichier, chemin_stockage, type_mime, taille |
 | **SCORE_RISQUE** | id, score, niveau, details, calculated_at |
+| **PROSPECT** | id, prenom, nom, raison_sociale, email, telephone, secteur_activite, pays_residence, est_pep, notes, statut, client_id |
 | **AUDIT_LOG** | id, action, entite_type, entite_id, details, created_at |
 
 ### Associations, liaisons et cardinalités
@@ -120,6 +136,14 @@ UTILISATEUR (1,n) ── calcule ── (0,n) SCORE_RISQUE
 UTILISATEUR (1,n) ──── genere ──── (0,n) AUDIT_LOG
    Un utilisateur peut générer 0 ou plusieurs entrées d'audit.
    Une entrée d'audit est générée par exactement 1 utilisateur.
+
+UTILISATEUR (1,n) ──── cree ──── (0,n) PROSPECT
+   Un utilisateur peut créer 0 ou plusieurs prospects.
+   Un prospect est créé par exactement 1 utilisateur.
+
+PROSPECT (0,1) ──── converti_en ──── (0,1) CLIENT
+   Un prospect peut être converti en au plus 1 client.
+   Un client peut avoir été issu de la conversion d'un prospect (optionnel).
 ```
 
 ---
@@ -146,6 +170,11 @@ SCORE_RISQUE (ID, score, niveau, details, calculated_at,
 
 AUDIT_LOG (ID, action, entite_type, entite_id, details, created_at,
            [id_utilisateur → UTILISATEUR.id])
+
+PROSPECT (ID, prenom, nom, raison_sociale, email, telephone, secteur_activite,
+          pays_residence, est_pep, notes, statut, client_id, created_at, updated_at,
+          [id_createur → UTILISATEUR.id])
+          client_id est nullable — renseigné uniquement si statut = 'converti'
 ```
 
 > **À retenir :** le MLD est encore indépendant du SGBD. La relation 1-1 entre CLIENT et KYC est matérialisée par une contrainte `UNIQUE` sur `kyc.id_client`. Le soft delete (RGPD, rétention 5 ans) est géré par le champ `deleted_at` sur CLIENT.
@@ -185,6 +214,13 @@ CREATE TYPE audit_action AS ENUM (
     'READ',
     'VALIDATE',
     'LOGIN'
+);
+
+CREATE TYPE prospect_statut AS ENUM (
+    'nouveau',
+    'en_analyse',
+    'converti',
+    'rejete'
 );
 ```
 
@@ -278,6 +314,29 @@ CREATE TABLE risk_scores (
 );
 
 -- ================================================================
+-- PROSPECTS (pré-qualification — suppression hard autorisée)
+-- ================================================================
+CREATE TABLE prospects (
+    id               UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
+    prenom           VARCHAR(100)     NOT NULL,
+    nom              VARCHAR(100)     NOT NULL,
+    raison_sociale   VARCHAR(200),
+    email            VARCHAR(255),
+    telephone        VARCHAR(20),
+    secteur_activite VARCHAR(200),
+    pays_residence   VARCHAR(100),
+    est_pep          BOOLEAN          NOT NULL DEFAULT FALSE,
+    notes            TEXT,
+    statut           prospect_statut  NOT NULL DEFAULT 'nouveau',
+    client_id        UUID,                                        -- renseigné si converti
+    created_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+    id_createur      UUID             NOT NULL,
+    FOREIGN KEY (id_createur) REFERENCES users(id)
+    -- Pas de FK sur client_id : le client peut exister indépendamment
+);
+
+-- ================================================================
 -- AUDIT LOGS (traçabilité RGPD — conservation 5 ans)
 -- ================================================================
 CREATE TABLE audit_logs (
@@ -310,17 +369,21 @@ CREATE INDEX idx_audit_logs_created_at     ON audit_logs(created_at DESC);
 
 -- Documents : recherche par client
 CREATE INDEX idx_documents_id_client ON documents(id_client);
+
+-- Prospects : filtrage par statut et créateur
+CREATE INDEX idx_prospects_statut      ON prospects(statut);
+CREATE INDEX idx_prospects_id_createur ON prospects(id_createur);
 ```
 
 ### Vue d'ensemble des relations
 
 ```
 users ──────────────────────────────────────────────────────────┐
-  │ (1,n) crée                                                   │
-  │                                                              │ (1,n) génère
-  ▼ (0,n)                                                        ▼
-clients ──(1,1)──► kyc                                      audit_logs
-  │
+  │ (1,n) crée                           │ (1,n) crée           │
+  │                                      ▼ (0,n)                │ (1,n) génère
+  ▼ (0,n)                            prospects                  ▼
+clients ──(1,1)──► kyc                  │ (0,1) converti_en    audit_logs
+  │ ◄──────────────────────────────────┘
   ├──(1,n)──► documents ◄──(0,n)── users
   │
   └──(1,n)──► risk_scores ◄──(0,n)── users

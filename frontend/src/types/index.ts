@@ -60,6 +60,25 @@ export interface ClientDocument {
   createdAt: string;
 }
 
+export type ProspectStatut = "nouveau" | "en_analyse" | "converti" | "rejete";
+
+export interface Prospect {
+  id: string;
+  prenom: string;
+  nom: string;
+  raisonSociale?: string | null;
+  email?: string | null;
+  telephone?: string | null;
+  secteurActivite?: string | null;
+  paysResidence?: string | null;
+  estPep: boolean;
+  notes?: string | null;
+  statut: ProspectStatut;
+  clientId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditLog {
   id: string;
   action: string;

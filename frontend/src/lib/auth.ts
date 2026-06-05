@@ -8,8 +8,11 @@ export interface JwtPayload {
 export function decodeToken(token: string): JwtPayload | null {
   try {
     const payload = token.split(".")[1];
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const json = Buffer.from(base64, "base64").toString("utf-8");
+    const base64 = payload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const json = atob(base64);
     return JSON.parse(json) as JwtPayload;
   } catch {
     return null;
