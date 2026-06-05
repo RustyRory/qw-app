@@ -7,10 +7,10 @@ import { apiFetch } from "@/lib/apiFetch";
 import { StatusBadge } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Client } from "@/types";
+import type { Prospect } from "@/types";
 
-export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
+export default function ProspectsPage() {
+  const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -18,8 +18,8 @@ export default function ClientsPage() {
   function load() {
     setLoading(true);
     setError(null);
-    apiFetch<Client[]>("/clients")
-      .then(setClients)
+    apiFetch<Prospect[]>("/prospects")
+      .then(setProspects)
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Erreur de chargement");
       })
@@ -31,23 +31,23 @@ export default function ClientsPage() {
     load();
   }, []);
 
-  const filtered = clients.filter((c) => {
+  const filtered = prospects.filter((p) => {
     const q = search.toLowerCase();
     return (
-      `${c.prenom} ${c.nom}`.toLowerCase().includes(q) ||
-      (c.email ?? "").toLowerCase().includes(q) ||
-      c.reference.toLowerCase().includes(q)
+      `${p.prenom} ${p.nom}`.toLowerCase().includes(q) ||
+      (p.email ?? "").toLowerCase().includes(q) ||
+      (p.secteurActivite ?? "").toLowerCase().includes(q)
     );
   });
 
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Clients</h1>
+        <h1 className="text-xl font-semibold">Prospects</h1>
         <Button asChild size="sm">
-          <Link href="/dashboard/clients/new">
+          <Link href="/dashboard/prospects/new">
             <IconPlus className="size-4" />
-            Nouveau client
+            Nouveau prospect
           </Link>
         </Button>
       </div>
@@ -55,7 +55,7 @@ export default function ClientsPage() {
       <div className="relative">
         <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Rechercher par nom, email ou référence…"
+          placeholder="Rechercher par nom, email ou secteur…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -67,13 +67,13 @@ export default function ClientsPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Référence
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                 Nom
               </th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                 Email
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                Secteur
               </th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                 Statut
@@ -112,33 +112,30 @@ export default function ClientsPage() {
                   colSpan={6}
                   className="px-4 py-8 text-center text-muted-foreground"
                 >
-                  Aucun client trouvé
+                  Aucun prospect trouvé
                 </td>
               </tr>
             ) : (
-              filtered.map((client) => (
-                <tr
-                  key={client.id}
-                  className="transition-colors hover:bg-muted/30"
-                >
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {client.reference}
-                  </td>
+              filtered.map((p) => (
+                <tr key={p.id} className="transition-colors hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">
-                    {client.prenom} {client.nom}
+                    {p.prenom} {p.nom}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {client.email ?? "—"}
+                    {p.email ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {p.secteurActivite ?? "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={client.statut} />
+                    <StatusBadge status={p.statut} />
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(client.createdAt).toLocaleDateString("fr-FR")}
+                    {new Date(p.createdAt).toLocaleDateString("fr-FR")}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      href={`/dashboard/clients/${client.id}`}
+                      href={`/dashboard/prospects/${p.id}`}
                       className="text-xs text-primary hover:underline"
                     >
                       Voir →

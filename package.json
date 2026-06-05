@@ -15,7 +15,7 @@
     "prepare": "husky",
     "infra:up": "docker compose -f deployment/docker-compose.dev.yml up -d",
     "infra:down": "docker compose -f deployment/docker-compose.dev.yml down",
-    "dev": "concurrently \"PORT=3001 npm run start --prefix backend\" \"npm run dev --prefix frontend\""
+    "dev": "concurrently \"PORT=3001 npm run start --prefix backend\" \"wait-on tcp:localhost:3001 && npm run dev --prefix frontend\""
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
@@ -24,7 +24,8 @@
     "eslint": "^10.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "wait-on": "^9.0.10"
   },
   "dependencies": {
     "ansi-escapes": "^7.3.0",

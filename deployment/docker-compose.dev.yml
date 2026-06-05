@@ -1,3 +1,5 @@
+name: qw-app-dev
+
 services:
   qw-app-postgres:
     image: postgres:16-alpine
