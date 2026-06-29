@@ -293,6 +293,7 @@ Créer une entité par table dans `backend/src/*/entities/` :
 | `Document` | `documents/entities/document.entity.ts` | ManyToOne → Client, User |
 | `RiskScore` | `scoring/entities/risk-score.entity.ts` | ManyToOne → Client, User |
 | `AuditLog` | `audit/entities/audit-log.entity.ts` | ManyToOne → User |
+| `Prospect` | `prospects/entities/prospect.entity.ts` | ManyToOne → User (createur), lien souple vers Client via `clientId` |
 
 Points clés :
 - Tous les ID : `@PrimaryGeneratedColumn('uuid')`
@@ -434,7 +435,26 @@ backend/src/
    - Enregistrer un audit `CREATE`
 2. `GET /api/scoring/:clientId` — historique des scores
 
-#### Étape 7 — AuditModule
+#### Étape 7 — ProspectsModule
+
+1. `POST /api/prospects` — créer un prospect (collaborateur, responsable, admin)
+   - Informations de pré-qualification (prenom, nom, secteur, est_pep…)
+   - Enregistrer un audit `CREATE`
+2. `GET /api/prospects` — liste filtrée par rôle :
+   - Collaborateur : uniquement ses propres prospects
+   - Responsable / Expert / Admin : tous les prospects
+3. `GET /api/prospects/:id` — détail
+4. `PATCH /api/prospects/:id` — modifier (interdit si statut = `converti`)
+5. `POST /api/prospects/:id/convert` — convertir en client
+   - Crée un `Client` avec les données du prospect + référence `QW-YYYY-XXX`
+   - Crée une `Kyc` vide pré-remplie (secteur, pays, est_pep)
+   - Passe le prospect en statut `converti`, stocke le `clientId`
+   - Audite la création du client et la conversion du prospect
+   - Retourne le `Client` créé
+6. `DELETE /api/prospects/:id` — suppression hard (interdit si statut = `converti`)
+   - Pas de soft delete : un prospect non converti n'a pas d'obligation de rétention LCB-FT
+
+#### Étape 8 — AuditModule
 
 Le service d'audit est injecté dans tous les autres services. Il est rarement appelé directement via HTTP.
 
@@ -652,7 +672,6 @@ Les workflows sont organisés en deux couches :
 | `release.yml` | Push sur `main` depuis `dev` | Calcul SemVer mineur, tag Git, création GitHub Release |
 | `hotfix-release.yml` | Push sur `main` depuis `hotfix/*` | Calcul SemVer patch, tag Git, ouverture automatique d'une PR de sync `main` → `dev` |
 
-> `ticket.yml` est supprimé : la vérification du numéro d'issue est déjà assurée par `commit-msg.yml` qui impose `Fixes #<issue>` dans le message de commit.
 
 ### 8.3 Workflow orchestrateur (`ci.yml`)
 
@@ -923,18 +942,20 @@ git push origin feat/42-creation-client
 | 8 | KycModule | Fiches KYC éditables |
 | 9 | ScoringModule | Calcul et historique des scores |
 | 10 | DocumentsModule | Upload + téléchargement sécurisé |
-| 11 | AuditModule | Traçabilité de toutes les actions |
-| 12 | Page login (frontend) | Connexion + redirection |
-| 13 | Layout dashboard + useAuth | Navigation protégée |
-| 14 | Page dashboard (vue globale) | SectionCards + liste clients |
-| 15 | Pages clients (liste + fiche) | CRUD complet |
-| 16 | Formulaire KYC | Édition inline dans la fiche client |
-| 17 | Onglet documents | Upload + liste + téléchargement |
-| 18 | Onglet scoring | Affichage + recalcul |
-| 19 | Page admin | Gestion des utilisateurs |
-| 20 | Tests unitaires backend | Couverture des services critiques |
-| 21 | CI GitHub Actions | lint + tests + audit sur chaque PR |
-| 22 | Config VPS + Nginx | Serveur accessible en HTTPS |
-| 23 | docker-compose.yml production | Images construites et déployables |
-| 24 | Workflow deploy.yml | Déploiement automatique sur staging |
-| 25 | Release 1.0.0 | Merge dev → main + tag Git |
+| 11 | ProspectsModule | Gestion des prospects + conversion en client |
+| 12 | AuditModule | Traçabilité de toutes les actions |
+| 13 | Page login (frontend) | Connexion + redirection |
+| 14 | Layout dashboard + middleware | Navigation protégée |
+| 15 | Page dashboard (vue globale) | SectionCards + liste clients |
+| 16 | Pages clients (liste + fiche) | CRUD complet |
+| 17 | Formulaire KYC | Édition inline dans la fiche client |
+| 18 | Onglet documents | Upload + liste + téléchargement |
+| 19 | Onglet scoring | Affichage + recalcul |
+| 20 | Pages prospects (liste + fiche) | CRUD + bouton "Convertir en client" |
+| 21 | Page admin | Gestion des utilisateurs |
+| 22 | Tests unitaires backend | Couverture des services critiques |
+| 23 | CI GitHub Actions | lint + tests + audit sur chaque PR |
+| 24 | Config VPS + Nginx | Serveur accessible en HTTPS |
+| 25 | docker-compose.yml production | Images construites et déployables |
+| 26 | Workflow deploy.yml | Déploiement automatique sur staging |
+| 27 | Release 1.0.0 | Merge dev → main + tag Git |

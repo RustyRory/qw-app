@@ -9,9 +9,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+    ports:
+      - "127.0.0.1:3008:3001"
     depends_on:
-      - qw-app-postgres
-      - qw-app-redis
+      qw-app-postgres:
+        condition: service_healthy
+      qw-app-redis:
+        condition: service_started
   qw-app-frontend:
     build:
       context: ../frontend
@@ -32,6 +36,11 @@ services:
     env_file: .env
     volumes:
       - qw_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   qw-app-redis:
     image: redis:7-alpine
     container_name: qw-app-redis
