@@ -2,17 +2,20 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  CreateDateColumn,
   ManyToOne,
   JoinColumn,
   Index,
 } from 'typeorm';
 import { Client } from '../../clients/entities/client.entity';
 import { User } from '../../users/entities/user.entity';
+import { NiveauRisque } from '../../common/enums';
 
-export enum RiskNiveau {
-  FAIBLE = 'faible',
-  MOYEN = 'moyen',
-  ELEVE = 'eleve',
+export interface ArpecReponses {
+  clientCaracteristiques: number; // 0-50
+  activiteSecteur: number; // 0-40
+  zoneGeographique: number; // 0-30
+  typeMission: number; // 0-30
 }
 
 @Entity('risk_scores')
@@ -21,23 +24,23 @@ export class RiskScore {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'smallint' })
+  @Column({ type: 'integer' })
   score: number;
 
-  @Column({ type: 'enum', enum: RiskNiveau })
-  niveau: RiskNiveau;
+  @Column({ type: 'enum', enum: NiveauRisque })
+  niveau: NiveauRisque;
 
-  @Column({ type: 'jsonb', nullable: true })
-  details: Record<string, unknown> | null;
+  @Column({ type: 'jsonb' })
+  reponses: ArpecReponses;
 
-  @Column({ type: 'timestamptz', default: () => 'NOW()' })
-  calculatedAt: Date;
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date;
 
   @ManyToOne(() => Client, (client) => client.riskScores, { nullable: false })
   @JoinColumn({ name: 'id_client' })
   client: Client;
 
-  @ManyToOne(() => User, (user) => user.riskScores, { nullable: false })
+  @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_utilisateur' })
   utilisateur: User;
 }

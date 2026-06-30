@@ -2,9 +2,15 @@ import 'reflect-metadata';
 import { config } from 'dotenv';
 import { hash } from 'bcrypt';
 import { AppDataSource } from '../data-source';
-import { User, UserRole } from '../users/entities/user.entity';
-import { Client, ClientStatut } from '../clients/entities/client.entity';
-import { Kyc } from '../kyc/entities/kyc.entity';
+import { User } from '../users/entities/user.entity';
+import { Client } from '../clients/entities/client.entity';
+import {
+  Role,
+  StatutClient,
+  StatutKyc,
+  ScreeningStatut,
+  TypeEntite,
+} from '../common/enums';
 
 config();
 
@@ -13,7 +19,6 @@ async function seed() {
 
   const userRepo = AppDataSource.getRepository(User);
   const clientRepo = AppDataSource.getRepository(Client);
-  const kycRepo = AppDataSource.getRepository(Kyc);
 
   const existingAdmin = await userRepo.findOneBy({
     email: 'admin@qwconseil.fr',
@@ -28,7 +33,7 @@ async function seed() {
   const admin = userRepo.create({
     email: 'admin@qwconseil.fr',
     passwordHash: await hash('Admin1234!', 12),
-    role: UserRole.ADMIN,
+    role: Role.ADMIN,
     prenom: 'Alice',
     nom: 'Martin',
     isActive: true,
@@ -37,7 +42,7 @@ async function seed() {
   const responsable = userRepo.create({
     email: 'responsable@qwconseil.fr',
     passwordHash: await hash('Resp1234!', 12),
-    role: UserRole.RESPONSABLE,
+    role: Role.RESPONSABLE,
     prenom: 'Claire',
     nom: 'Leroy',
     isActive: true,
@@ -46,7 +51,7 @@ async function seed() {
   const collaborateur = userRepo.create({
     email: 'collab@qwconseil.fr',
     passwordHash: await hash('Collab1234!', 12),
-    role: UserRole.COLLABORATEUR,
+    role: Role.COLLABORATEUR,
     prenom: 'Bob',
     nom: 'Dupont',
     isActive: true,
@@ -55,104 +60,75 @@ async function seed() {
   await userRepo.save([admin, responsable, collaborateur]);
   console.log('✓ Utilisateurs créés');
 
-  // ── Clients + KYC ─────────────────────────────────────────────
-  const clientsData = [
+  // ── Clients (KYC fusionné) ──────────────────────────────────────
+  const clientsData: Partial<Client>[] = [
     {
-      client: {
-        reference: 'QW-2024-001',
-        prenom: 'Jean',
-        nom: 'Durand',
-        email: 'jean.durand@example.com',
-        telephone: '0601020304',
-        statut: ClientStatut.VALIDE,
-        createur: admin,
-        validateur: admin,
-      },
-      kyc: {
-        nationalite: 'Française',
-        paysResidence: 'France',
-        secteurActivite: 'Commerce de détail',
-        formeJuridique: 'SARL',
-        estPep: false,
-        paysHautRisque: false,
-        chiffreAffaires: 250000,
-      },
+      ref: 'QW-2024-001',
+      raisonSociale: 'Jean Durand',
+      typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+      pays: 'France',
+      activitePrincipale: 'Commerce de détail',
+      formeJuridique: 'SARL',
+      chiffreAffaires: 250000,
+      statut: StatutClient.ACTIF,
+      kycStatut: StatutKyc.VALIDE,
+      ppe: false,
+      screeningStatut: ScreeningStatut.OK,
+      kycCompletedAt: new Date(),
+      kycValidatedBy: admin,
+      createdBy: admin,
     },
     {
-      client: {
-        reference: 'QW-2024-002',
-        prenom: 'Sophie',
-        nom: 'Bernard',
-        email: 'sophie.bernard@example.com',
-        telephone: '0607080910',
-        statut: ClientStatut.EN_COURS,
-        createur: collaborateur,
-        validateur: null,
-      },
-      kyc: {
-        nationalite: 'Française',
-        paysResidence: 'France',
-        secteurActivite: 'Conseil en management',
-        formeJuridique: 'SAS',
-        estPep: false,
-        paysHautRisque: false,
-        chiffreAffaires: 180000,
-      },
+      ref: 'QW-2024-002',
+      raisonSociale: 'Sophie Bernard',
+      typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+      pays: 'France',
+      activitePrincipale: 'Conseil en management',
+      formeJuridique: 'SAS',
+      chiffreAffaires: 180000,
+      statut: StatutClient.ACTIF,
+      kycStatut: StatutKyc.INCOMPLET,
+      ppe: false,
+      screeningStatut: ScreeningStatut.NON_EFFECTUE,
+      createdBy: collaborateur,
     },
     {
-      client: {
-        reference: 'QW-2024-003',
-        prenom: 'Carlos',
-        nom: 'Mendes',
-        email: 'carlos.mendes@example.com',
-        telephone: '0611121314',
-        statut: ClientStatut.EN_COURS,
-        createur: collaborateur,
-        validateur: null,
-      },
-      kyc: {
-        nationalite: 'Portugaise',
-        paysResidence: 'Portugal',
-        secteurActivite: 'Import / Export',
-        formeJuridique: 'auto-entrepreneur',
-        estPep: false,
-        paysHautRisque: false,
-        chiffreAffaires: 95000,
-      },
+      ref: 'QW-2024-003',
+      raisonSociale: 'Carlos Mendes',
+      typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+      pays: 'Portugal',
+      activitePrincipale: 'Import / Export',
+      formeJuridique: 'auto-entrepreneur',
+      chiffreAffaires: 95000,
+      statut: StatutClient.ACTIF,
+      kycStatut: StatutKyc.COMPLET,
+      ppe: false,
+      screeningStatut: ScreeningStatut.OK,
+      createdBy: collaborateur,
     },
     {
-      client: {
-        reference: 'QW-2024-004',
-        prenom: 'Laure',
-        nom: 'Petit',
-        raisonSociale: 'LP Holding',
-        email: 'laure.petit@lpholding.fr',
-        telephone: '0615161718',
-        statut: ClientStatut.REJETE,
-        createur: admin,
-        validateur: admin,
-      },
-      kyc: {
-        nationalite: 'Française',
-        paysResidence: 'Suisse',
-        secteurActivite: 'Finance',
-        formeJuridique: 'SA',
-        estPep: true,
-        paysHautRisque: true,
-        chiffreAffaires: 1200000,
-      },
+      ref: 'QW-2024-004',
+      raisonSociale: 'LP Holding',
+      typeEntite: TypeEntite.PERSONNE_MORALE,
+      pays: 'Suisse',
+      activitePrincipale: 'Finance',
+      formeJuridique: 'SA',
+      chiffreAffaires: 1200000,
+      statut: StatutClient.RESILIE,
+      kycStatut: StatutKyc.VALIDE,
+      ppe: true,
+      screeningStatut: ScreeningStatut.ALERTE,
+      kycCompletedAt: new Date(),
+      kycValidatedBy: admin,
+      createdBy: admin,
     },
   ];
 
-  for (const { client: clientData, kyc: kycData } of clientsData) {
-    const client = clientRepo.create(clientData);
-    await clientRepo.save(client);
-
-    const kyc = kycRepo.create({ ...kycData, client });
-    await kycRepo.save(kyc);
+  for (const data of clientsData) {
+    await clientRepo.save(clientRepo.create(data));
   }
 
-  console.log('✓ Clients et KYC créés');
+  console.log('✓ Clients créés');
   console.log('\nComptes de test :');
   console.log('  admin@qwconseil.fr         / Admin1234!');
   console.log('  responsable@qwconseil.fr  / Resp1234!');

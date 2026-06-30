@@ -2,13 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { RiskScore } from './entities/risk-score.entity';
-import { Kyc } from '../kyc/entities/kyc.entity';
 import { AuditLog } from '../audit/entities/audit-log.entity';
 import { ScoringController } from './scoring.controller';
 import { ScoringService } from './scoring.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([RiskScore, Kyc, AuditLog])],
+  imports: [TypeOrmModule.forFeature([RiskScore, AuditLog])],
   controllers: [ScoringController],
   providers: [
     ScoringService,

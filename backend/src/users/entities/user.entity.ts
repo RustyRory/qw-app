@@ -4,19 +4,9 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
+  DeleteDateColumn,
 } from 'typeorm';
-import { Client } from '../../clients/entities/client.entity';
-import { Document } from '../../documents/entities/document.entity';
-import { RiskScore } from '../../scoring/entities/risk-score.entity';
-import { AuditLog } from '../../audit/entities/audit-log.entity';
-
-export enum UserRole {
-  COLLABORATEUR = 'collaborateur',
-  RESPONSABLE = 'responsable',
-  EXPERT_COMPTABLE = 'expert-comptable',
-  ADMIN = 'admin',
-}
+import { Role } from '../../common/enums';
 
 @Entity('users')
 export class User {
@@ -29,8 +19,8 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   passwordHash: string;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.COLLABORATEUR })
-  role: UserRole;
+  @Column({ type: 'enum', enum: Role, default: Role.COLLABORATEUR })
+  role: Role;
 
   @Column({ type: 'varchar', length: 100 })
   prenom: string;
@@ -50,18 +40,6 @@ export class User {
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 
-  @OneToMany(() => Client, (client) => client.createur)
-  clientsCrees: Client[];
-
-  @OneToMany(() => Client, (client) => client.validateur)
-  clientsValides: Client[];
-
-  @OneToMany(() => Document, (document) => document.utilisateur)
-  documents: Document[];
-
-  @OneToMany(() => RiskScore, (riskScore) => riskScore.utilisateur)
-  riskScores: RiskScore[];
-
-  @OneToMany(() => AuditLog, (auditLog) => auditLog.utilisateur)
-  auditLogs: AuditLog[];
+  @DeleteDateColumn({ type: 'timestamptz' })
+  deletedAt: Date | null;
 }

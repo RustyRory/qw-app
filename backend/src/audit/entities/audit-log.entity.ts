@@ -41,7 +41,7 @@ export class AuditLog {
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @ManyToOne(() => User, (user) => user.auditLogs, { nullable: false })
+  @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_utilisateur' })
   utilisateur: User;
 }
