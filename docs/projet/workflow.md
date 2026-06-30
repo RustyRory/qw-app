@@ -277,30 +277,23 @@ cd deployment/docker
 docker compose up -d  # démarrer postgres + redis
 ```
 
+> Le stockage de documents (OVHcloud Object Storage) n'est **pas** simulé en local par défaut : le backend de développement pointe directement vers un bucket OVHcloud dédié au développement (`OVH_S3_BUCKET=qw-app-dev`). C'est un prestataire externe managé, pas un service à faire tourner soi-même (voir [security.md](./security.md)).
+
 ---
 
 ## 3. Base de données
 
-### 3.1 Entités TypeORM
+QW-app repose sur **14 entités** TypeORM (KYC fusionné dans `Client`, pipeline prospect, questionnaire d'acceptation, missions/lettres de mission, planning, obligations, opérations sensibles). Le détail complet — dictionnaire de données, MCD, MLD, enums, index, ordre des migrations — est documenté dans [database.md](./database.md) ; ce paragraphe ne couvre que les conventions d'implémentation TypeORM.
 
-Créer une entité par table dans `backend/src/*/entities/` :
+### 3.1 Conventions TypeORM
 
-| Entité | Fichier | Relations |
-|--------|---------|-----------|
-| `User` | `users/entities/user.entity.ts` | OneToMany → Client, Document, RiskScore, AuditLog |
-| `Client` | `clients/entities/client.entity.ts` | ManyToOne → User (createur, validateur), OneToOne → Kyc, OneToMany → Document, RiskScore |
-| `Kyc` | `kyc/entities/kyc.entity.ts` | OneToOne → Client |
-| `Document` | `documents/entities/document.entity.ts` | ManyToOne → Client, User |
-| `RiskScore` | `scoring/entities/risk-score.entity.ts` | ManyToOne → Client, User |
-| `AuditLog` | `audit/entities/audit-log.entity.ts` | ManyToOne → User |
-| `Prospect` | `prospects/entities/prospect.entity.ts` | ManyToOne → User (createur), lien souple vers Client via `clientId` |
-
-Points clés :
+- Une entité par table dans `backend/src/<module>/entities/<nom>.entity.ts`
 - Tous les ID : `@PrimaryGeneratedColumn('uuid')`
 - Timestamps : `@CreateDateColumn()`, `@UpdateDateColumn()`
-- Soft delete : `@DeleteDateColumn()` sur `Client`
+- Soft delete (`@DeleteDateColumn()`) sur `Client` et `Utilisateur` uniquement — rétention 5 ans (LCB-FT)
+- `ScoreRisque` et `AuditLog` sont **INSERT-ONLY** : aucune méthode `update`/`delete` dans leurs services
 - Mot de passe : stocker uniquement `passwordHash` (bcrypt, 12 rounds)
-- Relation 1-1 Kyc ↔ Client : `@JoinColumn()` + contrainte `UNIQUE` sur `id_client`
+- Enums partagés centralisés dans `common/enums/index.ts` (`Role`, `StatutKanban`, `StatutClient`, `NiveauRisque`…)
 
 ### 3.2 Migrations
 
@@ -318,9 +311,9 @@ npm run typeorm migration:revert
 ### 3.3 Seed de données
 
 Créer `backend/src/database/seed.ts` avec :
-- 1 compte admin (email + hash bcrypt)
+- 1 compte admin (`role: Role.ADMIN`, email + hash bcrypt)
 - 1 compte collaborateur de test
-- Quelques clients de démonstration avec KYC
+- Quelques clients de démonstration avec KYC déjà complété
 
 ```bash
 npm run seed
@@ -340,7 +333,7 @@ Migration → Entity → Seed → DTO → Service → Controller → Page Next.j
 
 | Étape | Fichier | Rôle |
 |-------|---------|------|
-| **Migration** | `database/migrations/<timestamp>-NomMigration.ts` | Crée/modifie le schéma en base |
+| **Migration** | `migrations/<timestamp>-NomMigration.ts` | Crée/modifie le schéma en base |
 | **Entity** | `<module>/entities/<nom>.entity.ts` | Mappe la table en objet TypeScript (TypeORM) |
 | **Seed** | `database/seed.ts` | Peuple la base avec des données initiales |
 | **DTO** | `<module>/dto/create-<nom>.dto.ts` | Valide et type le body des requêtes (`class-validator`) |
@@ -354,115 +347,71 @@ Migration → Entity → Seed → DTO → Service → Controller → Page Next.j
 
 ```
 backend/src/
-├── auth/           ← AuthModule
-├── users/          ← UsersModule
-├── clients/        ← ClientsModule
-├── kyc/            ← KycModule
-├── documents/      ← DocumentsModule
-├── scoring/        ← ScoringModule
-├── audit/          ← AuditModule
-├── common/         ← guards, decorators, pipes, interceptors
-└── database/       ← migrations, seed
+├── common/enums/         ← Role, StatutKanban, StatutClient, NiveauRisque…
+├── auth/                 ← AuthModule
+├── users/                ← UsersModule
+├── prospects/             ← ProspectsModule (pipeline Kanban)
+├── questionnaires/         ← QuestionnairesModule (LAB)
+├── clients/                ← ClientsModule (KYC fusionné)
+├── beneficiaires/            ← BeneficiairesModule (UBO)
+├── contacts/                  ← ContactsModule
+├── missions/                   ← MissionsModule
+├── documents/                   ← DocumentsModule (métadonnées, stockage OVHcloud Object Storage)
+├── lettres-mission/               ← LettresMissionModule
+├── scoring/                        ← ScoringModule (ARPEC)
+├── planning/                        ← PlanningModule
+├── obligations/                      ← ObligationsModule
+├── operations-sensibles/              ← OperationsSensiblesModule
+├── audit/                              ← AuditModule
+└── database/                            ← migrations, seed
 ```
 
-### 4.2 Ordre d'implémentation des modules
+> Référence complète des entités et de leurs relations : [database.md](./database.md). Le code détaillé de chaque entité/DTO/service est conservé dans `docs/autre/workflow-backend.md`.
 
-#### Étape 1 — AuthModule
+### 4.3 Ordre d'implémentation des modules
 
-1. Créer `UserEntity` avec enum `UserRole`
-2. Implémenter `POST /api/auth/login` :
-   - Vérifier email → retourner le même message d'erreur si email inconnu ou mdp incorrect (pas d'énumération)
-   - Vérifier `isActive`
-   - Comparer hash bcrypt
-   - Mettre à jour `lastLoginAt`
-   - Retourner JWT signé `{ id, role }`
-3. Créer `JwtAuthGuard` (valide le Bearer token)
-4. Créer `RolesGuard` (vérifie le rôle requis via `@Roles()`)
-5. Créer décorateur `@Roles(...roles: UserRole[])`
+L'ordre suit les dépendances de clé étrangère (cf. [database.md §6](./database.md#6-ordre-des-migrations)) :
 
-#### Étape 2 — UsersModule
+| # | Module | Routes API principales | Notes |
+|---|--------|------------------------|-------|
+| 1 | **Auth** | `POST /api/auth/login` | JWT en cookie HttpOnly, `RolesGuard` + `@Roles()`, message d'erreur uniforme, vérifie `isActive` |
+| 2 | **Users** | `GET/POST/PATCH/DELETE /api/users` | Admin uniquement, `DELETE` = désactivation (`isActive=false`) |
+| 3 | **Prospects** | `GET/POST/PATCH/DELETE /api/prospects`, `POST /:id/convertir` | Filtré par rôle (collaborateur = ses prospects). `PATCH` interdit si `statutKanban = CONVERTI` |
+| 4 | **Questionnaires** | `POST /api/questionnaires`, `GET /prospect/:id`, `PATCH /:id/valider`, `/refuser` | 1-1 avec `Prospect` ; section 10 débloquée seulement si sections 1-9 complètes |
+| 5 | **Clients** | `GET/POST/PATCH/DELETE /api/clients` | KYC fusionné dans l'entité ; `DELETE` = soft delete (admin) ; conversion prospect → client crée le `Client` avec `prospectId` |
+| 6 | **Beneficiaires** | `POST /api/beneficiaires`, `GET /client/:id`, `DELETE /:id` | UBO, % détention 0-100 |
+| 7 | **Contacts** | `POST /api/contacts`, `GET /client/:id`, `DELETE /:id` | Tiers (avocat, CAC, notaire…) |
+| 8 | **Missions** | `POST/GET/PATCH/DELETE /api/missions`, `PATCH /:id/statut` | Type, statut, honoraires |
+| 9 | **Documents** | `POST /api/documents` (upload vers OVHcloud Object Storage), `GET /:id/download` (URL pré-signée 15 min), `DELETE /:id` | Audit `CREATE`/`READ` à chaque opération |
+| 10 | **Lettres de mission** | `POST /api/lettres-mission`, `GET ?missionId=`, `PATCH /:id/signer` | Versionnée, signature réservée à EXPERT_COMPTABLE/ADMIN |
+| 11 | **Scoring** | `POST /api/scoring`, `GET /client/:id`, `GET /client/:id/courant` | Algorithme ARPEC (voir 4.4), INSERT-ONLY |
+| 12 | **Planning** | `POST/GET/DELETE /api/planning`, `PATCH /:id/completer` | Diligences réglementaires ou manuelles |
+| 13 | **Obligations** | `POST/GET /api/obligations`, `PATCH /:id/fait` | Suivi de conformité par client |
+| 14 | **Opérations sensibles** | `POST/GET /api/operations-sensibles`, `PATCH /:id/classer`, `/tracfin` | Statut `SIGNALEE → EN_ANALYSE → CLASSEE/TRACFIN_DECLARE` |
+| 15 | **Audit** | `GET /api/audit`, `GET /api/audit/:ressourceId` | `AuditService.log(userId, action, ressource, ressourceId, details)` injecté dans tous les autres services ; INSERT-ONLY |
 
-1. `GET /api/users` — liste (admin uniquement)
-2. `POST /api/users` — créer un utilisateur (admin)
-3. `PATCH /api/users/:id` — modifier un utilisateur (admin)
-4. `DELETE /api/users/:id` — désactiver un compte (`isActive = false`, admin)
+### 4.4 Algorithme de scoring ARPEC
 
-#### Étape 3 — ClientsModule
+Le score de risque n'est plus une somme de critères binaires pondérés à 100 ; il repose sur **4 dimensions ARPEC** notées indépendamment, pour un total sur 150 :
 
-1. `POST /api/clients` — créer un client (collaborateur, responsable, admin)
-   - Générer la référence `QW-YYYY-XXX`
-   - Créer une fiche KYC vide associée
-   - Enregistrer un audit `CREATE`
-2. `GET /api/clients` — liste filtrée par rôle :
-   - Collaborateur : uniquement ses propres dossiers (`id_createur`)
-   - Responsable / Expert / Admin : tous les dossiers
-3. `GET /api/clients/:id` — détail complet (KYC, documents, scores)
-4. `PATCH /api/clients/:id` — modifier les informations du client
-5. `PATCH /api/clients/:id/validate` — valider le dossier (responsable, admin)
-6. `DELETE /api/clients/:id` — soft delete (admin uniquement)
+| Dimension | Plage |
+|---|:---:|
+| Caractéristiques client | 0–50 |
+| Activité / secteur | 0–40 |
+| Zone géographique | 0–30 |
+| Type de mission | 0–30 |
 
-#### Étape 4 — KycModule
+```
+score = clientCaracteristiques + activiteSecteur + zoneGeographique + typeMission
 
-1. `GET /api/kyc/:clientId` — consulter la fiche KYC
-2. `PATCH /api/kyc/:clientId` — mettre à jour les données KYC
-   - Enregistrer un audit `UPDATE`
-   - Invalider le cache Redis du client
+niveau = FAIBLE  si score ≤ 40
+         MOYEN   si score ≤ 80
+         ELEVE   sinon
+```
 
-#### Étape 5 — DocumentsModule
+Chaque évaluation crée une nouvelle ligne dans `score_risque` (`reponses` en JSONB) ; le score courant est celui dont `created_at` est le plus récent pour le client.
 
-1. `POST /api/documents/upload/:clientId` — uploader un fichier
-   - Multer pour la réception du fichier
-   - Stocker sur VPS dans `/uploads/clients/:clientId/`
-   - Persister les métadonnées (nom, chemin, mime, taille)
-   - Enregistrer un audit `CREATE`
-2. `GET /api/documents/:clientId` — liste des documents d'un client
-3. `GET /api/documents/file/:id` — télécharger un fichier (stream protégé)
-   - Enregistrer un audit `READ`
-4. `DELETE /api/documents/:id` — supprimer un document
-
-#### Étape 6 — ScoringModule
-
-1. `POST /api/scoring/:clientId` — calculer le score de risque
-   - Lire les données KYC du client
-   - Appliquer les critères pondérés :
-     - PEP (`est_pep`) : +30 pts
-     - Pays à haut risque LCB-FT (`pays_haut_risque`) : +25 pts
-     - Secteur à risque (ex. crypto, casino) : +20 pts
-     - Chiffre d'affaires élevé : +10 pts
-   - Déterminer le niveau : `faible` (0-33) / `moyen` (34-66) / `élevé` (67-100)
-   - Persister le résultat avec `calculatedAt`
-   - Mettre à jour le cache Redis
-   - Enregistrer un audit `CREATE`
-2. `GET /api/scoring/:clientId` — historique des scores
-
-#### Étape 7 — ProspectsModule
-
-1. `POST /api/prospects` — créer un prospect (collaborateur, responsable, admin)
-   - Informations de pré-qualification (prenom, nom, secteur, est_pep…)
-   - Enregistrer un audit `CREATE`
-2. `GET /api/prospects` — liste filtrée par rôle :
-   - Collaborateur : uniquement ses propres prospects
-   - Responsable / Expert / Admin : tous les prospects
-3. `GET /api/prospects/:id` — détail
-4. `PATCH /api/prospects/:id` — modifier (interdit si statut = `converti`)
-5. `POST /api/prospects/:id/convert` — convertir en client
-   - Crée un `Client` avec les données du prospect + référence `QW-YYYY-XXX`
-   - Crée une `Kyc` vide pré-remplie (secteur, pays, est_pep)
-   - Passe le prospect en statut `converti`, stocke le `clientId`
-   - Audite la création du client et la conversion du prospect
-   - Retourne le `Client` créé
-6. `DELETE /api/prospects/:id` — suppression hard (interdit si statut = `converti`)
-   - Pas de soft delete : un prospect non converti n'a pas d'obligation de rétention LCB-FT
-
-#### Étape 8 — AuditModule
-
-Le service d'audit est injecté dans tous les autres services. Il est rarement appelé directement via HTTP.
-
-1. `AuditService.log(userId, action, entiteType, entiteId, details)` — méthode interne
-2. `GET /api/audit` — consulter les logs (responsable, admin)
-3. `GET /api/audit/:entiteId` — logs d'une entité spécifique
-
-### 4.3 Pipes et validation globale
+### 4.5 Pipes et validation globale
 
 Dans `main.ts` :
 ```typescript
@@ -471,139 +420,90 @@ app.useGlobalPipes(new ValidationPipe({
   forbidNonWhitelisted: true,
   transform: true,
 }));
-app.enableCors({ origin: process.env.FRONTEND_URL });
+app.enableCors({ origin: process.env.FRONTEND_URL, credentials: true }); // credentials: cookie JWT cross-origin en dev
+app.use(cookieParser());
 ```
 
-### 4.4 Cache Redis
+### 4.6 Cache Redis
 
 - Clé de cache : `client:<uuid>` et `scoring:<uuid>`
 - TTL : 5 minutes
-- Invalidation : à chaque `PATCH` sur le client ou le KYC
+- Invalidation : à chaque `PATCH` sur le client (champs KYC inclus, désormais fusionnés dans la même entité)
 
 ---
 
 ## 5. Frontend — Next.js
 
-### 5.1 Structure App Router
+### 5.1 Arborescence des routes
+
+```
+/login
+
+/dashboard
+├── /                              ← Accueil — KPIs globaux
+├── /prospects                     ← Pipeline Kanban
+│   ├── /new                       ← Formulaire nouveau prospect
+│   └── /[id]                      ← Fiche prospect
+│       └── /questionnaire         ← Questionnaire d'acceptation (LAB)
+├── /clients                       ← Liste des clients
+│   ├── /new                       ← Formulaire nouveau client
+│   └── /[id]                      ← Fiche client, 9 onglets :
+│       (infos · kyc · beneficiaires · contacts · scoring ·
+│        missions · planning · obligations · operations)
+├── /cartographie                  ← Cartographie globale des risques
+├── /obligations                   ← Tableau global des obligations
+├── /operations-sensibles          ← Vue globale opérations sensibles
+├── /planning                      ← Planning global cabinet
+└── /admin/users
+    ├── /new                       ← Créer un utilisateur
+    └── /[id]                      ← Éditer un utilisateur
+```
+
+> Zonings d'écran détaillés pour chaque page : `docs/autre/workflow-frontend.md`. Types TypeScript partagés (enums, entités) : à réécrire intégralement dans `frontend/src/types/index.ts` d'après le même fichier §3.
+
+### 5.2 Structure des dossiers
 
 ```
 frontend/src/
-├── app/
-│   ├── layout.tsx          ← layout racine
-│   ├── page.tsx            ← redirection vers /login ou /dashboard
-│   ├── login/
-│   │   └── page.tsx        ← formulaire de connexion
-│   └── dashboard/
-│       ├── layout.tsx      ← layout protégé (vérifie useAuth)
-│       ├── page.tsx        ← vue globale + SectionCards
-│       ├── clients/
-│       │   ├── page.tsx    ← liste des clients
-│       │   ├── new/page.tsx← formulaire création
-│       │   └── [id]/
-│       │       └── page.tsx← fiche client (KYC, docs, scores)
-│       ├── scoring/
-│       │   └── page.tsx    ← suivi des risques
-│       └── admin/
-│           └── page.tsx    ← gestion utilisateurs (admin uniquement)
+├── app/                     ← routes ci-dessus (App Router)
 ├── components/
 │   ├── ui/                 ← composants shadcn/ui (Button, Card, Dialog…)
 │   ├── layout/             ← AppSidebar, SiteHeader, NavMain…
-│   └── features/           ← ClientForm, KycForm, ScoringCard…
+│   └── features/           ← KanbanBoard, ClientHeader, ArpecForm, DocumentUpload…
 ├── hooks/
-│   └── useAuth.ts          ← protection des pages, expose { ready, role, logout }
+│   ├── useAuth.ts          ← protection des pages, expose { ready, role, logout }
+│   └── useRole.ts          ← droits RBAC (`can.validerQuestionnaire`, `can.signerLettre`…)
 ├── lib/
-│   └── apiFetch.ts         ← helper HTTP (injecte JWT, gère 401)
+│   └── apiFetch.ts         ← helper HTTP (cookie JWT envoyé automatiquement, gère 401)
 └── types/
     └── index.ts            ← types TypeScript partagés
 ```
 
-### 5.2 Ordre d'implémentation des pages
+### 5.3 Ordre d'implémentation (sprints)
 
-#### Étape 1 — Authentification
+| Sprint | Contenu |
+|---|---|
+| **1 — Fondations** | Réécrire `types/index.ts`, mettre à jour `AppSidebar` et `useAuth` (enum `Role` en UPPERCASE), composants partagés (`StatusBadge`, `RiskBadge`, `KycBadge`, `PageHeader`, `EmptyState`, `ConfirmModal`) |
+| **2 — Prospects (Kanban)** | `/dashboard/prospects` (`KanbanBoard` drag-and-drop), `/new` (formulaire + intégration SIRENE), `/[id]` (fiche), `/[id]/questionnaire` (LAB, 10 sections) |
+| **3 — Client (fiche principale)** | `/dashboard/clients` (liste + filtres), `/new`, `/[id]` onglets Infos + KYC & Documents (`ClientHeader`, `DocumentUpload`, checklist KYC) |
+| **4 — Client (onglets complémentaires)** | Onglets UBO (`BeneficiaireEffectif` CRUD), Contacts, Scoring (`ArpecForm` + `ScoreBar` + historique), Missions + Lettres de mission |
+| **5 — Client (obligations + opérations)** | Onglets Planning, Obligations, Opérations sensibles |
+| **6 — Vues globales** | `/dashboard` (KPIs), `/cartographie`, `/obligations`, `/operations-sensibles`, `/planning` |
+| **7 — Administration** | `/admin/users` (liste), `/new`, `/[id]` |
 
-1. Créer `useAuth(requiredRole?)` :
-   - Lire token + rôle dans `localStorage`
-   - Rediriger vers `/login` si absent
-   - Rediriger vers `/dashboard` si rôle insuffisant
-   - Exposer `{ ready, role, logout }`
-2. Créer `apiFetch(url, options)` :
-   - Injecter `Authorization: Bearer <token>`
-   - Sur 401 : supprimer token + rôle, rediriger vers `/login`
-3. Créer `LoginForm` :
-   - `POST /api/auth/login`
-   - Stocker token + rôle dans `localStorage`
-   - Rediriger vers `/dashboard`
+### 5.4 Authentification côté frontend
 
-#### Étape 2 — Layout du dashboard
+L'authentification repose sur un **cookie JWT HttpOnly** (voir [security.md](./security.md)) — pas de token manipulé en JavaScript :
 
-1. `dashboard/layout.tsx` : appeler `useAuth()`, afficher `<AppSidebar>` + `<SidebarInset>`
-2. `AppSidebar` : navigation principale avec `NavMain` (liens + icônes Tabler)
-3. `NavUser` : avatar + rôle + bouton déconnexion
-4. `SiteHeader` : titre de page + breadcrumb
-
-#### Étape 3 — Dashboard (vue globale)
-
-1. `SectionCards` : charger en parallèle via `Promise.allSettled` :
-   - Nombre total de clients
-   - Répartition par statut (en cours / validé / rejeté)
-   - Répartition par niveau de risque
-2. Tableau des derniers clients avec statut et score
-
-#### Étape 4 — Gestion des clients
-
-1. Page liste : tableau filtrable + bouton "Nouveau client"
-2. Formulaire création : champs obligatoires (prénom, nom, email) + optionnels
-3. Fiche client :
-   - Onglet "Informations" : données du client + modification
-   - Onglet "KYC" : formulaire KYC éditable
-   - Onglet "Documents" : upload + liste + téléchargement
-   - Onglet "Scoring" : historique des scores + bouton "Recalculer"
-   - Onglet "Audit" : historique des actions (responsable / admin)
-4. Bouton "Valider le dossier" (responsable / admin uniquement)
-
-#### Étape 5 — Page scoring
-
-- Vue globale des risques : filtrage par niveau (faible / moyen / élevé)
-- Graphique Recharts : répartition des niveaux de risque
-
-#### Étape 6 — Administration (admin uniquement)
-
-- Liste des utilisateurs
-- Formulaire création / modification d'un utilisateur
-- Activation / désactivation d'un compte
+1. `useAuth(requiredRole?)` lit l'état de session via un appel `GET /api/auth/me` (le cookie est envoyé automatiquement par le navigateur), redirige vers `/login` si non authentifié ou vers `/dashboard` si rôle insuffisant, expose `{ ready, role, logout }`
+2. `apiFetch(url, options)` appelle l'API avec `credentials: 'include'` ; sur 401, redirige vers `/login`
+3. `LoginForm` appelle `POST /api/auth/login` — le serveur pose le cookie ; le frontend ne stocke jamais le JWT lui-même
 
 ---
 
 ## 6. Sécurité
 
-### 6.1 Backend
-
-- [ ] Mots de passe hashés avec bcrypt (12 rounds minimum)
-- [ ] JWT signé avec secret fort en variable d'environnement (`JWT_SECRET`)
-- [ ] Même message d'erreur pour email inconnu et mauvais mot de passe
-- [ ] `isActive = false` → refus de connexion avant vérification du mot de passe
-- [ ] `JwtAuthGuard` sur toutes les routes protégées
-- [ ] `RolesGuard` + `@Roles()` pour les routes soumises à des droits spécifiques
-- [ ] `ValidationPipe` global (whitelist + forbidNonWhitelisted)
-- [ ] CORS restreint à l'URL du frontend
-- [ ] Rate limiting sur `/api/auth/login` (ex. 10 req/min par IP)
-- [ ] Requêtes SQL via TypeORM uniquement (pas de requêtes brutes avec données utilisateur)
-- [ ] Accès aux fichiers uniquement via l'API (pas d'URL directe publique)
-
-### 6.2 Frontend
-
-- [ ] Aucun secret dans le code client
-- [ ] Validation des formulaires côté client (Zod) avant envoi
-- [ ] Affichage des erreurs serveur dans les formulaires
-- [ ] Blocage du rendu tant que `useAuth.ready === false` (pas de flash de contenu)
-- [ ] Token stocké dans `localStorage` (acceptable pour MVP, à migrer vers `httpOnly cookie` en production)
-
-### 6.3 RGPD
-
-- [ ] Soft delete sur `Client` (`deletedAt`) — conservation 5 ans (obligation LCB-FT)
-- [ ] `AuditLog` pour toute action sur des données personnelles
-- [ ] Pas de données personnelles dans les logs applicatifs (console, fichiers)
-- [ ] Minimisation : collecter uniquement les données nécessaires au KYC
+Le détail des exigences (RBAC, authentification par cookie JWT HttpOnly, checklist backend/frontend, chiffrement des documents, RGPD) est centralisé dans [security.md](./security.md) pour éviter la duplication avec ce guide de workflow — s'y référer avant toute implémentation touchant à l'auth, aux droits ou aux documents.
 
 ---
 
@@ -615,10 +515,12 @@ Créer les fichiers `*.spec.ts` dans chaque module :
 
 | Service | Cas à tester |
 |---------|--------------|
-| `ScoringService` | Calcul correct selon critères KYC (PEP, pays risque, secteur) |
-| `AuthService` | Login valide, mauvais mdp, compte inactif |
-| `ClientsService` | Création, soft delete, filtre par rôle |
-| `AuditService` | Enregistrement correct d'une action |
+| `ScoringService` | Calcul correct du score ARPEC (4 dimensions) et du niveau associé (FAIBLE/MOYEN/ELEVE) |
+| `AuthService` | Login valide, mauvais mdp, compte inactif, pose du cookie JWT |
+| `ClientsService` | Création (avec/sans prospect d'origine), soft delete, filtre par rôle |
+| `ProspectsService` | Transitions de `statutKanban`, conversion en client (génération `Client` + `ref`) |
+| `QuestionnairesService` | Déblocage de la section 10 uniquement si sections 1-9 complètes, contresignature si risque élevé |
+| `AuditService` | Enregistrement correct d'une action (INSERT-ONLY) |
 
 ```bash
 cd backend && npm test
@@ -850,7 +752,7 @@ services:
   clb-back:
     build: ./backend
     ports: ["3001:3001"]
-    env_file: .env
+    env_file: .env       # inclut les identifiants OVH_S3_* (prestataire externe, pas de service local)
     depends_on: [postgres, redis]
 
   postgres:
@@ -864,6 +766,8 @@ services:
 volumes:
   pgdata:
 ```
+
+> Le stockage de documents n'apparaît pas dans ce `docker-compose.yml` : OVHcloud Object Storage est un service externe managé, accessible uniquement via les identifiants `OVH_S3_*` dans `.env` (voir [deployment.md](./deployment.md)).
 
 ### 9.5 Certificat SSL (Let's Encrypt)
 
@@ -930,32 +834,54 @@ git push origin feat/42-creation-client
 
 ## 11. Ordre de développement recommandé (MVP)
 
+Cette roadmap part de l'état actuel du backend (encore sur l'ancien schéma à 7 entités) vers la cible décrite dans [database.md](./database.md) et `docs/autre/workflow-backend.md` / `workflow-frontend.md`.
+
+### Phase A — Migration du schéma de données
+
 | # | Étape | Livrable attendu |
 |---|-------|-----------------|
-| 1 | Config Docker Compose local | PostgreSQL + Redis démarrés |
-| 2 | Entités TypeORM + migrations | Schéma BDD créé |
-| 3 | Seed de données | Comptes admin + collaborateur de test |
-| 4 | AuthModule (login + JWT) | `POST /api/auth/login` fonctionnel |
-| 5 | Guards (JwtAuthGuard + RolesGuard) | Routes protégées |
-| 6 | UsersModule | CRUD utilisateurs (admin) |
-| 7 | ClientsModule (CRUD) | Gestion des dossiers clients |
-| 8 | KycModule | Fiches KYC éditables |
-| 9 | ScoringModule | Calcul et historique des scores |
-| 10 | DocumentsModule | Upload + téléchargement sécurisé |
-| 11 | ProspectsModule | Gestion des prospects + conversion en client |
-| 12 | AuditModule | Traçabilité de toutes les actions |
-| 13 | Page login (frontend) | Connexion + redirection |
-| 14 | Layout dashboard + middleware | Navigation protégée |
-| 15 | Page dashboard (vue globale) | SectionCards + liste clients |
-| 16 | Pages clients (liste + fiche) | CRUD complet |
-| 17 | Formulaire KYC | Édition inline dans la fiche client |
-| 18 | Onglet documents | Upload + liste + téléchargement |
-| 19 | Onglet scoring | Affichage + recalcul |
-| 20 | Pages prospects (liste + fiche) | CRUD + bouton "Convertir en client" |
-| 21 | Page admin | Gestion des utilisateurs |
-| 22 | Tests unitaires backend | Couverture des services critiques |
-| 23 | CI GitHub Actions | lint + tests + audit sur chaque PR |
-| 24 | Config VPS + Nginx | Serveur accessible en HTTPS |
-| 25 | docker-compose.yml production | Images construites et déployables |
-| 26 | Workflow deploy.yml | Déploiement automatique sur staging |
-| 27 | Release 1.0.0 | Merge dev → main + tag Git |
+| 1 | Suppression du module `kyc/` et des anciennes migrations | Base de dev réinitialisée |
+| 2 | `common/enums/index.ts` | Tous les enums partagés (Role, StatutKanban, StatutClient…) |
+| 3 | Réécriture des entités existantes (`User`, `Client`, `Prospect`, `Document`, `ScoreRisque`, `AuditLog`) | KYC fusionné dans `Client`, enums en UPPERCASE |
+| 4 | Création des 8 nouvelles entités (Questionnaire, Beneficiaire, Contact, Mission, LettreMission, Planning, Obligation, OperationSensible) | 14 entités au total |
+| 5 | Migration `V2Schema` (génération auto ou SQL manuel) | Schéma PostgreSQL à jour |
+| 6 | Mise à jour `app.module.ts`, `data-source.ts`, `database/seed.ts` | Compte admin + collaborateur de test |
+
+### Phase B — Modules backend (15)
+
+| # | Module | Livrable attendu |
+|---|--------|-----------------|
+| 7 | Auth (cookie JWT HttpOnly) | `POST /api/auth/login` fonctionnel |
+| 8 | Users | CRUD utilisateurs (admin) |
+| 9 | Prospects | Pipeline Kanban, filtrage par rôle |
+| 10 | Questionnaires | LAB 10 sections, validation/refus |
+| 11 | Clients | KYC fusionné, conversion depuis prospect |
+| 12 | Beneficiaires + Contacts | CRUD UBO et tiers |
+| 13 | Missions + Lettres de mission | Création, signature, versioning |
+| 14 | Documents | Upload/download via OVHcloud Object Storage, URL pré-signée |
+| 15 | Scoring (ARPEC) | Calcul 4 dimensions + historique |
+| 16 | Planning, Obligations, Opérations sensibles | CRUD + suivi de statut |
+| 17 | Audit | Traçabilité de toutes les actions (INSERT-ONLY) |
+
+### Phase C — Frontend (sprints 1 à 7, cf. §5.3)
+
+| # | Étape | Livrable attendu |
+|---|-------|-----------------|
+| 18 | Sprint 1 — Fondations | Types, sidebar, `useAuth`/`useRole`, composants partagés |
+| 19 | Sprint 2 — Prospects (Kanban) | Pipeline drag-and-drop + questionnaire LAB |
+| 20 | Sprint 3 — Client (fiche principale) | Liste, création, onglets Infos + KYC/Documents |
+| 21 | Sprint 4 — Client (onglets complémentaires) | UBO, Contacts, Scoring, Missions |
+| 22 | Sprint 5 — Client (obligations + opérations) | Planning, Obligations, Opérations sensibles |
+| 23 | Sprint 6 — Vues globales | Dashboard KPIs, cartographie, obligations, planning cabinet |
+| 24 | Sprint 7 — Administration | Gestion des utilisateurs |
+
+### Phase D — Qualité, CI/CD et mise en production
+
+| # | Étape | Livrable attendu |
+|---|-------|-----------------|
+| 25 | Tests unitaires backend | Couverture des services critiques (scoring ARPEC, conversion prospect, questionnaire) |
+| 26 | CI GitHub Actions | lint + tests + audit sur chaque PR |
+| 27 | Config VPS + bucket OVHcloud Object Storage | Serveur accessible en HTTPS, bucket de production créé chez le prestataire |
+| 28 | `docker-compose.yml` production | Images construites et déployables |
+| 29 | Workflow `deploy.yml` | Déploiement automatique sur staging |
+| 30 | Release 1.0.0 | Merge `dev` → `main` + tag Git |

@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QW-App — Frontend
 
-## Getting Started
+Interface **Next.js** de l'application de conformité LCB-FT QW-App. Voir la [documentation du projet](../docs/projet/) pour l'architecture et le détail des écrans.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Stack
+
+Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Radix UI, Zod, Recharts.
+
+## Structure actuelle
+
+```
+src/
+├── app/
+│   ├── api/[...path]/   # Proxy interne vers le backend (route handler, pas un rewrite next.config.ts)
+│   ├── login/
+│   └── dashboard/
+├── components/
+│   ├── ui/                # Composants shadcn/ui
+│   └── layout/              # AppSidebar, SiteHeader…
+├── hooks/                     # useAuth…
+├── lib/                         # Helpers (appels API…)
+└── types/                         # Types TypeScript partagés
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> Arborescence cible des routes (pipeline prospect Kanban, fiche client à 9 onglets, cartographie des risques…) : [docs/projet/workflow.md §5](../docs/projet/workflow.md), zonings d'écran détaillés dans `docs/autre/workflow-frontend.md`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Installation et configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Voir [INSTALL.md](../INSTALL.md) à la racine du dépôt (le frontend fait partie du monorepo npm workspaces).
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run dev      # serveur de développement (0.0.0.0, hot reload)
+npm run build    # build de production
+npm run start    # serveur de production (après build)
+npm run lint     # ESLint
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Communication avec le backend
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Les appels API du navigateur passent par la route proxy interne `src/app/api/[...path]/route.ts` (`src/proxy.ts`), qui relaie la requête vers le backend NestJS. Le backend n'est jamais appelé directement depuis le client.
 
-## Deploy on Vercel
+## Variables d'environnement
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Voir `frontend/.env.example`. Détail : [INSTALL.md](../INSTALL.md#3-configurer-les-variables-denvironnement).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Authentification
+
+L'authentification repose sur un cookie JWT **HttpOnly** posé par le backend — jamais de token manipulé côté client. Voir [docs/projet/security.md](../docs/projet/security.md).
