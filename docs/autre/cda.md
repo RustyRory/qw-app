@@ -244,6 +244,7 @@ Cette application doit permettre de centraliser l'ensemble des données liées a
 
 - Gestion des clients : création, modification et consultation des informations clients ;
 - Gestion des dossiers : centralisation et organisation des dossiers par client ;
+- Gestion des prospects : pipeline de suivi des prospects avant leur conversion en clients ;
 - KYC : gestion des informations d'identification conformément aux exigences réglementaires ;
 - Scoring des risques : évaluation automatique du niveau de risque ;
 - Gestion des documents : ajout, stockage et consultation des fichiers liés aux dossiers ;
@@ -251,10 +252,46 @@ Cette application doit permettre de centraliser l'ensemble des données liées a
 
 ### 5.2 Évolutions envisagées
 
-- Alertes : notifications sur les événements importants liés aux dossiers ;
-- Dashboards : tableaux de bord analytiques pour une vision globale de l'activité ;
-- Imports de données : import via fichiers Excel/CSV ;
-- Automatisations : recalcul automatique des scores de risque et mises à jour de données.
+**Enrichissement des données**
+
+- Récupération automatique des informations légales par numéro SIREN via l'API SIRENE Open Data (data.gouv.fr) ;
+- Synchronisation en temps réel avec l'INPI (registre des sociétés, données statutaires) ;
+- Collecte automatique des documents d'identité (pièce d'identité, Kbis, etc.) ;
+- Cartographie client : visualisation des liens entre entités (actionnaires, mandataires, filiales).
+
+**Onboarding & portefeuille**
+
+- Importation du portefeuille client : import en masse depuis un fichier Excel/CSV ou une solution tierce ;
+- Pré-paramétrage multi-dossiers : configuration de modèles de dossiers réutilisables ;
+- Gestion multi-cabinet : prise en charge de plusieurs structures au sein d'une même instance.
+
+**Analyse & conformité**
+
+- Amélioration de l'algorithme de scoring : affinage et tests du calcul de niveau de risque ;
+- Diligences complémentaires suggérées : recommandation automatique d'actions en fonction du profil de risque ;
+- Alertes : notifications sur les événements importants liés aux dossiers (expiration de documents, changement de statut…).
+
+**Gestion commerciale & opérationnelle**
+
+- Génération de propositions commerciales : création de documents personnalisés à partir des données du dossier ;
+- Génération de lettres de mission : production automatisée des documents contractuels ;
+- Signature électronique via JeSignExpert : intégration pour la signature des documents générés ;
+- Notes et informations centralisées : espace de notes partagées associées à chaque dossier ou client ;
+- Kanban à étapes personnalisables : tableau de suivi visuel de l'avancement des dossiers (non prioritaire).
+
+**Tableaux de bord & reporting**
+
+- Dashboards analytiques : indicateurs d'activité, répartition des risques, état des dossiers ;
+- Exports et rapports : génération de rapports de conformité exportables.
+
+**Technique & intégration**
+
+- Authentification unique (SSO) : intégration avec un fournisseur d'identité existant ;
+- API sur mesure : exposition d'endpoints configurables pour des intégrations tierces.
+
+**Offre de service**
+
+- Assistance prioritaire et chargé de compte dédié : niveaux de support différenciés selon l'abonnement.
 
 ---
 
@@ -305,7 +342,7 @@ La base de données de QW-app est conçue selon la méthodologie Merise, en troi
 
 #### 6.5.1 Dictionnaire de données
 
-Le dictionnaire recense l'ensemble des informations à stocker dans la base de données. Voir l'annexe [Base de données — Dictionnaire de données](#dictionnaire-de-données-1).
+Le dictionnaire recense l'ensemble des informations à stocker dans la base de données. Voir l'[Annexe A1 — Dictionnaire de données](#a1-dictionnaire-de-données).
 
 #### 6.5.2 MCD (Modèle Conceptuel de Données)
 
@@ -384,7 +421,7 @@ AUDIT_LOG (ID, action, entite_type, entite_id, details, created_at,
 
 #### 6.5.4 MPD (Modèle Physique de Données)
 
-Implémentation concrète pour PostgreSQL 16 avec TypeORM. Les types sont définis précisément, les contraintes d'intégrité et les index sont inclus. Le schéma est créé via une migration initiale (`InitSchema`). Voir l'annexe [Base de données — MPD](#mpd).
+Implémentation concrète pour PostgreSQL 16 avec TypeORM. Les types sont définis précisément, les contraintes d'intégrité et les index sont inclus. Le schéma est créé via une migration initiale (`InitSchema`). Voir l'[Annexe A2 — MPD SQL](#a2-migration-initiale--initschema-mpd-sql).
 
 ---
 
@@ -471,12 +508,20 @@ Redis 7 est utilisé comme système de cache en mémoire afin de réduire les re
 
 #### 7.4.3 Stockage de documents
 
-Le stockage des documents n'est pas définitivement arrêté. Deux solutions sont envisagées :
+Le stockage des documents repose sur un **stockage objet compatible S3** hébergé en Union Européenne, pour un coût d'environ 20 €/mois pour 200 Go — capacité jugée suffisante pour stocker l'ensemble des dossiers clients.
 
-- **Stockage sur VPS :** fichiers stockés directement sur le serveur, organisés par dossier client ;
-- **Synology Drive :** stockage externe, avec l'application conservant uniquement les liens et métadonnées.
+**Solution retenue : stockage objet S3-compatible (EU)**
 
-Le backend agit comme intermédiaire unique pour l'upload, la récupération et le contrôle d'accès aux fichiers, permettant de changer de solution de stockage sans modifier la logique applicative.
+Deux fournisseurs conformes au cahier des charges (hébergement UE, conformité RGPD, compatibilité S3) :
+
+| Fournisseur | Localisation | Capacité | Coût estimé |
+|-------------|-------------|----------|-------------|
+| Scaleway Object Storage | Paris (France) | 200 Go | ~15–20 €/mois |
+| Hetzner Object Storage | Nuremberg (Allemagne) | 1 To | ~4 €/mois |
+
+La table `documents` conserve uniquement les **métadonnées** (nom du fichier, type MIME, taille, clé S3 de la forme `clients/{clientId}/{uuid}-{nomFichier}`) — le contenu binaire n'est jamais stocké en base de données.
+
+Le backend agit comme intermédiaire exclusif : aucun fichier n'est accessible directement depuis le navigateur. Les téléchargements passent par une **URL signée (Presigned URL)** à durée de vie limitée, générée à la demande par le backend.
 
 ---
 
@@ -488,7 +533,7 @@ Le backend agit comme intermédiaire unique pour l'upload, la récupération et 
 
 L'environnement de développement et de test repose sur un VPS (Virtual Private Server) sous Linux (Ubuntu). Ce choix s'explique par la stabilité, la performance et la compatibilité optimale avec les outils utilisés (Node.js, Docker, Nginx, PostgreSQL).
 
-La configuration du serveur comprend (voir [Annexe D4](#d4-procédure-de-configuration-du-serveur-vps)) :
+La configuration du serveur comprend (voir [Annexe E4](#e4-procédure-de-configuration-du-serveur-vps)) :
 
 - Un utilisateur dédié avec des droits restreints ;
 - Accès via SSH avec authentification par clé (mot de passe désactivé) ;
@@ -519,7 +564,7 @@ La base de données PostgreSQL 16 est accédée via TypeORM. Les entités défin
 | RiskScore | Score calculé, niveau (FAIBLE/MOYEN/ÉLEVÉ), détails JSON, client associé |
 | AuditLog | Utilisateur, action (enum), entité cible, timestamp |
 
-Les entités sont reliées par des relations TypeORM (`@OneToOne`, `@OneToMany`). `Client` est lié à une `Kyc` (1-1), à plusieurs `RiskScore` (1-N) et à plusieurs `AuditLog` (1-N). Le code de l'entité `Client` est disponible en [Annexe C10](#c10-entité-client-typeorm).
+Les entités sont reliées par des relations TypeORM (`@OneToOne`, `@OneToMany`). `Client` est lié à une `Kyc` (1-1), à plusieurs `RiskScore` (1-N) et à plusieurs `AuditLog` (1-N). Le code de l'entité `Client` est disponible en [Annexe B2](#b2-entité-client).
 
 #### 8.2.2 Cache (Redis)
 
@@ -564,11 +609,11 @@ SidebarProvider
     └── {children}      ← contenu de la page courante
 ```
 
-La protection des routes est assurée par un **middleware Next.js** (`proxy.ts`) exécuté côté serveur, qui lit le cookie `qw_token` pour vérifier l'authentification avant tout rendu. Selon le rôle extrait du token, il redirige vers la page de dashboard appropriée (`getDashboardPath(role)`). Le code complet est disponible en [Annexe C8](#c8-middleware-nextjs-proxysts).
+La protection des routes est assurée par un **middleware Next.js** (`proxy.ts`) exécuté côté serveur, qui lit le cookie `qw_token` pour vérifier l'authentification avant tout rendu. Selon le rôle extrait du token, il redirige vers la page de dashboard appropriée (`getDashboardPath(role)`). Le code complet est disponible en [Annexe C2](#c2-middleware--proxysts).
 
 #### 8.3.4 Composant SectionCards — statistiques
 
-Chaque page de vue globale affiche une grille de cartes de statistiques (`SectionCards`). Chaque carte contient un label, une icône colorée (Tabler) et la valeur remontée depuis l'API. Les données sont chargées en parallèle via `Promise.allSettled` au montage de la page, garantissant qu'une erreur sur un endpoint n'empêche pas l'affichage des autres indicateurs. Code complet en [Annexe C9](#c9-composant-sectioncards).
+Chaque page de vue globale affiche une grille de cartes de statistiques (`SectionCards`). Chaque carte contient un label, une icône colorée (Tabler) et la valeur remontée depuis l'API. Les données sont chargées en parallèle via `Promise.allSettled` au montage de la page, garantissant qu'une erreur sur un endpoint n'empêche pas l'affichage des autres indicateurs.
 
 #### 8.3.5 Pages développées
 
@@ -585,7 +630,7 @@ Chaque page de vue globale affiche une grille de cartes de statistiques (`Sectio
 #### 8.3.6 Gestion de l'état et des appels API
 
 - **Token stocké dans un cookie** `qw_token` (pas `localStorage`) — inaccessible en JavaScript si `httpOnly`, protège contre le vol par XSS ;
-- Appels API centralisés via le helper `apiFetch` (voir [Annexe C7](#c7-helper-apifetch)), qui lit le cookie et injecte le token JWT dans le header `Authorization` ;
+- Appels API centralisés via le helper `apiFetch` (voir [Annexe C3](#c3-helper-apifetch)), qui lit le cookie et injecte le token JWT dans le header `Authorization` ;
 - Proxy Next.js (`/api/[...path]/route.ts`) : toutes les requêtes API transitent par le serveur Next.js — le `BACKEND_URL` interne n'est jamais exposé au navigateur ;
 - Redirection automatique vers `/login` en cas de token expiré ou absent (géré par le middleware).
 
@@ -688,7 +733,7 @@ Backend (NestJS)
 
 #### 8.4.6 Helper apiFetch (frontend)
 
-Toutes les requêtes passent par un helper centralisé (`apiFetch`) qui lit le cookie `qw_token`, injecte le JWT dans le header `Authorization` et gère l'expiration de session : en cas de 401, l'utilisateur est redirigé vers `/login`. Code complet en [Annexe C7](#c7-helper-apifetch).
+Toutes les requêtes passent par un helper centralisé (`apiFetch`) qui lit le cookie `qw_token`, injecte le JWT dans le header `Authorization` et gère l'expiration de session : en cas de 401, l'utilisateur est redirigé vers `/login`. Code complet en [Annexe C3](#c3-helper-apifetch).
 
 #### 8.4.7 Authentification et gestion des rôles
 
@@ -711,7 +756,7 @@ export enum UserRole {
 }
 ```
 
-Le mot de passe n'est jamais stocké en clair : seul le hash bcrypt est persisté. L'entité complète est disponible en [Annexe C1](#c1-entité-user-typeorm).
+Le mot de passe n'est jamais stocké en clair : seul le hash bcrypt est persisté. L'entité complète est disponible en [Annexe B1](#b1-entité-user).
 
 #### 8.4.9 Route de login (backend NestJS)
 
@@ -720,11 +765,11 @@ La route `POST /api/auth/login` vérifie l'email, compare le hash bcrypt, met à
 - Même message d'erreur pour email inconnu et mot de passe incorrect (pas d'énumération des comptes) ;
 - Un compte avec `isActive: false` est rejeté avant la vérification du mot de passe.
 
-Code complet en [Annexe C2](#c2-route-de-login--post-apiauthlogin).
+Code complet en [Annexe B5](#b5-authservice--login).
 
 #### 8.4.10 Guards NestJS — JwtAuthGuard et RolesGuard
 
-Le `JwtAuthGuard` (via Passport-JWT) vérifie et décode le token Bearer sur chaque route protégée. Le `RolesGuard` contrôle ensuite que le rôle de l'utilisateur est dans la liste autorisée pour l'endpoint. Implémentations complètes en [Annexes C3](#c3-jwtauthguard) et [C4](#c4-rolesguard).
+Le `JwtAuthGuard` (via Passport-JWT) vérifie et décode le token Bearer sur chaque route protégée. Le `RolesGuard` contrôle ensuite que le rôle de l'utilisateur est dans la liste autorisée pour l'endpoint. Implémentations complètes en [Annexe B6](#b6-jwtauthguard-et-rolesguard).
 
 #### 8.4.11 Middleware Next.js — proxy.ts
 
@@ -754,7 +799,7 @@ export function proxy(request: NextRequest) {
 
 #### 8.4.12 Composant LoginForm (frontend)
 
-Envoie les identifiants au backend via le proxy Next.js, le token retourné est stocké dans le cookie `qw_token`, puis le middleware redirige vers le dashboard adapté au rôle. Les erreurs serveur sont affichées directement dans le formulaire. Code complet en [Annexe C6](#c6-loginform--soumission-du-formulaire).
+Envoie les identifiants au backend via le proxy Next.js, le token retourné est stocké dans le cookie `qw_token`, puis le middleware redirige vers le dashboard adapté au rôle. Les erreurs serveur sont affichées directement dans le formulaire. Code complet en [Annexe C4](#c4-loginform--handlesubmit).
 
 #### 8.4.13 Flux complet de connexion
 
@@ -812,7 +857,39 @@ La validation des données entrantes repose sur des DTO avec les bibliothèques 
 
 #### 8.6.6 Sécurité des documents
 
-L'accès aux documents est strictement contrôlé via le backend (authentification + rôle + permissions sur le dossier). Aucun fichier n'est accessible directement via URL publique : toute requête passe obligatoirement par l'API, qui journalise les consultations dans les logs d'audit.
+Les documents LCB-FT contiennent des données personnelles et financières sensibles. Plusieurs couches de protection sont mises en place.
+
+**Contrôle d'accès**
+
+Aucun fichier n'est accessible directement via URL publique. Toute requête passe obligatoirement par le backend, qui vérifie l'authentification JWT, le rôle et l'appartenance du dossier avant toute opération. Chaque accès est journalisé dans `audit_logs`.
+
+**Bucket privé et permissions minimales**
+
+Le bucket S3 est configuré en accès privé strict. Un seul compte IAM dédié au backend dispose de permissions restreintes (`GetObject`, `PutObject`, `DeleteObject`) sur ce bucket uniquement — le compte ne peut ni lister tous les buckets ni accéder à d'autres ressources.
+
+**Chiffrement**
+
+- **Au repos :** chiffrement AES-256 activé côté fournisseur (SSE) ;
+- **En transit :** HTTPS/TLS sur tous les échanges.
+
+Pour un niveau de protection maximal, un **chiffrement côté application** peut être activé : le backend chiffre le fichier avant l'upload avec une clé gérée en variable d'environnement — le contenu reste illisible même pour le fournisseur de stockage.
+
+**URLs signées (Presigned URLs)**
+
+Pour les téléchargements, le backend génère une URL signée à courte durée de vie (TTL 15 minutes maximum) plutôt que de streamer le fichier. Le flux est le suivant :
+
+```
+Client → GET /api/documents/:id/download
+Backend → vérifie JWT + rôle + appartenance du dossier
+        → enregistre la consultation dans audit_logs
+        → génère une Presigned URL (TTL 15 min)
+        → retourne l'URL au client
+Client → télécharge directement depuis le stockage (lien à usage unique)
+```
+
+**Séparation des environnements**
+
+Deux buckets distincts sont utilisés (`qw-app-staging` et `qw-app-prod`) : aucune donnée réelle ne transite dans l'environnement de test.
 
 #### 8.6.7 RGPD
 
@@ -1202,127 +1279,970 @@ Dans cette optique, la poursuite de mes études en master développement full-st
 
 ## Annexes
 
-### USE CASE
+### Diagrammes
+
+#### USE CASE
 
 *(Diagramme à insérer)*
 
-### Diagrammes séquence
+#### Diagrammes de séquence
 
-#### Mise à jour KYC
+*(Mise à jour KYC, Validation d'un dossier, Flux de connexion — à insérer)*
 
-*(Diagramme à insérer)*
-
-#### Validation d'un dossier
-
-*(Diagramme à insérer)*
-
-### Base de données
-
-#### Dictionnaire de données
-
-*(Voir annexe détaillée)*
-
-#### MPD
-
-##### Types énumérés (PostgreSQL ENUM)
-
-*(Voir annexe détaillée)*
-
-##### Tables
-
-*(Voir annexe détaillée)*
-
-### Captures d'écran
+#### Captures d'écran
 
 *(Captures à insérer)*
 
 ---
 
-## Documentation technique — vps-monitor v2
+### A. Base de données
 
-### A1. Architecture globale
+#### A1. Dictionnaire de données
 
+##### Table `users`
+
+| Champ | Type SQL | Contraintes | Description |
+|-------|----------|-------------|-------------|
+| id | UUID | PK, DEFAULT uuid_generate_v4() | Identifiant unique |
+| email | VARCHAR(255) | UNIQUE, NOT NULL | Adresse email (identifiant de connexion) |
+| passwordHash | VARCHAR(255) | NOT NULL | Hash bcrypt du mot de passe |
+| role | ENUM | NOT NULL, DEFAULT 'collaborateur' | Rôle : collaborateur, responsable, expert-comptable, admin |
+| prenom | VARCHAR(100) | NOT NULL | Prénom |
+| nom | VARCHAR(100) | NOT NULL | Nom de famille |
+| isActive | BOOLEAN | NOT NULL, DEFAULT true | Compte actif ou désactivé |
+| lastLoginAt | TIMESTAMPTZ | NULL | Date et heure de la dernière connexion |
+| createdAt | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Date de création |
+| updatedAt | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Date de dernière modification |
+
+##### Table `clients`
+
+| Champ | Type SQL | Contraintes | Description |
+|-------|----------|-------------|-------------|
+| id | UUID | PK, DEFAULT uuid_generate_v4() | Identifiant unique |
+| reference | VARCHAR(50) | UNIQUE, NOT NULL | Référence interne du dossier |
+| prenom | VARCHAR(100) | NOT NULL | Prénom du client |
+| nom | VARCHAR(100) | NOT NULL | Nom de famille |
+| raisonSociale | VARCHAR(200) | NULL | Raison sociale (entité morale) |
+| email | VARCHAR(255) | NULL | Email du client |
+| telephone | VARCHAR(20) | NULL | Numéro de téléphone |
+| statut | ENUM | NOT NULL, DEFAULT 'en_cours' | Statut : en_cours, valide, rejete |
+| deletedAt | TIMESTAMPTZ | NULL | Soft delete — date de suppression logique |
+| createdAt | TIMESTAMPTZ | NOT NULL | Date de création du dossier |
+| updatedAt | TIMESTAMPTZ | NOT NULL | Date de dernière modification |
+| id_createur | UUID | FK → users.id, NOT NULL | Utilisateur ayant créé le dossier |
+| id_validateur | UUID | FK → users.id, NULL | Utilisateur ayant validé le dossier |
+
+##### Table `kyc`
+
+| Champ | Type SQL | Contraintes | Description |
+|-------|----------|-------------|-------------|
+| id | UUID | PK, DEFAULT uuid_generate_v4() | Identifiant unique |
+| nationalite | VARCHAR(100) | NULL | Nationalité du client |
+| paysResidence | VARCHAR(100) | NULL | Pays de résidence |
+| secteurActivite | VARCHAR(200) | NULL | Secteur d'activité |
+| formeJuridique | VARCHAR(100) | NULL | Forme juridique |
+| estPep | BOOLEAN | NOT NULL, DEFAULT false | Personne Politiquement Exposée (PEP) |
+| paysHautRisque | BOOLEAN | NOT NULL, DEFAULT false | Pays classé à haut risque (GAFI) |
+| chiffreAffaires | DECIMAL(15,2) | NULL | Chiffre d'affaires annuel (€) |
+| createdAt | TIMESTAMPTZ | NOT NULL | Date de création |
+| updatedAt | TIMESTAMPTZ | NOT NULL | Date de mise à jour |
+| id_client | UUID | FK → clients.id, UNIQUE, NOT NULL | Client associé (relation 1-1) |
+
+##### Table `risk_scores`
+
+| Champ | Type SQL | Contraintes | Description |
+|-------|----------|-------------|-------------|
+| id | UUID | PK, DEFAULT uuid_generate_v4() | Identifiant unique |
+| score | SMALLINT | NOT NULL | Score calculé (0–100) |
+| niveau | ENUM | NOT NULL | Niveau de risque : faible, moyen, eleve |
+| details | JSONB | NULL | Détail des critères activés et leur poids |
+| calculatedAt | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Horodatage du calcul |
+| id_client | UUID | FK → clients.id, NOT NULL | Client évalué |
+| id_utilisateur | UUID | FK → users.id, NOT NULL | Utilisateur ayant déclenché le calcul |
+
+##### Table `documents`
+
+| Champ | Type SQL | Contraintes | Description |
+|-------|----------|-------------|-------------|
+| id | UUID | PK, DEFAULT uuid_generate_v4() | Identifiant unique |
+| nomFichier | VARCHAR(255) | NOT NULL | Nom original du fichier |
+| cheminStockage | VARCHAR(500) | NOT NULL | Chemin de stockage sur le serveur |
+| typeMime | VARCHAR(100) | NOT NULL | Type MIME du fichier |
+| taille | BIGINT | NOT NULL | Taille du fichier en octets |
+| createdAt | TIMESTAMPTZ | NOT NULL | Date d'upload |
+| id_client | UUID | FK → clients.id, NOT NULL | Client auquel appartient le document |
+| id_utilisateur | UUID | FK → users.id, NOT NULL | Utilisateur ayant uploadé le document |
+
+##### Table `audit_logs`
+
+| Champ | Type SQL | Contraintes | Description |
+|-------|----------|-------------|-------------|
+| id | UUID | PK, DEFAULT uuid_generate_v4() | Identifiant unique |
+| action | ENUM | NOT NULL | Action : CREATE, UPDATE, DELETE, READ, VALIDATE, LOGIN |
+| entiteType | VARCHAR(50) | NOT NULL | Nom de la ressource concernée (ex. Client) |
+| entiteId | UUID | NOT NULL | Identifiant de l'entité concernée |
+| details | JSONB | NULL | Données contextuelles (ex. `{ score: 55, niveau: "moyen" }`) |
+| createdAt | TIMESTAMPTZ | NOT NULL | Horodatage de l'action |
+| id_utilisateur | UUID | FK → users.id, NOT NULL | Utilisateur ayant effectué l'action |
+
+#### A2. Migration initiale — InitSchema (MPD SQL)
+
+Fichier `backend/src/migrations/1780063741545-InitSchema.ts`, exécuté via `npm run migration:run`. Crée l'intégralité du schéma en une seule migration versionnée.
+
+```sql
+-- Types ENUM
+CREATE TYPE "public"."users_role_enum"
+  AS ENUM('collaborateur', 'responsable', 'expert-comptable', 'admin');
+CREATE TYPE "public"."clients_statut_enum"
+  AS ENUM('en_cours', 'valide', 'rejete');
+CREATE TYPE "public"."risk_scores_niveau_enum"
+  AS ENUM('faible', 'moyen', 'eleve');
+CREATE TYPE "public"."audit_logs_action_enum"
+  AS ENUM('CREATE', 'UPDATE', 'DELETE', 'READ', 'VALIDATE', 'LOGIN');
+
+-- Table kyc
+CREATE TABLE "kyc" (
+  "id"               uuid NOT NULL DEFAULT uuid_generate_v4(),
+  "nationalite"      character varying(100),
+  "paysResidence"    character varying(100),
+  "secteurActivite"  character varying(200),
+  "formeJuridique"   character varying(100),
+  "estPep"           boolean NOT NULL DEFAULT false,
+  "paysHautRisque"   boolean NOT NULL DEFAULT false,
+  "chiffreAffaires"  numeric(15,2),
+  "createdAt"        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "updatedAt"        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "id_client"        uuid NOT NULL,
+  UNIQUE ("id_client"),
+  PRIMARY KEY ("id")
+);
+
+-- Table documents
+CREATE TABLE "documents" (
+  "id"              uuid NOT NULL DEFAULT uuid_generate_v4(),
+  "nomFichier"      character varying(255) NOT NULL,
+  "cheminStockage"  character varying(500) NOT NULL,
+  "typeMime"        character varying(100) NOT NULL,
+  "taille"          bigint NOT NULL,
+  "createdAt"       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "id_client"       uuid NOT NULL,
+  "id_utilisateur"  uuid NOT NULL,
+  PRIMARY KEY ("id")
+);
+CREATE INDEX "idx_documents_id_client" ON "documents" ("id_client");
+
+-- Table risk_scores
+CREATE TABLE "risk_scores" (
+  "id"              uuid NOT NULL DEFAULT uuid_generate_v4(),
+  "score"           smallint NOT NULL,
+  "niveau"          "public"."risk_scores_niveau_enum" NOT NULL,
+  "details"         jsonb,
+  "calculatedAt"    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  "id_client"       uuid NOT NULL,
+  "id_utilisateur"  uuid NOT NULL,
+  PRIMARY KEY ("id")
+);
+CREATE INDEX "idx_risk_scores_id_client" ON "risk_scores" ("id_client");
+
+-- Table clients
+CREATE TABLE "clients" (
+  "id"            uuid NOT NULL DEFAULT uuid_generate_v4(),
+  "reference"     character varying(50) NOT NULL,
+  "prenom"        character varying(100) NOT NULL,
+  "nom"           character varying(100) NOT NULL,
+  "raisonSociale" character varying(200),
+  "email"         character varying(255),
+  "telephone"     character varying(20),
+  "statut"        "public"."clients_statut_enum" NOT NULL DEFAULT 'en_cours',
+  "deletedAt"     TIMESTAMP WITH TIME ZONE,
+  "createdAt"     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "updatedAt"     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "id_createur"   uuid NOT NULL,
+  "id_validateur" uuid,
+  UNIQUE ("reference"),
+  PRIMARY KEY ("id")
+);
+CREATE INDEX "idx_clients_id_createur" ON "clients" ("id_createur");
+CREATE INDEX "idx_clients_deleted_at"  ON "clients" ("deletedAt");
+CREATE INDEX "idx_clients_statut"      ON "clients" ("statut");
+
+-- Table audit_logs
+CREATE TABLE "audit_logs" (
+  "id"              uuid NOT NULL DEFAULT uuid_generate_v4(),
+  "action"          "public"."audit_logs_action_enum" NOT NULL,
+  "entiteType"      character varying(50) NOT NULL,
+  "entiteId"        uuid NOT NULL,
+  "details"         jsonb,
+  "createdAt"       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "id_utilisateur"  uuid NOT NULL,
+  PRIMARY KEY ("id")
+);
+CREATE INDEX "idx_audit_logs_created_at"     ON "audit_logs" ("createdAt");
+CREATE INDEX "idx_audit_logs_entite"         ON "audit_logs" ("entiteType", "entiteId");
+CREATE INDEX "idx_audit_logs_id_utilisateur" ON "audit_logs" ("id_utilisateur");
+
+-- Table users
+CREATE TABLE "users" (
+  "id"           uuid NOT NULL DEFAULT uuid_generate_v4(),
+  "email"        character varying(255) NOT NULL,
+  "passwordHash" character varying(255) NOT NULL,
+  "role"         "public"."users_role_enum" NOT NULL DEFAULT 'collaborateur',
+  "prenom"       character varying(100) NOT NULL,
+  "nom"          character varying(100) NOT NULL,
+  "isActive"     boolean NOT NULL DEFAULT true,
+  "lastLoginAt"  TIMESTAMP WITH TIME ZONE,
+  "createdAt"    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  "updatedAt"    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  UNIQUE ("email"),
+  PRIMARY KEY ("id")
+);
+
+-- Clés étrangères
+ALTER TABLE "kyc"         ADD FOREIGN KEY ("id_client")      REFERENCES "clients"("id");
+ALTER TABLE "documents"   ADD FOREIGN KEY ("id_client")      REFERENCES "clients"("id");
+ALTER TABLE "documents"   ADD FOREIGN KEY ("id_utilisateur") REFERENCES "users"("id");
+ALTER TABLE "risk_scores" ADD FOREIGN KEY ("id_client")      REFERENCES "clients"("id");
+ALTER TABLE "risk_scores" ADD FOREIGN KEY ("id_utilisateur") REFERENCES "users"("id");
+ALTER TABLE "clients"     ADD FOREIGN KEY ("id_createur")    REFERENCES "users"("id");
+ALTER TABLE "clients"     ADD FOREIGN KEY ("id_validateur")  REFERENCES "users"("id");
+ALTER TABLE "audit_logs"  ADD FOREIGN KEY ("id_utilisateur") REFERENCES "users"("id");
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        VPS (Ubuntu)                             │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                   Nginx (reverse proxy)                  │  │
-│  │         (config gérée dynamiquement par vps-monitor)     │  │
-│  │                                                          │  │
-│  │  location /           → 127.0.0.1:3020 (vps-monitor)    │  │
-│  │  location /qw-app/    → 127.0.0.1:3006                  │  │
-│  │  location /lucky7/    → 127.0.0.1:3002                  │  │
-│  │  ...                                                     │  │
-│  └────────────────────────┬─────────────────────────────────┘  │
-│                            │                                    │
-│           ┌────────────────▼────────────────┐                  │
-│           │   Node.js / Express 5 (port 3000)│                  │
-│           │   vps-monitor (conteneur Docker) │                  │
-│           │                                  │                  │
-│           │  ┌──────────────────────────┐    │                  │
-│           │  │  deploy.js (pipeline)    │    │                  │
-│           │  │  git clone/pull          │    │                  │
-│           │  │  docker compose build    │    │                  │
-│           │  │  healthcheck HTTP        │    │                  │
-│           │  └──────────────────────────┘    │                  │
-│           │  ┌──────────────────────────┐    │                  │
-│           │  │  nginx.js                │    │                  │
-│           │  │  addApp / removeApp      │    │                  │
-│           │  │  reload (kill -HUP)      │    │                  │
-│           │  └──────────────────────────┘    │                  │
-│           │  ┌──────────────────────────┐    │                  │
-│           │  │  docker.js + metrics.js  │    │                  │
-│           │  │  /var/run/docker.sock    │    │                  │
-│           │  └──────────────────────────┘    │                  │
-│           │                                  │                  │
-│           │  WebSocket (ws) ← log streaming  │                  │
-│           └──────────────────────────────────┘                  │
-│                                                                 │
-│  ┌───────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
-│  │  qw-app   │  │ lucky7   │  │sbv       │  │ cinemap  │      │
-│  │(4 ctnrs)  │  │(Docker)  │  │(Docker)  │  │(Docker)  │      │
-│  └───────────┘  └──────────┘  └──────────┘  └──────────┘      │
-└─────────────────────────────────────────────────────────────────┘
+
+---
+
+### B. Code — QW-App Backend (NestJS)
+
+#### B1. Entité User
+
+Fichier `backend/src/users/entities/user.entity.ts`
+
+```typescript
+import {
+  Entity, PrimaryGeneratedColumn, Column,
+  CreateDateColumn, UpdateDateColumn, OneToMany,
+} from 'typeorm';
+import { Client }   from '../../clients/entities/client.entity';
+import { Document } from '../../documents/entities/document.entity';
+import { RiskScore } from '../../scoring/entities/risk-score.entity';
+import { AuditLog } from '../../audit/entities/audit-log.entity';
+
+export enum UserRole {
+  COLLABORATEUR    = 'collaborateur',
+  RESPONSABLE      = 'responsable',
+  EXPERT_COMPTABLE = 'expert-comptable',
+  ADMIN            = 'admin',
+}
+
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
+  email: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  passwordHash: string;
+
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.COLLABORATEUR })
+  role: UserRole;
+
+  @Column({ type: 'varchar', length: 100 })
+  prenom: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  nom: string;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastLoginAt: Date | null;
+
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;
+
+  @OneToMany(() => Client,   (c) => c.createur)   clientsCrees: Client[];
+  @OneToMany(() => Client,   (c) => c.validateur)  clientsValides: Client[];
+  @OneToMany(() => Document, (d) => d.utilisateur) documents: Document[];
+  @OneToMany(() => RiskScore,(r) => r.utilisateur) riskScores: RiskScore[];
+  @OneToMany(() => AuditLog, (a) => a.utilisateur) auditLogs: AuditLog[];
+}
 ```
 
-### A2. Diagramme de séquence — Authentification
+#### B2. Entité Client
 
-*(Diagramme à insérer)*
+Fichier `backend/src/clients/entities/client.entity.ts`
 
-### A3. Diagramme de séquence — Pipeline de déploiement
+```typescript
+import {
+  Entity, PrimaryGeneratedColumn, Column,
+  CreateDateColumn, UpdateDateColumn, DeleteDateColumn,
+  ManyToOne, OneToOne, OneToMany, JoinColumn, Index,
+} from 'typeorm';
+import { User }      from '../../users/entities/user.entity';
+import { Kyc }       from '../../kyc/entities/kyc.entity';
+import { Document }  from '../../documents/entities/document.entity';
+import { RiskScore } from '../../scoring/entities/risk-score.entity';
 
+export enum ClientStatut {
+  EN_COURS = 'en_cours',
+  VALIDE   = 'valide',
+  REJETE   = 'rejete',
+}
+
+@Entity('clients')
+@Index('idx_clients_statut',      ['statut'])
+@Index('idx_clients_deleted_at',  ['deletedAt'])
+@Index('idx_clients_id_createur', ['createur'])
+export class Client {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 50, unique: true })
+  reference: string;
+
+  @Column({ type: 'varchar', length: 100 }) prenom: string;
+  @Column({ type: 'varchar', length: 100 }) nom: string;
+
+  @Column({ type: 'varchar', length: 200, nullable: true }) raisonSociale: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true }) email: string | null;
+  @Column({ type: 'varchar', length: 20,  nullable: true }) telephone: string | null;
+
+  @Column({ type: 'enum', enum: ClientStatut, default: ClientStatut.EN_COURS })
+  statut: ClientStatut;
+
+  @DeleteDateColumn({ type: 'timestamptz' }) deletedAt: Date | null;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;
+
+  @ManyToOne(() => User, (u) => u.clientsCrees, { nullable: false })
+  @JoinColumn({ name: 'id_createur' })
+  createur: User;
+
+  @ManyToOne(() => User, (u) => u.clientsValides, { nullable: true })
+  @JoinColumn({ name: 'id_validateur' })
+  validateur: User | null;
+
+  @OneToOne(() => Kyc, (k) => k.client)
+  kyc: Kyc;
+
+  @OneToMany(() => Document,  (d) => d.client) documents: Document[];
+  @OneToMany(() => RiskScore, (r) => r.client) riskScores: RiskScore[];
+}
 ```
-GitHub Actions (staging.yml)
-    │
-    ▼  POST /api/webhook/deploy  (Bearer WEBHOOK_SECRET)
-vps-monitor server.js
-    │
-    ├─ createDeploymentRecord(projectId)
-    ├─ setProjectStatus('building')
-    │
-    ▼  runDeployment() [async]
-deploy.js
-    ├─ git clone | git pull
-    ├─ writeEnvFile (optionnel)
-    ├─ composeRebuildStreaming()  ──► logs streamés en WS
-    │      docker compose build
-    │      docker compose up -d
-    ├─ httpHealthcheck(nginxPath, timeout 30s)
-    │
-    ├─ updateDeployment(status: success|failed, duration)
-    └─ setProjectStatus(running|failed)
+
+#### B3. Entité Kyc
+
+Fichier `backend/src/kyc/entities/kyc.entity.ts`
+
+```typescript
+import {
+  Entity, PrimaryGeneratedColumn, Column,
+  CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn,
+} from 'typeorm';
+import { Client } from '../../clients/entities/client.entity';
+
+@Entity('kyc')
+export class Kyc {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true }) nationalite: string | null;
+  @Column({ type: 'varchar', length: 100, nullable: true }) paysResidence: string | null;
+  @Column({ type: 'varchar', length: 200, nullable: true }) secteurActivite: string | null;
+  @Column({ type: 'varchar', length: 100, nullable: true }) formeJuridique: string | null;
+
+  @Column({ type: 'boolean', default: false }) estPep: boolean;
+  @Column({ type: 'boolean', default: false }) paysHautRisque: boolean;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  chiffreAffaires: number | null;
+
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt: Date;
+
+  @OneToOne(() => Client, (c) => c.kyc, { nullable: false })
+  @JoinColumn({ name: 'id_client' })
+  client: Client;
+}
 ```
 
-### A4. Diagramme de séquence — Streaming logs WebSocket
+#### B4. Entité AuditLog
 
-*(Diagramme à insérer)*
+Fichier `backend/src/audit/entities/audit-log.entity.ts`
 
-### A5. Routing — Page d'accueil selon session
+```typescript
+import {
+  Entity, PrimaryGeneratedColumn, Column,
+  CreateDateColumn, ManyToOne, JoinColumn, Index,
+} from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
-*(Diagramme à insérer)*
+export enum AuditAction {
+  CREATE   = 'CREATE',
+  UPDATE   = 'UPDATE',
+  DELETE   = 'DELETE',
+  READ     = 'READ',
+  VALIDATE = 'VALIDATE',
+  LOGIN    = 'LOGIN',
+}
 
-### A6. Endpoints API
+@Entity('audit_logs')
+@Index('idx_audit_logs_id_utilisateur', ['utilisateur'])
+@Index('idx_audit_logs_entite',         ['entiteType', 'entiteId'])
+@Index('idx_audit_logs_created_at',     ['createdAt'])
+export class AuditLog {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'enum', enum: AuditAction })
+  action: AuditAction;
+
+  @Column({ type: 'varchar', length: 50 }) entiteType: string;
+  @Column({ type: 'uuid' })               entiteId: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  details: Record<string, unknown> | null;
+
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
+
+  @ManyToOne(() => User, (u) => u.auditLogs, { nullable: false })
+  @JoinColumn({ name: 'id_utilisateur' })
+  utilisateur: User;
+}
+```
+
+#### B5. AuthService — login
+
+Fichier `backend/src/auth/auth.service.ts`
+
+```typescript
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { compare } from 'bcrypt';
+import { User } from '../users/entities/user.entity';
+import { LoginDto } from './dto/login.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  async login(dto: LoginDto): Promise<{ access_token: string }> {
+    // Même message d'erreur pour email inconnu et mot de passe incorrect
+    // → empêche l'énumération des comptes
+    const invalid = new UnauthorizedException('Identifiants incorrects');
+
+    const user = await this.usersRepo.findOneBy({ email: dto.email });
+    if (!user) throw invalid;
+
+    if (!user.isActive) throw new UnauthorizedException('Compte désactivé');
+
+    const match = await compare(dto.password, user.passwordHash);
+    if (!match) throw invalid;
+
+    await this.usersRepo.update(user.id, { lastLoginAt: new Date() });
+
+    const payload = { sub: user.id, role: user.role };
+    return { access_token: this.jwtService.sign(payload) };
+  }
+}
+```
+
+#### B6. JwtAuthGuard et RolesGuard
+
+Fichier `backend/src/common/guards/jwt-auth.guard.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {}
+```
+
+Fichier `backend/src/common/guards/roles.guard.ts`
+
+```typescript
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { UserRole } from '../../users/entities/user.entity';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!required) return true;
+
+    const user = context
+      .switchToHttp()
+      .getRequest<{ user?: { role: UserRole } }>().user;
+    return !!user && required.includes(user.role);
+  }
+}
+```
+
+#### B7. Décorateur @Roles
+
+Fichier `backend/src/common/decorators/roles.decorator.ts`
+
+```typescript
+import { SetMetadata } from '@nestjs/common';
+import { UserRole } from '../../users/entities/user.entity';
+
+export const ROLES_KEY = 'roles';
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+```
+
+Exemple d'utilisation sur un endpoint :
+
+```typescript
+@Roles(Role.RESPONSABLE, Role.ADMIN)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Patch(':id/validate')
+validate(@Param('id') id: string) { ... }
+```
+
+#### B8. Algorithme de scoring — computeScore
+
+Extrait de `backend/src/scoring/scoring.service.ts`
+
+```typescript
+const SECTEURS_RISQUE = [
+  'crypto', 'cryptomonnaie', 'casino', 'jeux', 'gambling',
+  'forex', 'change', 'immobilier', 'luxe',
+];
+const CA_ELEVE_SEUIL    = 500_000;
+const SCORING_CACHE_TTL = 3600;
+
+interface ScoreResult {
+  score: number;
+  niveau: RiskNiveau;
+  details: Record<string, number>;
+}
+
+function computeScore(kyc: Kyc): ScoreResult {
+  let score = 0;
+  const details: Record<string, number> = {};
+
+  if (kyc.estPep)         { score += 30; details.pep = 30; }
+  if (kyc.paysHautRisque) { score += 25; details.paysHautRisque = 25; }
+
+  const secteur = (kyc.secteurActivite ?? '').toLowerCase();
+  if (SECTEURS_RISQUE.some((s) => secteur.includes(s))) {
+    score += 20;
+    details.secteurRisque = 20;
+  }
+
+  if ((kyc.chiffreAffaires ?? 0) > CA_ELEVE_SEUIL) {
+    score += 10;
+    details.chiffreAffairesEleve = 10;
+  }
+
+  score = Math.min(score, 100);
+
+  let niveau: RiskNiveau;
+  if (score <= 33)      niveau = RiskNiveau.FAIBLE;
+  else if (score <= 66) niveau = RiskNiveau.MOYEN;
+  else                  niveau = RiskNiveau.ELEVE;
+
+  return { score, niveau, details };
+}
+```
+
+#### B9. ScoringService — calculate
+
+Extrait de `backend/src/scoring/scoring.service.ts`
+
+```typescript
+@Injectable()
+export class ScoringService {
+  constructor(
+    @InjectRepository(RiskScore) private readonly riskScoreRepo: Repository<RiskScore>,
+    @InjectRepository(Kyc)       private readonly kycRepo: Repository<Kyc>,
+    @InjectRepository(AuditLog)  private readonly auditRepo: Repository<AuditLog>,
+    @Inject('REDIS_CLIENT')      private readonly redis: Redis,
+  ) {}
+
+  async calculate(clientId: string, authUser: AuthUser): Promise<RiskScore> {
+    const kyc = await this.kycRepo.findOne({ where: { client: { id: clientId } } });
+    if (!kyc) throw new NotFoundException('Fiche KYC introuvable');
+
+    const { score, niveau, details } = computeScore(kyc);
+
+    // Persistance du score avec horodatage (traçabilité des réévaluations)
+    const riskScore = await this.riskScoreRepo.save(
+      this.riskScoreRepo.create({
+        score, niveau, details,
+        client:      { id: clientId }    as Client,
+        utilisateur: { id: authUser.id } as User,
+      }),
+    );
+
+    // Entrée d'audit
+    await this.auditRepo.save(
+      this.auditRepo.create({
+        action: AuditAction.CREATE,
+        entiteType: 'RiskScore',
+        entiteId: riskScore.id,
+        details: { score, niveau } as Record<string, unknown>,
+        utilisateur: { id: authUser.id } as User,
+      }),
+    );
+
+    // Mise en cache Redis (clé scoring:<clientId>, TTL 3600 s)
+    await this.redis.setex(
+      `scoring:${clientId}`,
+      SCORING_CACHE_TTL,
+      JSON.stringify(riskScore),
+    );
+
+    return riskScore;
+  }
+
+  findByClient(clientId: string): Promise<RiskScore[]> {
+    return this.riskScoreRepo.find({
+      where: { client: { id: clientId } },
+      order: { calculatedAt: 'DESC' },
+    });
+  }
+}
+```
+
+#### B10. AuditService
+
+Fichier `backend/src/audit/audit.service.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AuditAction, AuditLog } from './entities/audit-log.entity';
+import { User } from '../users/entities/user.entity';
+
+@Injectable()
+export class AuditService {
+  constructor(
+    @InjectRepository(AuditLog)
+    private readonly auditRepo: Repository<AuditLog>,
+  ) {}
+
+  log(
+    userId: string,
+    action: AuditAction,
+    entiteType: string,
+    entiteId: string,
+    details: Record<string, unknown> | null = null,
+  ): Promise<AuditLog> {
+    return this.auditRepo.save(
+      this.auditRepo.create({
+        action, entiteType, entiteId, details,
+        utilisateur: { id: userId } as User,
+      }),
+    );
+  }
+
+  findAll(): Promise<AuditLog[]> {
+    return this.auditRepo.find({
+      relations: ['utilisateur'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  findByEntite(entiteId: string): Promise<AuditLog[]> {
+    return this.auditRepo.find({
+      where: { entiteId },
+      relations: ['utilisateur'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+}
+```
+
+---
+
+### C. Code — QW-App Frontend (Next.js)
+
+#### C1. Route proxy API — /api/[...path]/route.ts
+
+Fichier `frontend/src/app/api/[...path]/route.ts`
+
+Toutes les requêtes du client passent par ce handler côté serveur Next.js, qui les redirige vers le backend NestJS. `BACKEND_URL` reste une variable d'environnement serveur, jamais exposée au navigateur.
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+
+async function handler(request: NextRequest) {
+  const { pathname, search } = new URL(request.url);
+  const backendUrl = BACKEND_URL + pathname + search;
+
+  const headers = new Headers(request.headers);
+  // Hop-by-hop headers non transférables
+  for (const h of ["host", "connection", "keep-alive",
+                    "transfer-encoding", "te", "trailer",
+                    "upgrade", "proxy-authorization"]) {
+    headers.delete(h);
+  }
+
+  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+
+  const response = await fetch(backendUrl, {
+    method: request.method,
+    headers,
+    body: hasBody ? request.body : null,
+    // @ts-expect-error - duplex needed for streaming request body
+    duplex: "half",
+  });
+
+  return new NextResponse(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+export const GET    = handler;
+export const POST   = handler;
+export const PUT    = handler;
+export const PATCH  = handler;
+export const DELETE = handler;
+```
+
+#### C2. Middleware — proxy.ts
+
+Fichier `frontend/src/proxy.ts`
+
+Exécuté côté serveur avant chaque rendu. Lit le cookie `qw_token`, décode le JWT (structure + expiration uniquement), et redirige selon l'état de l'authentification.
+
+```typescript
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { decodeToken, getDashboardPath } from "@/lib/auth";
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  const token = request.cookies.get("qw_token")?.value;
+  const payload = token ? decodeToken(token) : null;
+  const isAuthenticated = !!payload && payload.exp * 1000 > Date.now();
+
+  const redirect = (path: string) => {
+    const url = request.nextUrl.clone();
+    url.pathname = path;
+    return NextResponse.redirect(url);
+  };
+
+  if (pathname === "/" || pathname === "") {
+    return isAuthenticated
+      ? redirect(getDashboardPath(payload!.role))
+      : redirect("/login");
+  }
+
+  if (pathname === "/login") {
+    if (isAuthenticated) return redirect(getDashboardPath(payload!.role));
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/dashboard")) {
+    if (!isAuthenticated) return redirect("/login");
+    return NextResponse.next();
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/", "/login", "/dashboard/:path*"],
+};
+```
+
+#### C3. Helper apiFetch
+
+Fichier `frontend/src/lib/apiFetch.ts`
+
+Helper centralisé pour tous les appels API depuis le client. Lit le cookie `qw_token`, injecte le JWT dans le header `Authorization`, gère les erreurs et l'expiration de session.
+
+```typescript
+import { apiUrl } from "@/lib/api-url";
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export async function apiFetch<T = unknown>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = getCookie("qw_token");
+  const isFormData = options.body instanceof FormData;
+
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (!isFormData) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(apiUrl(path), { ...options, headers });
+
+  if (res.status === 401) {
+    document.cookie = "qw_token=; path=/; max-age=0";
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
+
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message ?? `HTTP ${res.status}`);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+```
+
+#### C4. LoginForm — handleSubmit
+
+Fichier `frontend/src/components/login-form.tsx`
+
+Envoie les identifiants via le proxy Next.js, stocke le token retourné dans le cookie `qw_token`, puis redirige vers le dashboard adapté au rôle.
+
+```typescript
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { decodeToken, getDashboardPath } from "@/lib/auth";
+import { apiUrl } from "@/lib/api-url";
+
+export function LoginForm({ className, ...props }: React.ComponentProps<"form">) {
+  const router = useRouter();
+  const [error, setError]     = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const form     = new FormData(e.currentTarget);
+    const email    = form.get("email")    as string;
+    const password = form.get("password") as string;
+
+    try {
+      const res = await fetch(apiUrl("/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json()) as { message?: string };
+        setError(data.message ?? "Identifiants incorrects");
+        return;
+      }
+
+      const { access_token } = (await res.json()) as { access_token: string };
+      // Stockage du token en cookie (pas localStorage) : plus résistant au vol XSS
+      document.cookie = `qw_token=${access_token}; path=/; max-age=${60 * 60 * 24}`;
+
+      const payload = decodeToken(access_token);
+      router.push(payload ? getDashboardPath(payload.role) : "/dashboard");
+    } catch {
+      setError("Une erreur est survenue, veuillez réessayer.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ... JSX du formulaire
+}
+```
+
+#### C5. lib/auth.ts — decodeToken et getDashboardPath
+
+Fichier `frontend/src/lib/auth.ts`
+
+Décode le payload JWT côté client (sans vérification de signature — uniquement pour lire le rôle et l'expiration).
+
+```typescript
+export interface JwtPayload {
+  sub: string;
+  role: string;
+  iat: number;
+  exp: number;
+}
+
+export function decodeToken(token: string): JwtPayload | null {
+  try {
+    const payload = token.split(".")[1];
+    const base64 = payload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    return JSON.parse(atob(base64)) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function getDashboardPath(_role: string): string {
+  return "/dashboard";
+}
+```
+
+---
+
+### D. vps-monitor v2
+
+#### D1. Architecture globale
+
+```mermaid
+flowchart TD
+    Internet([Internet]) -->|HTTPS| Nginx
+
+    subgraph VPS["🖥️  VPS — Ubuntu"]
+        subgraph NX["Nginx — reverse proxy"]
+            Nginx["/ → :3020 — vps-monitor\n/qw-app/ → :3006\n/lucky7/ → :3002\n..."]
+        end
+
+        subgraph VM["vps-monitor — Node.js / Express 5 — port 3020"]
+            Deploy["deploy.js\ngit clone / pull\ndocker compose build\nhealthcheck HTTP"]
+            NginxJS["nginx.js\naddApp / removeApp\nreload — kill -HUP"]
+            Docker["docker.js + metrics.js\n/var/run/docker.sock"]
+            WS["WebSocket\nlog streaming temps réel"]
+        end
+
+        Nginx --> VM
+
+        subgraph Apps["Applications hébergées"]
+            direction LR
+            QW["qw-app\n4 conteneurs"]
+            L7["lucky7\nDocker"]
+            SBV["sbv\nDocker"]
+            CM["cinemap\nDocker"]
+        end
+
+        VM -.->|déploie & surveille| Apps
+    end
+```
+
+#### D2. Endpoints API
 
 **Auth**
 
@@ -1385,51 +2305,284 @@ deploy.js
 | POST | `/api/webhook/deploy` | Bearer | Déclenche un déploiement (legacy) |
 | POST | `/api/webhook/:id` | Bearer | Déclenche un déploiement par projet |
 
-### A7. Structure des fichiers
+#### D3. Structure des fichiers
 
+```mermaid
+mindmap
+  root((vps-monitor))
+    app
+      api
+        server.js
+        server.test.js
+        services
+          deploy.js
+          build.js
+          compose.js
+          git.js
+          docker.js
+          metrics.js
+          nginx.js
+          registry.js
+      public
+        home.html
+        index.html
+        login.html
+        api.js
+        app.js
+        store.js
+        style.css
+        views
+          project.js
+          sidebar.js
+      Dockerfile
+      package.json
+    data
+      apps.json
+      logs/
+    deployment
+      docker-compose.yml
+      nginx.conf
+    .github/workflows
+      ci.yml
+      staging.yml
 ```
-vps-monitor/
-├── app/
-│   ├── api/
-│   │   ├── server.js              # Express 5 + WebSocket
-│   │   ├── server.test.js         # Tests Jest + Supertest
-│   │   └── services/
-│   │       ├── deploy.js          # Pipeline de déploiement
-│   │       ├── build.js           # Sessions de build + streaming
-│   │       ├── compose.js         # docker compose operations
-│   │       ├── git.js             # Opérations git
-│   │       ├── docker.js          # Dockerode (conteneurs)
-│   │       ├── metrics.js         # CPU/RAM via Docker stats
-│   │       ├── nginx.js           # Gestion dynamique Nginx
-│   │       └── registry.js        # CRUD registre apps.json
-│   ├── public/
-│   │   ├── home.html              # Page d'accueil publique
-│   │   ├── index.html             # Dashboard (protégé)
-│   │   ├── login.html             # Formulaire de connexion
-│   │   ├── api.js                 # Client API frontend
-│   │   ├── app.js                 # Logique principale frontend
-│   │   ├── store.js               # État partagé frontend
-│   │   ├── style.css              # Styles unifiés
-│   │   └── views/
-│   │       ├── project.js         # Vue détail projet
-│   │       └── sidebar.js         # Sidebar navigation
-│   ├── Dockerfile
-│   ├── eslint.config.js
-│   └── package.json               # "type": "module", Express 5, ws
-├── data/
-│   ├── apps.json                  # Registre persistant des projets
-│   └── logs/                      # Logs de build par déploiement
-├── deployment/
-│   ├── docker-compose.yml
-│   └── nginx.conf
-└── .github/workflows/
-    ├── ci.yml                     # Lint + Tests
-    └── staging.yml                # Deploy SSH
+
+**Rôle des fichiers clés**
+
+| Fichier | Rôle |
+|---------|------|
+| `api/server.js` | Point d'entrée Express 5 + WebSocket |
+| `api/server.test.js` | Tests Jest + Supertest |
+| `services/deploy.js` | Pipeline complet : git clone/pull → build → healthcheck |
+| `services/build.js` | Sessions de build avec streaming des logs |
+| `services/compose.js` | Opérations docker compose |
+| `services/git.js` | Opérations git |
+| `services/docker.js` | Gestion des conteneurs via Dockerode |
+| `services/metrics.js` | CPU/RAM en temps réel via Docker stats |
+| `services/nginx.js` | Lecture/écriture dynamique de la config Nginx |
+| `services/registry.js` | CRUD du registre `apps.json` |
+| `public/home.html` | Page d'accueil publique |
+| `public/index.html` | Dashboard (accès protégé) |
+| `public/views/project.js` | Vue détail d'un projet |
+| `data/apps.json` | Registre persistant des projets |
+| `data/logs/` | Logs de build par déploiement |
+| `deployment/docker-compose.yml` | Orchestration des conteneurs vps-monitor |
+| `.github/workflows/ci.yml` | Lint + tests sur chaque push |
+| `.github/workflows/staging.yml` | Déploiement SSH sur push `staging` |
+
+#### D4. Service deploy.js — pipeline de déploiement
+
+Fichier `app/api/services/deploy.js`
+
+```javascript
+import { readFile, writeFile, access, rm } from 'fs/promises';
+import { join, dirname } from 'path';
+import { execFile as execFileCb, spawn } from 'child_process';
+import { promisify } from 'util';
+import {
+  addInclude, removeInclude, getAllServiceNames, findComposePath,
+  composeDown, composeIsRunning, composeRebuildStreaming,
+} from './compose.js';
+import {
+  getProjects, getProject, addProject, updateProject, deleteProject,
+  setProjectStatus, addDeployment, updateDeployment, generateDeployId,
+} from './registry.js';
+import { startBuildSession } from './build.js';
+
+const execFile  = promisify(execFileCb);
+const APPS_ROOT = process.env.APPS_ROOT || '/var/www';
+
+function safeName(id) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Identifiant invalide');
+  return id;
+}
+
+async function httpHealthcheck(url, timeoutMs = 30000, intervalMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.status < 500) return true;
+    } catch { /* retry */ }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return false;
+}
+
+export async function runDeployment(projectId, deployId, options = {}) {
+  const { env = null, branch = null } = options;
+  safeName(projectId);
+
+  const project  = await getProject(projectId);
+  const appPath  = join(APPS_ROOT, projectId);
+  const buildSession = await startBuildSession(projectId, deployId);
+  const startTime    = Date.now();
+  const log = (text) => buildSession.write(text);
+
+  try {
+    // --- 1. Git clone ou git pull ---
+    let isNewClone = false;
+    try { await access(appPath); } catch { isNewClone = true; }
+
+    if (isNewClone) {
+      log(`[vps] Clonage de ${project.gitUrl}...\n`);
+      const cloneArgs = ['clone'];
+      if (branch || project.branch) cloneArgs.push('-b', branch || project.branch);
+      cloneArgs.push(project.gitUrl, appPath);
+
+      await new Promise((resolve, reject) => {
+        const child = spawn('git', cloneArgs);
+        child.stdout.on('data', (c) => log(c.toString('utf8')));
+        child.stderr.on('data', (c) => log(c.toString('utf8')));
+        child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`git clone exited ${code}`)));
+        child.on('error', reject);
+      });
+      await addInclude(projectId);
+    } else {
+      log(`[vps] Mise à jour depuis ${project.gitUrl}...\n`);
+      const safeDir = ['-c', `safe.directory=${appPath}`];
+      // fetch + reset --hard pour éviter les conflits de merge
+      await new Promise((resolve, reject) => {
+        const child = spawn('git', ['-C', appPath, ...safeDir, 'fetch', 'origin']);
+        child.stdout.on('data', (c) => log(c.toString('utf8')));
+        child.stderr.on('data', (c) => log(c.toString('utf8')));
+        child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`git fetch exited ${code}`)));
+        child.on('error', reject);
+      });
+
+      const { stdout: branchOut } = await execFile('git', ['-C', appPath, ...safeDir, 'rev-parse', '--abbrev-ref', 'HEAD']);
+      const currentBranch = branch || project.branch || branchOut.trim();
+
+      await new Promise((resolve, reject) => {
+        const child = spawn('git', ['-C', appPath, ...safeDir, 'reset', '--hard', `origin/${currentBranch}`]);
+        child.stdout.on('data', (c) => log(c.toString('utf8')));
+        child.stderr.on('data', (c) => log(c.toString('utf8')));
+        child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`git reset exited ${code}`)));
+        child.on('error', reject);
+      });
+    }
+
+    // --- 2. Écriture du .env si fourni ---
+    if (env !== null) {
+      log(`[vps] Écriture du fichier .env...\n`);
+      await writeEnvFile(projectId, env);
+    }
+
+    // --- 3. Build & start conteneurs ---
+    const commit = await getCurrentCommit(appPath);
+    await updateDeployment(projectId, deployId, { commit, status: 'building' });
+    log(`[vps] Démarrage du build...\n`);
+
+    const services = await getAllServiceNames(projectId).catch(() => [projectId]);
+    await composeRebuildStreaming(services, true, log);
+
+    // --- 4. Healthcheck HTTP ---
+    log(`[vps] Healthcheck...\n`);
+    let healthy = true;
+    if (project.nginxPath && project.port) {
+      const BASE_URL  = process.env.BASE_URL || 'http://localhost:3000';
+      const healthUrl = `${BASE_URL}${project.nginxPath}`;
+      healthy = await httpHealthcheck(healthUrl);
+      log(healthy
+        ? `[vps] Application opérationnelle.\n`
+        : `[vps] Healthcheck timeout — l'app ne répond pas.\n`);
+    }
+
+    const duration    = Math.round((Date.now() - startTime) / 1000);
+    const finalStatus = healthy ? 'success' : 'failed';
+
+    await updateDeployment(projectId, deployId, { status: finalStatus, duration });
+    await setProjectStatus(projectId, healthy ? 'running' : 'failed');
+    log(`[vps] Déploiement ${finalStatus} (${duration}s)\n`);
+
+  } catch (err) {
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    log(`[vps] ERREUR: ${err.message}\n`);
+    await updateDeployment(projectId, deployId, { status: 'failed', duration });
+    await setProjectStatus(projectId, 'failed');
+  } finally {
+    buildSession.end();
+  }
+}
+
+// Wrapper de convenance : crée l'enregistrement et lance le pipeline de façon asynchrone
+export async function deployProject(projectId, options = {}) {
+  const deployId = await createDeploymentRecord(projectId, options);
+  runDeployment(projectId, deployId, options)
+    .catch((err) => console.error(`[deploy] ${projectId}:`, err.message));
+  return deployId;
+}
 ```
 
-### A8. Pipeline CI/CD (vps-monitor)
+#### D5. Service nginx.js — gestion dynamique
 
-**ci.yml** — Lint et tests sur chaque push :
+Fichier `app/api/services/nginx.js`
+
+Lit et écrit le fichier de configuration Nginx, recharge le processus sans interruption via `kill -HUP`.
+
+```javascript
+import { readFile, writeFile } from 'fs/promises';
+import { execFile as execFileCb } from 'child_process';
+import { promisify } from 'util';
+
+const execFile    = promisify(execFileCb);
+const NGINX_CONFIG = process.env.NGINX_CONFIG || '/etc/nginx/sites-available/vps';
+
+export async function reload() {
+  // Trouve le PID du master nginx en parsant /proc, puis envoie SIGHUP
+  const { stdout } = await execFile('sh', ['-c',
+    "for f in /proc/[0-9]*/cmdline; do grep -qa 'nginx: master' \"$f\" && basename \"${f%/cmdline}\" && break; done",
+  ]);
+  const pid = stdout.trim();
+  if (!pid) throw new Error('nginx master process introuvable');
+  await execFile('kill', ['-HUP', pid]);
+}
+
+export function parseApps(content) {
+  const apps = [];
+  const blockRegex = /location\s+(\/[^\s{]+)\s*\{([^}]+)\}/g;
+  for (const match of content.matchAll(blockRegex)) {
+    const path = match[1].trim();
+    if (path === '/') continue;
+    const portMatch = match[2].match(/proxy_pass\s+http:\/\/127\.0\.0\.1:(\d+)/);
+    if (portMatch) apps.push({ path, port: parseInt(portMatch[1], 10) });
+  }
+  return apps;
+}
+
+export async function addApp(path, port, stripPrefix = true, proxyTarget = null) {
+  const content = await readFile(NGINX_CONFIG, 'utf8');
+  if (!proxyTarget) {
+    proxyTarget = stripPrefix
+      ? `http://127.0.0.1:${port}/`
+      : `http://127.0.0.1:${port}`;
+  }
+  const block = `
+    location ${path} {
+        proxy_pass ${proxyTarget};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }`;
+  await writeFile(NGINX_CONFIG, content.trimEnd().replace(/\n\}$/, `\n${block}\n}`) + '\n', 'utf8');
+}
+
+export async function removeApp(path) {
+  const content = await readFile(NGINX_CONFIG, 'utf8');
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const blockRegex = new RegExp(`\\n[ \\t]*location\\s+${escaped}\\s*\\{[\\s\\S]*?\\}`, 'g');
+  await writeFile(NGINX_CONFIG, content.replace(blockRegex, ''), 'utf8');
+}
+```
+
+#### D6. CI/CD — Workflows GitHub Actions
+
+**vps-monitor — ci.yml** (lint + tests sur chaque push) :
 
 ```yaml
 name: CI
@@ -1455,7 +2608,7 @@ jobs:
         working-directory: app
 ```
 
-**staging.yml** — Déploiement SSH sur push `staging` :
+**vps-monitor — staging.yml** (déploiement SSH sur push `staging`) :
 
 ```yaml
 name: Deploy staging
@@ -1479,372 +2632,40 @@ jobs:
             docker compose -f deployment/docker-compose.yml up -d --remove-orphans
 ```
 
-**Secrets GitHub requis :**
+**qw-app — staging.yml** (déclenchement webhook sur push `staging`) :
 
-| Secret | Usage |
-|--------|-------|
-| `VPS_HOST` | Adresse IP du serveur |
-| `VPS_USER` | Utilisateur SSH |
-| `VPS_SSH_KEY` | Clé privée SSH |
+```yaml
+name: Deploy staging
+on:
+  push:
+    branches: [staging]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy via vps-monitor webhook
+        run: |
+          curl -f -s -X POST "${{ secrets.VPS_MONITOR_URL }}/api/webhook/deploy" \
+            -H "Authorization: Bearer ${{ secrets.WEBHOOK_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "qw-app"}'
+```
+
+| Projet | Secret | Usage |
+|--------|--------|-------|
+| vps-monitor | `VPS_HOST` | Adresse IP du serveur |
+| vps-monitor | `VPS_USER` | Utilisateur SSH |
+| vps-monitor | `VPS_SSH_KEY` | Clé privée SSH |
+| qw-app | `VPS_MONITOR_URL` | URL de l'instance vps-monitor |
+| qw-app | `WEBHOOK_SECRET` | Token Bearer d'authentification |
 
 ---
 
-## Annexes — CI/CD
+### E. Infrastructure VPS
 
-### B1. Vue d'ensemble des workflows
+#### E1. docker-compose.yml — qw-app
 
-**qw-app**
-
-| Fichier | Déclencheur | Rôle |
-|---------|-------------|------|
-| `staging.yml` | Push sur `staging` | Déclenche déploiement via webhook vps-monitor |
-
-Hooks locaux (Husky) :
-
-| Hook | Déclencheur | Rôle |
-|------|-------------|------|
-| `pre-commit` | Avant chaque commit | Lint + Prettier (lint-staged) |
-| `commit-msg` | Après saisie du message | Validation commitlint |
-
-**vps-monitor**
-
-| Fichier | Déclencheur | Rôle |
-|---------|-------------|------|
-| `ci.yml` | Push + PR | Lint + Tests |
-| `staging.yml` | Push sur `staging` | Déploiement SSH |
-
-### B2. Stratégie de branches
-
-| Branche | Rôle | Source | Destination |
-|---------|------|--------|-------------|
-| `main` | Production | `staging` ou `hotfix` | — |
-| `dev` | Développement | `main` | `staging / main` |
-| `staging` | Pré-production + CD | `dev` | `main` |
-| `feature/*` / `feat/*` | Nouvelle fonctionnalité | `dev` | `dev` |
-| `fix/*` | Correction de bug | `dev` | `dev` |
-| `hotfix/*` | Correction urgente prod | `main` | `main + dev` |
-
-### B3. Workflow de déploiement qw-app
-
-```
-dev branch
-    │ merge
-    ▼
-staging branch ──► GitHub Actions (staging.yml)
-                       │
-                       ▼  POST /api/webhook/deploy
-                   vps-monitor
-                       │
-                       ▼
-                   deploy.js
-                   ├─ git pull origin staging
-                   ├─ docker compose build qw-app-*
-                   ├─ docker compose up -d
-                   └─ healthcheck /qw-app/
-```
-
----
-
-## Annexes — C. Code QWapp
-
-### C1. Entité User (TypeORM)
-
-```typescript
-export enum UserRole {
-  COLLABORATEUR    = "collaborateur",
-  RESPONSABLE      = "responsable",
-  EXPERT_COMPTABLE = "expert-comptable",
-  ADMIN            = "admin",
-}
-
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn("uuid")
-  id: string;
-
-  @Column({ unique: true, transformer: { to: v => v.toLowerCase(), from: v => v } })
-  email: string;
-
-  @Column()
-  passwordHash: string;
-
-  @Column({ type: "enum", enum: UserRole, default: UserRole.COLLABORATEUR })
-  role: UserRole;
-
-  @Column({ default: true })
-  isActive: boolean;
-
-  @Column({ nullable: true })
-  lastLoginAt: Date;
-
-  @CreateDateColumn() createdAt: Date;
-  @UpdateDateColumn() updatedAt: Date;
-}
-```
-
-### C2. Route de login — POST /api/auth/login
-
-```typescript
-@Post("login")
-async login(@Body() dto: LoginDto) {
-  const user = await this.usersService.findByEmail(dto.email);
-  if (!user || !user.isActive)
-    throw new UnauthorizedException("Identifiants invalides");
-
-  const valid = await bcrypt.compare(dto.password, user.passwordHash);
-  if (!valid)
-    throw new UnauthorizedException("Identifiants invalides");
-
-  await this.usersService.updateLastLogin(user.id);
-
-  const token = this.jwtService.sign({ id: user.id, role: user.role });
-  return { token, role: user.role };
-}
-```
-
-### C3. JwtAuthGuard
-
-```typescript
-@Injectable()
-export class JwtAuthGuard extends AuthGuard("jwt") {
-  canActivate(context: ExecutionContext) {
-    return super.canActivate(context);
-  }
-
-  handleRequest(err: unknown, user: unknown) {
-    if (err || !user) throw new UnauthorizedException("Token invalide ou expiré");
-    return user;
-  }
-}
-```
-
-### C4. RolesGuard
-
-```typescript
-@Injectable()
-export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const roles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (!roles) return true;
-
-    const { user } = context.switchToHttp().getRequest();
-    if (!roles.includes(user.role))
-      throw new ForbiddenException("Accès interdit");
-    return true;
-  }
-}
-
-export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
-```
-
-### C5. Algorithme de scoring (scoring.service.ts)
-
-```typescript
-const SECTEURS_RISQUE = [
-  'crypto', 'cryptomonnaie', 'casino', 'jeux', 'gambling',
-  'forex', 'change', 'immobilier', 'luxe',
-];
-const CA_ELEVE_SEUIL = 500_000;
-
-function computeScore(kyc: Kyc): ScoreResult {
-  let score = 0;
-  const details: Record<string, number> = {};
-
-  if (kyc.estPep)         { score += 30; details.pep = 30; }
-  if (kyc.paysHautRisque) { score += 25; details.paysHautRisque = 25; }
-
-  const secteur = (kyc.secteurActivite ?? '').toLowerCase();
-  if (SECTEURS_RISQUE.some(s => secteur.includes(s))) {
-    score += 20; details.secteurRisque = 20;
-  }
-
-  if ((kyc.chiffreAffaires ?? 0) > CA_ELEVE_SEUIL) {
-    score += 10; details.chiffreAffairesEleve = 10;
-  }
-
-  score = Math.min(score, 100);
-
-  let niveau: RiskNiveau;
-  if (score <= 33)      niveau = RiskNiveau.FAIBLE;
-  else if (score <= 66) niveau = RiskNiveau.MOYEN;
-  else                  niveau = RiskNiveau.ELEVE;
-
-  return { score, niveau, details };
-}
-```
-
-### C6. LoginForm — soumission du formulaire
-
-```typescript
-async function handleSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  setError(null);
-  setLoading(true);
-
-  try {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) { setError(data.message ?? "Erreur de connexion"); return; }
-
-    // Le token est stocké dans un cookie par le serveur Next.js
-    // Le middleware redirige vers le bon dashboard selon le rôle
-    router.push("/dashboard");
-  } catch {
-    setError("Impossible de contacter le serveur");
-  } finally {
-    setLoading(false);
-  }
-}
-```
-
-### C7. Helper apiFetch
-
-```typescript
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
-  if (res.status === 401) {
-    window.location.href = "/login";
-    throw new Error("Session expirée");
-  }
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message ?? `Erreur ${res.status}`);
-  }
-
-  return res.json() as Promise<T>;
-}
-```
-
-### C8. Middleware Next.js (proxy.ts)
-
-```typescript
-export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const token = request.cookies.get("qw_token")?.value;
-  const payload = token ? decodeToken(token) : null;
-  const isAuthenticated = !!payload && payload.exp * 1000 > Date.now();
-
-  const redirect = (path: string) => {
-    const url = request.nextUrl.clone();
-    url.pathname = path;
-    return NextResponse.redirect(url);
-  };
-
-  if (pathname === "/" || pathname === "") {
-    return isAuthenticated
-      ? redirect(getDashboardPath(payload!.role))
-      : redirect("/login");
-  }
-
-  if (pathname === "/login") {
-    if (isAuthenticated) return redirect(getDashboardPath(payload!.role));
-    return NextResponse.next();
-  }
-
-  if (pathname.startsWith("/dashboard")) {
-    if (!isAuthenticated) return redirect("/login");
-    return NextResponse.next();
-  }
-
-  return NextResponse.next();
-}
-
-export const config = {
-  matcher: ["/", "/login", "/dashboard/:path*"],
-};
-```
-
-### C9. Composant SectionCards
-
-```typescript
-export function SectionCards({ stats }: { stats: Stats }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
-      {cards.map(({ key, label, icon: Icon, color }) => (
-        <Card key={key} className="gap-3 py-4">
-          <CardHeader className="px-4 pb-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {label}
-              </CardTitle>
-              <Icon className={`size-4 ${color}`} />
-            </div>
-          </CardHeader>
-          <CardContent className="px-4">
-            <p className="text-3xl font-bold tabular-nums">{stats[key]}</p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-```
-
-### C10. Entité Client (TypeORM)
-
-```typescript
-@Entity()
-export class Client {
-  @PrimaryGeneratedColumn("uuid")
-  id: string;
-
-  @Column()
-  nom: string;
-
-  @Column()
-  prenom: string;
-
-  @Column({ nullable: true })
-  activite: string;
-
-  @Column({ default: false })
-  isDeleted: boolean;
-
-  @Column({ nullable: true })
-  deletedAt: Date;
-
-  @OneToOne(() => Kyc, kyc => kyc.client, { cascade: true })
-  kyc: Kyc;
-
-  @OneToMany(() => RiskScore, score => score.client)
-  scores: RiskScore[];
-
-  @OneToMany(() => Document, doc => doc.client)
-  documents: Document[];
-
-  @OneToMany(() => AuditLog, log => log.entityId)
-  auditLogs: AuditLog[];
-
-  @CreateDateColumn() createdAt: Date;
-  @UpdateDateColumn() updatedAt: Date;
-}
-```
-
----
-
-## Annexes — D. Infrastructure VPS
-
-### D1. docker-compose.yml — qw-app
-
-Fichier situé à `deployment/docker-compose.yml` dans le dépôt qw-app. Déployé par vps-monitor dans `/var/www/qw-app/`.
+Fichier `deployment/docker-compose.yml` dans le dépôt qw-app. Déployé par vps-monitor dans `/var/www/qw-app/`.
 
 ```yaml
 services:
@@ -1902,11 +2723,9 @@ volumes:
   qw_postgres_data:
 ```
 
-### D2. Configuration Nginx — Reverse proxy
+#### E2. Configuration Nginx
 
-La configuration Nginx est gérée dynamiquement par vps-monitor. Le service `nginx.js` lit et écrit le fichier `/etc/nginx/sites-available/vps`, puis recharge Nginx via `kill -HUP <pid master>`.
-
-Exemple de route ajoutée automatiquement lors d'un déploiement :
+La configuration Nginx est gérée dynamiquement par le service `nginx.js` de vps-monitor. Exemple de route ajoutée automatiquement lors d'un déploiement :
 
 ```nginx
 location /qw-app/ {
@@ -1919,7 +2738,7 @@ location /qw-app/ {
 }
 ```
 
-### D3. Tableau de routage — Ports et routes
+#### E3. Tableau de routage — Ports et routes
 
 | Application | Conteneur | Port hôte | Route Nginx |
 |-------------|-----------|:---------:|-------------|
@@ -1932,18 +2751,18 @@ location /qw-app/ {
 | TP Vue | Docker (tp-vue) | 3005 | `/B3dev-TP_VUE/` |
 | Collège La Boussole | Docker (clb) | 3007 | `/collegelaboussole/` |
 
-### D4. Procédure de configuration du serveur VPS
+#### E4. Procédure de configuration du serveur VPS
 
-Instructions complètes pour reproduire l'environnement de zéro, dans l'ordre d'exécution.
+Instructions pour reproduire l'environnement de zéro, dans l'ordre d'exécution.
 
-#### 1. Connexion initiale et mise à jour du système
+##### 1. Connexion initiale et mise à jour du système
 
 ```bash
 ssh root@<IP_VPS>
 apt update && apt upgrade -y
 ```
 
-#### 2. Création d'un utilisateur dédié
+##### 2. Création d'un utilisateur dédié
 
 ```bash
 adduser rusty
@@ -1951,7 +2770,7 @@ usermod -aG sudo rusty
 su - rusty
 ```
 
-#### 3. Sécurisation de l'accès SSH
+##### 3. Sécurisation de l'accès SSH
 
 ```bash
 # Depuis la machine locale
@@ -1961,7 +2780,7 @@ ssh-copy-id rusty@<IP_VPS>
 sudo nano /etc/ssh/sshd_config
 ```
 
-Lignes à modifier dans `sshd_config` :
+Lignes à modifier :
 
 ```
 PermitRootLogin no
@@ -1975,7 +2794,7 @@ sudo systemctl restart ssh
 ssh rusty@<IP_VPS>
 ```
 
-#### 4. Configuration du pare-feu (UFW)
+##### 4. Configuration du pare-feu (UFW)
 
 ```bash
 sudo apt install ufw -y
@@ -1986,19 +2805,7 @@ sudo ufw enable
 sudo ufw status
 ```
 
-Résultat attendu :
-
-```
-Status: active
-
-To                         Action      From
---                         ------      ----
-22/tcp                     ALLOW       Anywhere
-80/tcp                     ALLOW       Anywhere
-443/tcp                    ALLOW       Anywhere
-```
-
-#### 5. Installation de Docker
+##### 5. Installation de Docker
 
 ```bash
 sudo apt install ca-certificates curl gnupg -y
@@ -2019,7 +2826,7 @@ sudo usermod -aG docker rusty
 
 > **Important :** se déconnecter et reconnecter pour que le groupe `docker` soit pris en compte.
 
-#### 6. Installation de Nginx
+##### 6. Installation de Nginx
 
 ```bash
 sudo apt install nginx -y
@@ -2027,25 +2834,23 @@ sudo systemctl start nginx
 sudo systemctl enable nginx
 ```
 
-#### 7. Déploiement de vps-monitor
+##### 7. Déploiement de vps-monitor
 
 ```bash
 cd /var/www
 git clone https://github.com/RustyRory/vps-monitor.git
 cd vps-monitor
 
-# Configurer les variables d'environnement
 cp app/.env.example app/.env
 nano app/.env  # AUTH_USER, AUTH_PASS, SESSION_SECRET, WEBHOOK_SECRET, BASE_URL
 
-# Premier démarrage
 docker compose -f deployment/docker-compose.yml build
 docker compose -f deployment/docker-compose.yml up -d
 ```
 
 Une fois vps-monitor démarré, la gestion des autres applications se fait depuis son interface (ajout de projet → déploiement → Nginx automatique).
 
-#### 8. Vérification finale
+##### 8. Vérification finale
 
 ```bash
 curl -I http://localhost
@@ -2053,7 +2858,7 @@ docker compose -f /var/www/vps-monitor/deployment/docker-compose.yml ps
 sudo ss -tlnp | grep -E '80|443|22'
 ```
 
-#### Récapitulatif — ordre des opérations
+##### Récapitulatif — ordre des opérations
 
 | Étape | Action | Commande clé |
 |:-----:|--------|-------------|

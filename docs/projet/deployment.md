@@ -19,6 +19,8 @@ Internet → nginx (:80)
 | `qw-app-postgres` | `postgres:16-alpine` | interne uniquement |
 | `qw-app-redis` | `redis:7-alpine` | interne uniquement |
 
+> Le stockage des documents (pièces d'identité, Kbis, lettres de mission) n'est **pas** un service Docker du VPS : c'est un bucket **OVHcloud Object Storage**, prestataire externe managé (voir [security.md](./security.md)). Le backend s'y connecte via les variables `OVH_S3_*` ci-dessous.
+
 ---
 
 ## Premier déploiement
@@ -50,6 +52,13 @@ REDIS_HOST=qw-app-redis
 REDIS_PORT=6379
 JWT_SECRET=<secret>
 PORT=3001
+
+# OVHcloud Object Storage (stockage documents — prestataire externe)
+OVH_S3_ENDPOINT=s3.gra.io.cloud.ovh.net
+OVH_S3_REGION=gra
+OVH_S3_ACCESS_KEY=<clé d'accès>
+OVH_S3_SECRET_KEY=<secret>
+OVH_S3_BUCKET=qw-app-documents
 ```
 
 ### 2. Clone via vps-monitor
