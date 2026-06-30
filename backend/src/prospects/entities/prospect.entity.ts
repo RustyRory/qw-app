@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToOne,
   JoinColumn,
   Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { QuestionnaireAcceptation } from '../../questionnaires/entities/questionnaire-acceptation.entity';
 
 export enum ProspectStatut {
   NOUVEAU = 'nouveau',
@@ -71,4 +73,13 @@ export class Prospect {
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_createur' })
   createur: User;
+
+  @OneToOne(
+    () => QuestionnaireAcceptation,
+    (questionnaire) => questionnaire.prospect,
+    {
+      nullable: true,
+    },
+  )
+  questionnaire: QuestionnaireAcceptation | null;
 }

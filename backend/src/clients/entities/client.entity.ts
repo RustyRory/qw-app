@@ -13,6 +13,12 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Document } from '../../documents/entities/document.entity';
 import { RiskScore } from '../../scoring/entities/risk-score.entity';
+import { BeneficiaireEffectif } from '../../beneficiaires/entities/beneficiaire-effectif.entity';
+import { Contact } from '../../contacts/entities/contact.entity';
+import { Mission } from '../../missions/entities/mission.entity';
+import { PlanningEtape } from '../../planning/entities/planning-etape.entity';
+import { Obligation } from '../../obligations/entities/obligation.entity';
+import { OperationSensible } from '../../operations-sensibles/entities/operation-sensible.entity';
 import {
   TypeEntite,
   StatutClient,
@@ -129,4 +135,22 @@ export class Client {
 
   @OneToMany(() => RiskScore, (riskScore) => riskScore.client)
   riskScores: RiskScore[];
+
+  @OneToMany(() => BeneficiaireEffectif, (beneficiaire) => beneficiaire.client)
+  beneficiaires: BeneficiaireEffectif[];
+
+  @OneToMany(() => Contact, (contact) => contact.client)
+  contacts: Contact[];
+
+  @OneToMany(() => Mission, (mission) => mission.client)
+  missions: Mission[];
+
+  @OneToMany(() => PlanningEtape, (etape) => etape.client)
+  planningEtapes: PlanningEtape[];
+
+  @OneToMany(() => Obligation, (obligation) => obligation.client)
+  obligations: Obligation[];
+
+  @OneToMany(() => OperationSensible, (operation) => operation.client)
+  operationsSensibles: OperationSensible[];
 }
