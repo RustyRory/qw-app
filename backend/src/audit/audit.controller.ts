@@ -2,11 +2,11 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 import { AuditService } from './audit.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.RESPONSABLE, UserRole.ADMIN)
+@Roles(Role.RESPONSABLE, Role.ADMIN)
 @Controller('api/audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}

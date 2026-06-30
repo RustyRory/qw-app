@@ -6,7 +6,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { hash } from 'bcrypt';
-import { User, UserRole } from './entities/user.entity';
+import { User } from './entities/user.entity';
+import { Role } from '../common/enums';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -67,7 +68,7 @@ export class UsersService {
       prenom?: string;
       nom?: string;
       email?: string;
-      role?: UserRole;
+      role?: Role;
       isActive?: boolean;
       passwordHash?: string;
     } = {};

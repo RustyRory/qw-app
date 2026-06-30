@@ -6,14 +6,14 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Like, Repository } from 'typeorm';
 import { Prospect, ProspectStatut } from './entities/prospect.entity';
-import { Client, ClientStatut } from '../clients/entities/client.entity';
-import { Kyc } from '../kyc/entities/kyc.entity';
+import { Client } from '../clients/entities/client.entity';
+import { Role, StatutClient, TypeEntite } from '../common/enums';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { User, UserRole } from '../users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
 
-type AuthUser = { id: string; role: UserRole };
+type AuthUser = { id: string; role: Role };
 
 @Injectable()
 export class ProspectsService {
@@ -50,7 +50,7 @@ export class ProspectsService {
       .createQueryBuilder('prospect')
       .leftJoinAndSelect('prospect.createur', 'createur');
 
-    if (authUser.role === UserRole.COLLABORATEUR) {
+    if (authUser.role === Role.COLLABORATEUR) {
       qb.where('createur.id = :id', { id: authUser.id });
     }
 
@@ -93,7 +93,7 @@ export class ProspectsService {
     return saved;
   }
 
-  // Convertit le prospect en client : crée un Client + KYC vide, marque le prospect CONVERTI
+  // Convertit le prospect en client : crée un Client (KYC fusionné), marque le prospect CONVERTI
   async convertToClient(id: string, authUser: AuthUser): Promise<Client> {
     const prospect = await this.findOne(id);
 
@@ -105,33 +105,27 @@ export class ProspectsService {
       // Générer la référence client
       const year = new Date().getFullYear();
       const count = await manager.count(Client, {
-        where: { reference: Like(`QW-${year}-%`) },
+        where: { ref: Like(`QW-${year}-%`) },
         withDeleted: true,
       });
       const seq = String(count + 1).padStart(3, '0');
-      const reference = `QW-${year}-${seq}`;
+      const ref = `QW-${year}-${seq}`;
 
-      // Créer le client à partir des données du prospect
+      // Créer le client à partir des données du prospect (KYC pré-rempli depuis la pré-qualification)
       const client = manager.create(Client, {
-        prenom: prospect.prenom,
-        nom: prospect.nom,
-        raisonSociale: prospect.raisonSociale,
-        email: prospect.email,
-        telephone: prospect.telephone,
-        statut: ClientStatut.EN_COURS,
-        reference,
-        createur: { id: authUser.id } as User,
+        ref,
+        raisonSociale:
+          prospect.raisonSociale ?? `${prospect.prenom} ${prospect.nom}`,
+        typeEntite: prospect.raisonSociale
+          ? TypeEntite.PERSONNE_MORALE
+          : TypeEntite.PERSONNE_PHYSIQUE,
+        activitePrincipale: prospect.secteurActivite,
+        pays: prospect.paysResidence ?? 'France',
+        ppe: prospect.estPep,
+        statut: StatutClient.ACTIF,
+        createdBy: { id: authUser.id } as User,
       });
       const savedClient = await manager.save(client);
-
-      // Créer une fiche KYC vide (pré-remplie avec les données disponibles)
-      const kyc = manager.create(Kyc, {
-        client: { id: savedClient.id } as Client,
-        secteurActivite: prospect.secteurActivite,
-        paysResidence: prospect.paysResidence,
-        estPep: prospect.estPep,
-      });
-      await manager.save(kyc);
 
       // Audit : création du client
       await manager.save(
@@ -139,7 +133,7 @@ export class ProspectsService {
           action: AuditAction.CREATE,
           entiteType: 'Client',
           entiteId: savedClient.id,
-          details: { reference, convertedFromProspect: id },
+          details: { ref, convertedFromProspect: id },
           utilisateur: { id: authUser.id } as User,
         }),
       );

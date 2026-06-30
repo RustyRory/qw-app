@@ -35,7 +35,7 @@ export class Document {
   @JoinColumn({ name: 'id_client' })
   client: Client;
 
-  @ManyToOne(() => User, (user) => user.documents, { nullable: false })
+  @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_utilisateur' })
   utilisateur: User;
 }

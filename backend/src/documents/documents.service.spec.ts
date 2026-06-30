@@ -5,17 +5,17 @@ import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
 import { Document } from './entities/document.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { UserRole } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 
 jest.mock('fs');
 
-const COLLAB: { id: string; role: UserRole } = {
+const COLLAB: { id: string; role: Role } = {
   id: 'user-1',
-  role: UserRole.COLLABORATEUR,
+  role: Role.COLLABORATEUR,
 };
-const ADMIN: { id: string; role: UserRole } = {
+const ADMIN: { id: string; role: Role } = {
   id: 'user-2',
-  role: UserRole.ADMIN,
+  role: Role.ADMIN,
 };
 
 const makeDoc = (override: Partial<Document> = {}): Document =>

@@ -5,9 +5,10 @@ import * as fs from 'fs';
 import { Document } from './entities/document.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
 import { Client } from '../clients/entities/client.entity';
-import { User, UserRole } from '../users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 
-type AuthUser = { id: string; role: UserRole };
+type AuthUser = { id: string; role: Role };
 
 interface UploadedFile {
   originalname: string;
