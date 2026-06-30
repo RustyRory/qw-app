@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.2.0] - 2026-06-30
+
+### Backend — premiers modules métier
+
+- Entités TypeORM et migration initiale : `User`, `Client`, `Kyc`, `Document`, `RiskScore`, `AuditLog`
+- Seed de données : compte admin + compte collaborateur de test
+- `AuthModule` : login JWT, `JwtAuthGuard`, `RolesGuard`
+- `ClientsModule` : CRUD des dossiers clients
+- `KycModule` : fiche KYC liée au client (relation 1-1)
+- `DocumentsModule` : upload et téléchargement de documents
+- `ScoringModule` : calcul du score de risque
+- `AuditModule` : traçabilité des actions
+- `UsersModule` : CRUD utilisateurs (admin)
+- `ProspectsModule` : CRUD prospects + migration `AddProspect`
+- `ValidationPipe` globale (`whitelist`, `forbidNonWhitelisted`, `transform`)
+
+### Frontend — authentification et dashboard
+
+- Page de connexion + hook `useAuth` (protection des pages, redirection)
+- Layout dashboard protégé + `AppSidebar`
+- Pages clients : liste, création, fiche détail
+- Page admin : gestion des utilisateurs
+- Proxy API interne (`src/app/api/[...path]/route.ts`) : plusieurs itérations pour fiabiliser le routage vers le backend (`basePath`, suppression de `trailingSlash` incompatible Turbopack, remplacement du rewrite Edge par une route catch-all, suppression des en-têtes hop-by-hop)
+
+### Documentation
+
+- Réécriture complète de `docs/projet/` (vue d'ensemble, architecture, base de données, sécurité, workflow, déploiement) suite aux retours du jury lors de la soutenance CDA : nouveau périmètre LCB-FT (pipeline prospect Kanban, KYC fusionné dans `Client`, questionnaire d'acceptation LAB, bénéficiaires effectifs, missions/lettres de mission, planning, obligations, opérations sensibles)
+- Remplacement du stockage de documents auto-hébergé (Minio) par un prestataire externe managé (**OVHcloud Object Storage**), suite à la remarque du jury sur la sensibilité des pièces d'identité et données KYC
+- Création des fichiers de gouvernance du dépôt : `README.md` (racine, backend, frontend, docs), `INSTALL.md`, `CONTRIBUTING.md`, `LICENSE` (propriétaire — tous droits réservés)
+
 ## [0.1.0] - 2026-05-29
 
 ### Initialisation du projet
