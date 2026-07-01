@@ -10,6 +10,7 @@ import { RiskScore } from './scoring/entities/risk-score.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { Prospect } from './prospects/entities/prospect.entity';
 import { QuestionnaireAcceptation } from './questionnaires/entities/questionnaire-acceptation.entity';
+import { BeneficiaireEffectif } from './beneficiaires/entities/beneficiaire-effectif.entity';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
@@ -18,6 +19,7 @@ import { ScoringModule } from './scoring/scoring.module';
 import { AuditModule } from './audit/audit.module';
 import { ProspectsModule } from './prospects/prospects.module';
 import { QuestionnairesModule } from './questionnaires/questionnaires.module';
+import { BeneficiairesModule } from './beneficiaires/beneficiaires.module';
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { QuestionnairesModule } from './questionnaires/questionnaires.module';
         AuditLog,
         Prospect,
         QuestionnaireAcceptation,
+        BeneficiaireEffectif,
       ],
       migrations: ['dist/migrations/*.js'],
       migrationsRun: true,
@@ -46,6 +49,7 @@ import { QuestionnairesModule } from './questionnaires/questionnaires.module';
     AuditModule,
     ProspectsModule,
     QuestionnairesModule,
+    BeneficiairesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
