@@ -14,6 +14,7 @@ import { BeneficiaireEffectif } from './beneficiaires/entities/beneficiaire-effe
 import { Contact } from './contacts/entities/contact.entity';
 import { Mission } from './missions/entities/mission.entity';
 import { LettreMission } from './lettres-mission/entities/lettre-mission.entity';
+import { PlanningEtape } from './planning/entities/planning-etape.entity';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
@@ -26,6 +27,7 @@ import { BeneficiairesModule } from './beneficiaires/beneficiaires.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { MissionsModule } from './missions/missions.module';
 import { LettresMissionModule } from './lettres-mission/lettres-mission.module';
+import { PlanningModule } from './planning/planning.module';
 
 @Module({
   imports: [
@@ -45,6 +47,7 @@ import { LettresMissionModule } from './lettres-mission/lettres-mission.module';
         Contact,
         Mission,
         LettreMission,
+        PlanningEtape,
       ],
       migrations: ['dist/migrations/*.js'],
       migrationsRun: true,
@@ -62,6 +65,7 @@ import { LettresMissionModule } from './lettres-mission/lettres-mission.module';
     ContactsModule,
     MissionsModule,
     LettresMissionModule,
+    PlanningModule,
   ],
   controllers: [AppController],
   providers: [AppService],
