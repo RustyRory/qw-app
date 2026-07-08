@@ -13,6 +13,7 @@ import { QuestionnaireAcceptation } from './questionnaires/entities/questionnair
 import { BeneficiaireEffectif } from './beneficiaires/entities/beneficiaire-effectif.entity';
 import { Contact } from './contacts/entities/contact.entity';
 import { Mission } from './missions/entities/mission.entity';
+import { LettreMission } from './lettres-mission/entities/lettre-mission.entity';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
@@ -24,6 +25,7 @@ import { QuestionnairesModule } from './questionnaires/questionnaires.module';
 import { BeneficiairesModule } from './beneficiaires/beneficiaires.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { MissionsModule } from './missions/missions.module';
+import { LettresMissionModule } from './lettres-mission/lettres-mission.module';
 
 @Module({
   imports: [
@@ -42,6 +44,7 @@ import { MissionsModule } from './missions/missions.module';
         BeneficiaireEffectif,
         Contact,
         Mission,
+        LettreMission,
       ],
       migrations: ['dist/migrations/*.js'],
       migrationsRun: true,
@@ -58,6 +61,7 @@ import { MissionsModule } from './missions/missions.module';
     BeneficiairesModule,
     ContactsModule,
     MissionsModule,
+    LettresMissionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
