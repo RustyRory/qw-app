@@ -7,12 +7,14 @@ import {
   DeleteDateColumn,
   ManyToOne,
   OneToMany,
+  OneToOne,
   JoinColumn,
   Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Document } from '../../documents/entities/document.entity';
-import { RiskScore } from '../../scoring/entities/risk-score.entity';
+import { ScoreRisque } from '../../scoring/entities/score-risque.entity';
+import { Prospect } from '../../prospects/entities/prospect.entity';
 import { BeneficiaireEffectif } from '../../beneficiaires/entities/beneficiaire-effectif.entity';
 import { Contact } from '../../contacts/entities/contact.entity';
 import { Mission } from '../../missions/entities/mission.entity';
@@ -133,8 +135,11 @@ export class Client {
   @OneToMany(() => Document, (document) => document.client)
   documents: Document[];
 
-  @OneToMany(() => RiskScore, (riskScore) => riskScore.client)
-  riskScores: RiskScore[];
+  @OneToMany(() => ScoreRisque, (score) => score.client)
+  scores: ScoreRisque[];
+
+  @OneToOne(() => Prospect, (prospect) => prospect.client)
+  prospect: Prospect | null;
 
   @OneToMany(() => BeneficiaireEffectif, (beneficiaire) => beneficiaire.client)
   beneficiaires: BeneficiaireEffectif[];

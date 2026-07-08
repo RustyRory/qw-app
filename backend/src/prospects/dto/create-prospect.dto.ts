@@ -1,51 +1,49 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsEmail,
-  IsBoolean,
-  MaxLength,
-} from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { TypeEntite } from '../../common/enums';
 
 export class CreateProspectDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100)
-  prenom: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
   nom: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(200)
-  raisonSociale?: string;
-
-  @IsOptional()
-  @IsEmail()
-  @MaxLength(255)
   email?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(20)
   telephone?: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  secteurActivite?: string;
+  @IsEnum(TypeEntite)
+  typeEntite: TypeEntite;
 
   @IsOptional()
   @IsString()
-  @MaxLength(100)
-  paysResidence?: string;
+  siret?: string;
 
   @IsOptional()
-  @IsBoolean()
-  estPep?: boolean;
+  @IsString()
+  activite?: string;
+
+  @IsOptional()
+  @IsString()
+  codeNaf?: string;
+
+  @IsOptional()
+  @IsString()
+  adresse?: string;
+
+  @IsOptional()
+  @IsString()
+  ville?: string;
+
+  @IsOptional()
+  @IsString()
+  codePostal?: string;
+
+  @IsOptional()
+  @IsString()
+  pays?: string;
 
   @IsOptional()
   @IsString()

@@ -40,8 +40,8 @@ export class ClientsService {
       await manager.save(
         manager.create(AuditLog, {
           action: AuditAction.CREATE,
-          entiteType: 'Client',
-          entiteId: saved.id,
+          ressource: 'Client',
+          ressourceId: saved.id,
           details: { ref },
           utilisateur: { id: authUser.id } as User,
         }),
@@ -66,7 +66,7 @@ export class ClientsService {
   async findOne(id: string): Promise<Client> {
     const client = await this.clientsRepo.findOne({
       where: { id },
-      relations: ['documents', 'riskScores', 'createdBy', 'kycValidatedBy'],
+      relations: ['documents', 'scores', 'createdBy', 'kycValidatedBy'],
     });
     if (!client) throw new NotFoundException('Client introuvable');
     return client;
@@ -84,8 +84,8 @@ export class ClientsService {
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.UPDATE,
-        entiteType: 'Client',
-        entiteId: id,
+        ressource: 'Client',
+        ressourceId: id,
         details: dto as Record<string, unknown>,
         utilisateur: { id: authUser.id } as User,
       }),
@@ -107,8 +107,8 @@ export class ClientsService {
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.VALIDATE,
-        entiteType: 'Client',
-        entiteId: id,
+        ressource: 'Client',
+        ressourceId: id,
         details: null,
         utilisateur: { id: authUser.id } as User,
       }),
@@ -126,8 +126,8 @@ export class ClientsService {
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.DELETE,
-        entiteType: 'Client',
-        entiteId: id,
+        ressource: 'Client',
+        ressourceId: id,
         details: null,
         utilisateur: { id: authUser.id } as User,
       }),

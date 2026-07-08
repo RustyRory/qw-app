@@ -6,7 +6,7 @@ import { AppService } from './app.service';
 import { User } from './users/entities/user.entity';
 import { Client } from './clients/entities/client.entity';
 import { Document } from './documents/entities/document.entity';
-import { RiskScore } from './scoring/entities/risk-score.entity';
+import { ScoreRisque } from './scoring/entities/score-risque.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { Prospect } from './prospects/entities/prospect.entity';
 import { QuestionnaireAcceptation } from './questionnaires/entities/questionnaire-acceptation.entity';
@@ -43,7 +43,7 @@ import { OperationsModule } from './operations-sensibles/operations.module';
         User,
         Client,
         Document,
-        RiskScore,
+        ScoreRisque,
         AuditLog,
         Prospect,
         QuestionnaireAcceptation,

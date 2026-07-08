@@ -7,8 +7,8 @@ const makeLog = (override: Partial<AuditLog> = {}): AuditLog =>
   ({
     id: 'log-1',
     action: AuditAction.UPDATE,
-    entiteType: 'Client',
-    entiteId: 'client-1',
+    ressource: 'Client',
+    ressourceId: 'client-1',
     details: null,
     createdAt: new Date(),
     utilisateur: { id: 'user-1' },
@@ -49,8 +49,8 @@ describe('AuditService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.UPDATE,
-          entiteType: 'Client',
-          entiteId: 'client-1',
+          ressource: 'Client',
+          ressourceId: 'client-1',
           details: { nom: 'Dupont' },
           utilisateur: { id: 'user-1' },
         }),
@@ -86,7 +86,7 @@ describe('AuditService', () => {
 
   // ------------------------------------------------------------- findByEntite
   describe('findByEntite', () => {
-    it('filtre par entiteId et trie par date décroissante', async () => {
+    it('filtre par ressourceId et trie par date décroissante', async () => {
       const logs = [makeLog()];
       auditRepoMock.find.mockResolvedValue(logs);
 
@@ -94,7 +94,7 @@ describe('AuditService', () => {
 
       expect(result).toBe(logs);
       expect(auditRepoMock.find).toHaveBeenCalledWith({
-        where: { entiteId: 'client-1' },
+        where: { ressourceId: 'client-1' },
         relations: ['utilisateur'],
         order: { createdAt: 'DESC' },
       });
