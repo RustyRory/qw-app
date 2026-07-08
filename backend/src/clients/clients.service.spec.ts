@@ -100,7 +100,7 @@ describe('ClientsService', () => {
       const auditSaved = managerMock.save.mock.calls[1][0] as Partial<AuditLog>;
       expect(auditSaved).toMatchObject({
         action: AuditAction.CREATE,
-        entiteType: 'Client',
+        ressource: 'Client',
         utilisateur: { id: COLLAB.id },
       });
     });
@@ -147,7 +147,7 @@ describe('ClientsService', () => {
       expect(result).toBe(client);
       expect(clientsRepoMock.findOne).toHaveBeenCalledWith({
         where: { id: 'client-1' },
-        relations: expect.arrayContaining(['documents', 'riskScores']),
+        relations: expect.arrayContaining(['documents', 'scores']),
       });
     });
 

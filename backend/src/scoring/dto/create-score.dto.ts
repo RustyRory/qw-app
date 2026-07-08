@@ -1,6 +1,9 @@
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateScoreDto {
+  @IsUUID()
+  clientId: string;
+
   @IsInt()
   @Min(0)
   @Max(50)

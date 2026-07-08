@@ -45,8 +45,8 @@ export class DocumentsService {
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.CREATE,
-        entiteType: 'Document',
-        entiteId: doc.id,
+        ressource: 'Document',
+        ressourceId: doc.id,
         details: { nomFichier: file.originalname, taille: file.size },
         utilisateur: { id: authUser.id } as User,
       }),
@@ -73,8 +73,8 @@ export class DocumentsService {
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.READ,
-        entiteType: 'Document',
-        entiteId: id,
+        ressource: 'Document',
+        ressourceId: id,
         details: null,
         utilisateur: { id: authUser.id } as User,
       }),
@@ -99,8 +99,8 @@ export class DocumentsService {
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.DELETE,
-        entiteType: 'Document',
-        entiteId: id,
+        ressource: 'Document',
+        ressourceId: id,
         details: { nomFichier: doc.nomFichier },
         utilisateur: { id: authUser.id } as User,
       }),

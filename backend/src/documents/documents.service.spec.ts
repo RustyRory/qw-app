@@ -96,7 +96,7 @@ describe('DocumentsService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.CREATE,
-          entiteType: 'Document',
+          ressource: 'Document',
           utilisateur: { id: COLLAB.id },
         }),
       );
@@ -130,8 +130,8 @@ describe('DocumentsService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.READ,
-          entiteType: 'Document',
-          entiteId: 'doc-1',
+          ressource: 'Document',
+          ressourceId: 'doc-1',
           utilisateur: { id: COLLAB.id },
         }),
       );
@@ -170,8 +170,8 @@ describe('DocumentsService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.DELETE,
-          entiteType: 'Document',
-          entiteId: 'doc-1',
+          ressource: 'Document',
+          ressourceId: 'doc-1',
           details: { nomFichier: doc.nomFichier },
         }),
       );

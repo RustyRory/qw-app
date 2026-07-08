@@ -18,9 +18,9 @@ export interface ArpecReponses {
   typeMission: number; // 0-30
 }
 
-@Entity('risk_scores')
-@Index('idx_risk_scores_id_client', ['client'])
-export class RiskScore {
+@Entity('score_risque')
+@Index('idx_score_client_date', ['client', 'createdAt'])
+export class ScoreRisque {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -33,14 +33,14 @@ export class RiskScore {
   @Column({ type: 'jsonb' })
   reponses: ArpecReponses;
 
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date;
-
-  @ManyToOne(() => Client, (client) => client.riskScores, { nullable: false })
+  @ManyToOne(() => Client, (client) => client.scores, { nullable: false })
   @JoinColumn({ name: 'id_client' })
   client: Client;
 
   @ManyToOne(() => User, { nullable: false })
-  @JoinColumn({ name: 'id_utilisateur' })
-  utilisateur: User;
+  @JoinColumn({ name: 'id_calculated_by' })
+  calculatedBy: User;
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date;
 }

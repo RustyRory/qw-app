@@ -1,10 +1,18 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { CreateProspectDto } from './create-prospect.dto';
-import { ProspectStatut } from '../entities/prospect.entity';
+import { StatutKanban } from '../../common/enums';
 
 export class UpdateProspectDto extends PartialType(CreateProspectDto) {
   @IsOptional()
-  @IsEnum(ProspectStatut)
-  statut?: ProspectStatut;
+  @IsEnum(StatutKanban)
+  statutKanban?: StatutKanban;
+
+  @IsOptional()
+  @IsString()
+  motifRefus?: string;
+
+  @IsOptional()
+  @IsUUID()
+  assignedToId?: string;
 }
