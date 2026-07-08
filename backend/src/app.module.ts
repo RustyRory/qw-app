@@ -16,6 +16,7 @@ import { Mission } from './missions/entities/mission.entity';
 import { LettreMission } from './lettres-mission/entities/lettre-mission.entity';
 import { PlanningEtape } from './planning/entities/planning-etape.entity';
 import { Obligation } from './obligations/entities/obligation.entity';
+import { OperationSensible } from './operations-sensibles/entities/operation-sensible.entity';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
@@ -30,6 +31,7 @@ import { MissionsModule } from './missions/missions.module';
 import { LettresMissionModule } from './lettres-mission/lettres-mission.module';
 import { PlanningModule } from './planning/planning.module';
 import { ObligationsModule } from './obligations/obligations.module';
+import { OperationsModule } from './operations-sensibles/operations.module';
 
 @Module({
   imports: [
@@ -51,6 +53,7 @@ import { ObligationsModule } from './obligations/obligations.module';
         LettreMission,
         PlanningEtape,
         Obligation,
+        OperationSensible,
       ],
       migrations: ['dist/migrations/*.js'],
       migrationsRun: true,
@@ -70,6 +73,7 @@ import { ObligationsModule } from './obligations/obligations.module';
     LettresMissionModule,
     PlanningModule,
     ObligationsModule,
+    OperationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
