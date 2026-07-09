@@ -14,15 +14,15 @@ export class AuditService {
   log(
     userId: string,
     action: AuditAction,
-    entiteType: string,
-    entiteId: string,
+    ressource: string,
+    ressourceId: string,
     details: Record<string, unknown> | null = null,
   ): Promise<AuditLog> {
     return this.auditRepo.save(
       this.auditRepo.create({
         action,
-        entiteType,
-        entiteId,
+        ressource,
+        ressourceId,
         details,
         utilisateur: { id: userId } as User,
       }),
@@ -36,9 +36,9 @@ export class AuditService {
     });
   }
 
-  findByEntite(entiteId: string): Promise<AuditLog[]> {
+  findByEntite(ressourceId: string): Promise<AuditLog[]> {
     return this.auditRepo.find({
-      where: { entiteId },
+      where: { ressourceId },
       relations: ['utilisateur'],
       order: { createdAt: 'DESC' },
     });

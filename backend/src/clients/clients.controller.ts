@@ -14,13 +14,13 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 interface RequestWithUser {
-  user: { id: string; role: UserRole };
+  user: { id: string; role: Role };
 }
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,7 +29,7 @@ export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 
   @Post()
-  @Roles(UserRole.COLLABORATEUR, UserRole.RESPONSABLE, UserRole.ADMIN)
+  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   create(@Body() dto: CreateClientDto, @Req() req: RequestWithUser) {
     return this.clientsService.create(dto, req.user);
   }
@@ -54,14 +54,14 @@ export class ClientsController {
   }
 
   @Patch(':id/validate')
-  @Roles(UserRole.RESPONSABLE, UserRole.ADMIN)
+  @Roles(Role.RESPONSABLE, Role.ADMIN)
   validate(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.clientsService.validate(id, req.user);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(UserRole.ADMIN)
+  @Roles(Role.ADMIN)
   remove(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.clientsService.remove(id, req.user);
   }

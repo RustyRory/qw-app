@@ -3,28 +3,28 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { ClientsService } from './clients.service';
-import { Client, ClientStatut } from './entities/client.entity';
-import { Kyc } from '../kyc/entities/kyc.entity';
+import { Client } from './entities/client.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { UserRole } from '../users/entities/user.entity';
+import { Role, StatutClient, StatutKyc, TypeEntite } from '../common/enums';
 
-const COLLAB: { id: string; role: UserRole } = {
+const COLLAB: { id: string; role: Role } = {
   id: 'user-1',
-  role: UserRole.COLLABORATEUR,
+  role: Role.COLLABORATEUR,
 };
-const ADMIN: { id: string; role: UserRole } = {
+const ADMIN: { id: string; role: Role } = {
   id: 'user-2',
-  role: UserRole.ADMIN,
+  role: Role.ADMIN,
 };
 
 const makeClient = (override: Partial<Client> = {}): Client =>
   ({
     id: 'client-1',
-    reference: 'QW-2026-001',
-    prenom: 'Alice',
-    nom: 'Dupont',
-    statut: ClientStatut.EN_COURS,
-    createur: { id: COLLAB.id },
+    ref: 'QW-2026-001',
+    raisonSociale: 'Alice Dupont',
+    typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+    statut: StatutClient.ACTIF,
+    kycStatut: StatutKyc.INCOMPLET,
+    createdBy: { id: COLLAB.id },
     ...override,
   }) as Client;
 
@@ -37,11 +37,6 @@ describe('ClientsService', () => {
     findOneBy: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
-    create: jest.fn((data) => data),
-  };
-
-  const kycRepoMock = {
-    save: jest.fn(),
     create: jest.fn((data) => data),
   };
 
@@ -67,7 +62,6 @@ describe('ClientsService', () => {
       providers: [
         ClientsService,
         { provide: getRepositoryToken(Client), useValue: clientsRepoMock },
-        { provide: getRepositoryToken(Kyc), useValue: kycRepoMock },
         { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
         { provide: DataSource, useValue: dataSourceMock },
       ],
@@ -78,44 +72,35 @@ describe('ClientsService', () => {
 
   // ------------------------------------------------------------------ create
   describe('create', () => {
+    const dto = {
+      raisonSociale: 'Bob Martin',
+      typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+    };
+
     it('génère la référence QW-YYYY-XXX avec le bon séquençage', async () => {
       managerMock.count.mockResolvedValue(2);
       managerMock.save.mockImplementation((entity) =>
         Promise.resolve({ ...entity, id: 'client-new' }),
       );
 
-      await service.create({ prenom: 'Bob', nom: 'Martin' }, COLLAB);
+      await service.create(dto, COLLAB);
 
       const saved = managerMock.save.mock.calls[0][0] as Client;
-      expect(saved.reference).toMatch(/^QW-\d{4}-003$/);
-    });
-
-    it('crée une fiche KYC vide liée au client', async () => {
-      managerMock.count.mockResolvedValue(0);
-      managerMock.save.mockResolvedValueOnce({
-        id: 'client-new',
-        reference: 'QW-2026-001',
-      });
-      managerMock.save.mockResolvedValue({});
-
-      await service.create({ prenom: 'Bob', nom: 'Martin' }, COLLAB);
-
-      const kycSaved = managerMock.save.mock.calls[1][0] as Partial<Kyc>;
-      expect(kycSaved).toMatchObject({ client: { id: 'client-new' } });
+      expect(saved.ref).toMatch(/^QW-\d{4}-003$/);
     });
 
     it("enregistre un audit CREATE avec l'id du créateur", async () => {
       managerMock.count.mockResolvedValue(0);
       managerMock.save
-        .mockResolvedValueOnce({ id: 'client-new', reference: 'QW-2026-001' })
+        .mockResolvedValueOnce({ id: 'client-new', ref: 'QW-2026-001' })
         .mockResolvedValue({});
 
-      await service.create({ prenom: 'Bob', nom: 'Martin' }, COLLAB);
+      await service.create(dto, COLLAB);
 
-      const auditSaved = managerMock.save.mock.calls[2][0] as Partial<AuditLog>;
+      const auditSaved = managerMock.save.mock.calls[1][0] as Partial<AuditLog>;
       expect(auditSaved).toMatchObject({
         action: AuditAction.CREATE,
-        entiteType: 'Client',
+        ressource: 'Client',
         utilisateur: { id: COLLAB.id },
       });
     });
@@ -130,13 +115,13 @@ describe('ClientsService', () => {
       getMany: jest.fn().mockResolvedValue(result),
     });
 
-    it('filtre par id_createur pour un collaborateur', async () => {
+    it('filtre par créateur pour un collaborateur', async () => {
       const qb = makeQb([makeClient()]);
       clientsRepoMock.createQueryBuilder.mockReturnValue(qb);
 
       await service.findAll(COLLAB);
 
-      expect(qb.where).toHaveBeenCalledWith('createur.id = :id', {
+      expect(qb.where).toHaveBeenCalledWith('createdBy.id = :id', {
         id: COLLAB.id,
       });
     });
@@ -162,7 +147,7 @@ describe('ClientsService', () => {
       expect(result).toBe(client);
       expect(clientsRepoMock.findOne).toHaveBeenCalledWith({
         where: { id: 'client-1' },
-        relations: expect.arrayContaining(['kyc', 'documents', 'riskScores']),
+        relations: expect.arrayContaining(['documents', 'scores']),
       });
     });
 
@@ -180,12 +165,15 @@ describe('ClientsService', () => {
     it('met à jour les champs et enregistre un audit UPDATE', async () => {
       const client = makeClient();
       clientsRepoMock.findOne.mockResolvedValue(client);
-      clientsRepoMock.save.mockResolvedValue({ ...client, nom: 'Nouveau' });
+      clientsRepoMock.save.mockResolvedValue({
+        ...client,
+        raisonSociale: 'Nouveau',
+      });
 
-      await service.update('client-1', { nom: 'Nouveau' }, ADMIN);
+      await service.update('client-1', { raisonSociale: 'Nouveau' }, ADMIN);
 
       expect(clientsRepoMock.save).toHaveBeenCalledWith(
-        expect.objectContaining({ nom: 'Nouveau' }),
+        expect.objectContaining({ raisonSociale: 'Nouveau' }),
       );
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.UPDATE }),
@@ -195,18 +183,18 @@ describe('ClientsService', () => {
 
   // -------------------------------------------------------------- validate
   describe('validate', () => {
-    it('passe le statut à VALIDE et enregistre un audit VALIDATE', async () => {
+    it('valide le KYC du dossier et enregistre un audit VALIDATE', async () => {
       const client = makeClient();
       clientsRepoMock.findOneBy.mockResolvedValue(client);
       clientsRepoMock.save.mockResolvedValue({
         ...client,
-        statut: ClientStatut.VALIDE,
+        kycStatut: StatutKyc.VALIDE,
       });
 
       await service.validate('client-1', ADMIN);
 
       expect(clientsRepoMock.save).toHaveBeenCalledWith(
-        expect.objectContaining({ statut: ClientStatut.VALIDE }),
+        expect.objectContaining({ kycStatut: StatutKyc.VALIDE }),
       );
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.VALIDATE }),

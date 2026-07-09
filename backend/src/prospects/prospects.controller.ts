@@ -14,13 +14,13 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 import { ProspectsService } from './prospects.service';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
 
 interface RequestWithUser {
-  user: { id: string; role: UserRole };
+  user: { id: string; role: Role };
 }
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,7 +29,7 @@ export class ProspectsController {
   constructor(private readonly prospectsService: ProspectsService) {}
 
   @Post()
-  @Roles(UserRole.COLLABORATEUR, UserRole.RESPONSABLE, UserRole.ADMIN)
+  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   create(@Body() dto: CreateProspectDto, @Req() req: RequestWithUser) {
     return this.prospectsService.create(dto, req.user);
   }
@@ -45,7 +45,7 @@ export class ProspectsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.COLLABORATEUR, UserRole.RESPONSABLE, UserRole.ADMIN)
+  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateProspectDto,
@@ -56,14 +56,14 @@ export class ProspectsController {
 
   // Convertit le prospect en client et retourne le Client créé
   @Post(':id/convert')
-  @Roles(UserRole.COLLABORATEUR, UserRole.RESPONSABLE, UserRole.ADMIN)
+  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   convertToClient(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.prospectsService.convertToClient(id, req.user);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(UserRole.COLLABORATEUR, UserRole.RESPONSABLE, UserRole.ADMIN)
+  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   remove(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.prospectsService.remove(id, req.user);
   }

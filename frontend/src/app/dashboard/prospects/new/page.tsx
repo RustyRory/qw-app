@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import type { Prospect, TypeEntite } from "@/types";
 
 export default function NewProspectPage() {
   const router = useRouter();
@@ -21,19 +22,22 @@ export default function NewProspectPage() {
 
     const form = new FormData(e.currentTarget);
     const data = {
-      prenom: form.get("prenom") as string,
       nom: form.get("nom") as string,
-      raisonSociale: (form.get("raisonSociale") as string) || undefined,
+      typeEntite: form.get("typeEntite") as TypeEntite,
       email: (form.get("email") as string) || undefined,
       telephone: (form.get("telephone") as string) || undefined,
-      secteurActivite: (form.get("secteurActivite") as string) || undefined,
-      paysResidence: (form.get("paysResidence") as string) || undefined,
-      estPep: form.get("estPep") === "on",
+      siret: (form.get("siret") as string) || undefined,
+      activite: (form.get("activite") as string) || undefined,
+      codeNaf: (form.get("codeNaf") as string) || undefined,
+      adresse: (form.get("adresse") as string) || undefined,
+      ville: (form.get("ville") as string) || undefined,
+      codePostal: (form.get("codePostal") as string) || undefined,
+      pays: (form.get("pays") as string) || undefined,
       notes: (form.get("notes") as string) || undefined,
     };
 
     try {
-      const prospect = await apiFetch<{ id: string }>("/prospects", {
+      const prospect = await apiFetch<Prospect>("/prospects", {
         method: "POST",
         body: JSON.stringify(data),
       });
@@ -65,44 +69,67 @@ export default function NewProspectPage() {
           )}
 
           <FieldGroup>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="prenom">Prénom *</FieldLabel>
-                <Input id="prenom" name="prenom" required />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="nom">Nom *</FieldLabel>
-                <Input id="nom" name="nom" required />
-              </Field>
-            </div>
             <Field>
-              <FieldLabel htmlFor="raisonSociale">Raison sociale</FieldLabel>
-              <Input id="raisonSociale" name="raisonSociale" />
+              <FieldLabel htmlFor="nom">Raison sociale / Nom *</FieldLabel>
+              <Input id="nom" name="nom" required />
             </Field>
             <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input id="email" name="email" type="email" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
-              <Input id="telephone" name="telephone" type="tel" />
+              <FieldLabel htmlFor="typeEntite">Type d&apos;entité *</FieldLabel>
+              <select
+                id="typeEntite"
+                name="typeEntite"
+                required
+                defaultValue="PERSONNE_MORALE"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              >
+                <option value="PERSONNE_MORALE">Personne morale</option>
+                <option value="PERSONNE_PHYSIQUE">Personne physique</option>
+              </select>
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field>
-                <FieldLabel htmlFor="secteurActivite">
-                  Secteur d&apos;activité
-                </FieldLabel>
-                <Input id="secteurActivite" name="secteurActivite" />
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input id="email" name="email" type="email" />
               </Field>
               <Field>
-                <FieldLabel htmlFor="paysResidence">
-                  Pays de résidence
-                </FieldLabel>
-                <Input id="paysResidence" name="paysResidence" />
+                <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
+                <Input id="telephone" name="telephone" type="tel" />
               </Field>
             </div>
             <Field>
-              <FieldLabel htmlFor="notes">Notes</FieldLabel>
+              <FieldLabel htmlFor="siret">SIRET</FieldLabel>
+              <Input id="siret" name="siret" maxLength={14} />
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="activite">Secteur / activité</FieldLabel>
+                <Input id="activite" name="activite" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
+                <Input id="codeNaf" name="codeNaf" />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
+              <Input id="adresse" name="adresse" />
+            </Field>
+            <div className="grid grid-cols-3 gap-4">
+              <Field>
+                <FieldLabel htmlFor="ville">Ville</FieldLabel>
+                <Input id="ville" name="ville" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
+                <Input id="codePostal" name="codePostal" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="pays">Pays</FieldLabel>
+                <Input id="pays" name="pays" defaultValue="France" />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="notes">Notes internes</FieldLabel>
               <textarea
                 id="notes"
                 name="notes"
@@ -110,10 +137,6 @@ export default function NewProspectPage() {
                 className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </Field>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="estPep" className="size-4" />
-              Personne politiquement exposée (PEP)
-            </label>
           </FieldGroup>
 
           <div className="flex gap-3">

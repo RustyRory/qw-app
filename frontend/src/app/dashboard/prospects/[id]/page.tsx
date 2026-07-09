@@ -3,26 +3,38 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft, IconPencil, IconUserCheck } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconPencil,
+  IconUserCheck,
+  IconTrash,
+} from "@tabler/icons-react";
 import { apiFetch } from "@/lib/apiFetch";
-import { useAuth } from "@/hooks/useAuth";
 import { StatusBadge } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import type { Prospect } from "@/types";
+import type { Prospect, StatutKanban } from "@/types";
+
+const KANBAN_STATUTS: StatutKanban[] = [
+  "PRISE_CONTACT",
+  "DECOUVERTE",
+  "OPPORTUNITE",
+  "LAB",
+  "PREPARATION",
+  "CONVERTI",
+  "REFUSE",
+];
 
 export default function ProspectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { role } = useAuth();
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -40,17 +52,12 @@ export default function ProspectDetailPage() {
   async function handleSave(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
-    setEditError(null);
     const form = new FormData(e.currentTarget);
     const data = {
-      prenom: form.get("prenom") as string,
       nom: form.get("nom") as string,
-      raisonSociale: (form.get("raisonSociale") as string) || undefined,
       email: (form.get("email") as string) || undefined,
       telephone: (form.get("telephone") as string) || undefined,
-      secteurActivite: (form.get("secteurActivite") as string) || undefined,
-      paysResidence: (form.get("paysResidence") as string) || undefined,
-      estPep: form.get("estPep") === "on",
+      activite: (form.get("activite") as string) || undefined,
       notes: (form.get("notes") as string) || undefined,
     };
     try {
@@ -61,9 +68,21 @@ export default function ProspectDetailPage() {
       setEditing(false);
       load();
     } catch (err) {
-      setEditError((err as Error).message);
+      setError((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleStatutChange(statutKanban: StatutKanban) {
+    try {
+      await apiFetch(`/prospects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ statutKanban }),
+      });
+      load();
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -78,14 +97,22 @@ export default function ProspectDetailPage() {
     try {
       const client = await apiFetch<{ id: string }>(
         `/prospects/${id}/convert`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
       router.push(`/dashboard/clients/${client.id}`);
     } catch (err) {
       setError((err as Error).message);
       setConverting(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Supprimer ce prospect ?")) return;
+    try {
+      await apiFetch(`/prospects/${id}`, { method: "DELETE" });
+      router.push("/dashboard/prospects");
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -98,11 +125,7 @@ export default function ProspectDetailPage() {
       </div>
     );
 
-  const isConverti = prospect.statut === "converti";
-  const canEdit = !isConverti;
-  const canConvert =
-    !isConverti &&
-    (role === "admin" || role === "responsable" || role === "collaborateur");
+  const isConverti = prospect.statutKanban === "CONVERTI";
 
   return (
     <div className="space-y-4 p-6">
@@ -115,27 +138,43 @@ export default function ProspectDetailPage() {
             <IconArrowLeft className="size-5" />
           </Link>
           <div>
-            <h1 className="text-xl font-semibold">
-              {prospect.prenom} {prospect.nom}
-            </h1>
-            {prospect.raisonSociale && (
-              <p className="text-sm text-muted-foreground">
-                {prospect.raisonSociale}
-              </p>
-            )}
+            <h1 className="text-xl font-semibold">{prospect.nom}</h1>
+            <p className="text-sm text-muted-foreground">{prospect.ref}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge status={prospect.statut} />
-          {canConvert && (
+        <div className="flex flex-wrap items-center gap-2">
+          {!isConverti ? (
+            <select
+              value={prospect.statutKanban}
+              onChange={(e) =>
+                handleStatutChange(e.target.value as StatutKanban)
+              }
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+            >
+              {KANBAN_STATUTS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <StatusBadge status={prospect.statutKanban} />
+          )}
+          <Link
+            href={`/dashboard/prospects/${id}/questionnaire`}
+            className="text-xs text-primary hover:underline"
+          >
+            Questionnaire d&apos;acceptation →
+          </Link>
+          {!isConverti && (
             <Button size="sm" onClick={handleConvert} disabled={converting}>
               <IconUserCheck className="size-4" />
               {converting ? "Conversion…" : "Convertir en client"}
             </Button>
           )}
-          {isConverti && prospect.clientId && (
+          {prospect.client && (
             <Button size="sm" variant="outline" asChild>
-              <Link href={`/dashboard/clients/${prospect.clientId}`}>
+              <Link href={`/dashboard/clients/${prospect.client.id}`}>
                 Voir le dossier client →
               </Link>
             </Button>
@@ -146,8 +185,8 @@ export default function ProspectDetailPage() {
       <div className="max-w-lg rounded-lg border p-4">
         {!editing ? (
           <div className="space-y-4">
-            {canEdit && (
-              <div className="flex justify-end">
+            {!isConverti && (
+              <div className="flex justify-end gap-2">
                 <Button
                   size="sm"
                   variant="outline"
@@ -155,18 +194,27 @@ export default function ProspectDetailPage() {
                 >
                   <IconPencil className="size-4" /> Modifier
                 </Button>
+                <Button size="sm" variant="destructive" onClick={handleDelete}>
+                  <IconTrash className="size-4" /> Supprimer
+                </Button>
               </div>
             )}
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
               {[
-                ["Prénom", prospect.prenom],
-                ["Nom", prospect.nom],
-                ["Raison sociale", prospect.raisonSociale ?? "—"],
+                ["Type d'entité", prospect.typeEntite],
+                ["SIRET", prospect.siret ?? "—"],
                 ["Email", prospect.email ?? "—"],
                 ["Téléphone", prospect.telephone ?? "—"],
-                ["Secteur d'activité", prospect.secteurActivite ?? "—"],
-                ["Pays de résidence", prospect.paysResidence ?? "—"],
-                ["PEP", prospect.estPep ? "Oui" : "Non"],
+                ["Secteur / activité", prospect.activite ?? "—"],
+                ["Code NAF", prospect.codeNaf ?? "—"],
+                [
+                  "Adresse",
+                  [prospect.adresse, prospect.ville, prospect.codePostal]
+                    .filter(Boolean)
+                    .join(", ") || "—",
+                ],
+                ["Pays", prospect.pays],
+                ["Assigné à", prospect.assignedTo?.email ?? "—"],
                 [
                   "Créé le",
                   new Date(prospect.createdAt).toLocaleDateString("fr-FR"),
@@ -189,38 +237,14 @@ export default function ProspectDetailPage() {
           </div>
         ) : (
           <form onSubmit={handleSave} className="space-y-4">
-            {editError && (
-              <div className="rounded bg-destructive/10 p-2 text-sm text-destructive">
-                {editError}
-              </div>
-            )}
             <FieldGroup>
-              <div className="grid grid-cols-2 gap-3">
-                <Field>
-                  <FieldLabel htmlFor="prenom">Prénom</FieldLabel>
-                  <Input
-                    id="prenom"
-                    name="prenom"
-                    defaultValue={prospect.prenom}
-                    required
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="nom">Nom</FieldLabel>
-                  <Input
-                    id="nom"
-                    name="nom"
-                    defaultValue={prospect.nom}
-                    required
-                  />
-                </Field>
-              </div>
               <Field>
-                <FieldLabel htmlFor="raisonSociale">Raison sociale</FieldLabel>
+                <FieldLabel htmlFor="nom">Raison sociale / Nom</FieldLabel>
                 <Input
-                  id="raisonSociale"
-                  name="raisonSociale"
-                  defaultValue={prospect.raisonSociale ?? ""}
+                  id="nom"
+                  name="nom"
+                  defaultValue={prospect.nom}
+                  required
                 />
               </Field>
               <Field>
@@ -240,28 +264,14 @@ export default function ProspectDetailPage() {
                   defaultValue={prospect.telephone ?? ""}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field>
-                  <FieldLabel htmlFor="secteurActivite">
-                    Secteur d&apos;activité
-                  </FieldLabel>
-                  <Input
-                    id="secteurActivite"
-                    name="secteurActivite"
-                    defaultValue={prospect.secteurActivite ?? ""}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="paysResidence">
-                    Pays de résidence
-                  </FieldLabel>
-                  <Input
-                    id="paysResidence"
-                    name="paysResidence"
-                    defaultValue={prospect.paysResidence ?? ""}
-                  />
-                </Field>
-              </div>
+              <Field>
+                <FieldLabel htmlFor="activite">Secteur / activité</FieldLabel>
+                <Input
+                  id="activite"
+                  name="activite"
+                  defaultValue={prospect.activite ?? ""}
+                />
+              </Field>
               <Field>
                 <FieldLabel htmlFor="notes">Notes</FieldLabel>
                 <textarea
@@ -272,15 +282,6 @@ export default function ProspectDetailPage() {
                   className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </Field>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="estPep"
-                  defaultChecked={prospect.estPep}
-                  className="size-4"
-                />
-                Personne politiquement exposée (PEP)
-              </label>
             </FieldGroup>
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={saving}>

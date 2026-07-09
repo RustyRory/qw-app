@@ -2,10 +2,10 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
@@ -19,9 +19,8 @@ export enum AuditAction {
 }
 
 @Entity('audit_logs')
-@Index('idx_audit_logs_id_utilisateur', ['utilisateur'])
-@Index('idx_audit_logs_entite', ['entiteType', 'entiteId'])
-@Index('idx_audit_logs_created_at', ['createdAt'])
+@Index('idx_audit_ressource', ['ressource', 'ressourceId'])
+@Index('idx_audit_user', ['utilisateur'])
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -30,18 +29,21 @@ export class AuditLog {
   action: AuditAction;
 
   @Column({ type: 'varchar', length: 50 })
-  entiteType: string;
+  ressource: string;
 
   @Column({ type: 'uuid' })
-  entiteId: string;
+  ressourceId: string;
 
   @Column({ type: 'jsonb', nullable: true })
   details: Record<string, unknown> | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt: Date;
+  @Column({ type: 'varchar', length: 45, nullable: true })
+  ipAddress: string | null;
 
-  @ManyToOne(() => User, (user) => user.auditLogs, { nullable: false })
+  @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_utilisateur' })
   utilisateur: User;
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt: Date;
 }

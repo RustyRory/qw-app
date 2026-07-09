@@ -16,7 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { UserRole } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 import { DocumentsService } from './documents.service';
 
 type StorageCb = (err: Error | null, value: string) => void;
@@ -46,7 +46,7 @@ interface MulterFile {
 }
 
 interface RequestWithUser {
-  user: { id: string; role: UserRole };
+  user: { id: string; role: Role };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports

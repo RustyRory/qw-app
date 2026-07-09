@@ -5,15 +5,15 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Like, Repository } from 'typeorm';
-import { Prospect, ProspectStatut } from './entities/prospect.entity';
-import { Client, ClientStatut } from '../clients/entities/client.entity';
-import { Kyc } from '../kyc/entities/kyc.entity';
+import { Prospect } from './entities/prospect.entity';
+import { Client } from '../clients/entities/client.entity';
+import { Role, StatutClient, StatutKanban } from '../common/enums';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { User, UserRole } from '../users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
 
-type AuthUser = { id: string; role: UserRole };
+type AuthUser = { id: string; role: Role };
 
 @Injectable()
 export class ProspectsService {
@@ -26,32 +26,44 @@ export class ProspectsService {
   ) {}
 
   async create(dto: CreateProspectDto, authUser: AuthUser): Promise<Prospect> {
-    const prospect = this.prospectsRepo.create({
-      ...dto,
-      createur: { id: authUser.id } as User,
+    return this.dataSource.transaction(async (manager) => {
+      const year = new Date().getFullYear();
+      const count = await manager.count(Prospect, {
+        where: { ref: Like(`QWP-${year}-%`) },
+        withDeleted: true,
+      });
+      const seq = String(count + 1).padStart(3, '0');
+      const ref = `QWP-${year}-${seq}`;
+
+      const prospect = manager.create(Prospect, {
+        ...dto,
+        ref,
+        createdBy: { id: authUser.id } as User,
+      });
+      const saved = await manager.save(prospect);
+
+      await manager.save(
+        manager.create(AuditLog, {
+          action: AuditAction.CREATE,
+          ressource: 'Prospect',
+          ressourceId: saved.id,
+          details: { ref, nom: saved.nom },
+          utilisateur: { id: authUser.id } as User,
+        }),
+      );
+
+      return saved;
     });
-    const saved = await this.prospectsRepo.save(prospect);
-
-    await this.auditRepo.save(
-      this.auditRepo.create({
-        action: AuditAction.CREATE,
-        entiteType: 'Prospect',
-        entiteId: saved.id,
-        details: { nom: saved.nom, prenom: saved.prenom },
-        utilisateur: { id: authUser.id } as User,
-      }),
-    );
-
-    return saved;
   }
 
   async findAll(authUser: AuthUser): Promise<Prospect[]> {
     const qb = this.prospectsRepo
       .createQueryBuilder('prospect')
-      .leftJoinAndSelect('prospect.createur', 'createur');
+      .leftJoinAndSelect('prospect.createdBy', 'createdBy')
+      .leftJoinAndSelect('prospect.assignedTo', 'assignedTo');
 
-    if (authUser.role === UserRole.COLLABORATEUR) {
-      qb.where('createur.id = :id', { id: authUser.id });
+    if (authUser.role === Role.COLLABORATEUR) {
+      qb.where('createdBy.id = :id', { id: authUser.id });
     }
 
     return qb.orderBy('prospect.createdAt', 'DESC').getMany();
@@ -60,7 +72,7 @@ export class ProspectsService {
   async findOne(id: string): Promise<Prospect> {
     const prospect = await this.prospectsRepo.findOne({
       where: { id },
-      relations: ['createur'],
+      relations: ['createdBy', 'assignedTo'],
     });
     if (!prospect) throw new NotFoundException('Prospect introuvable');
     return prospect;
@@ -72,19 +84,26 @@ export class ProspectsService {
     authUser: AuthUser,
   ): Promise<Prospect> {
     const prospect = await this.findOne(id);
-    if (prospect.statut === ProspectStatut.CONVERTI) {
+    if (prospect.statutKanban === StatutKanban.CONVERTI) {
       throw new BadRequestException(
         'Un prospect converti ne peut plus être modifié',
       );
     }
-    Object.assign(prospect, dto);
+
+    const { assignedToId, ...rest } = dto;
+    Object.assign(prospect, rest);
+    if (assignedToId !== undefined) {
+      prospect.assignedTo = assignedToId
+        ? ({ id: assignedToId } as User)
+        : null;
+    }
     const saved = await this.prospectsRepo.save(prospect);
 
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.UPDATE,
-        entiteType: 'Prospect',
-        entiteId: id,
+        ressource: 'Prospect',
+        ressourceId: id,
         details: dto as Record<string, unknown>,
         utilisateur: { id: authUser.id } as User,
       }),
@@ -93,11 +112,11 @@ export class ProspectsService {
     return saved;
   }
 
-  // Convertit le prospect en client : crée un Client + KYC vide, marque le prospect CONVERTI
+  // Convertit le prospect en client : crée un Client (sans KYC), marque le prospect CONVERTI
   async convertToClient(id: string, authUser: AuthUser): Promise<Client> {
     const prospect = await this.findOne(id);
 
-    if (prospect.statut === ProspectStatut.CONVERTI) {
+    if (prospect.statutKanban === StatutKanban.CONVERTI) {
       throw new BadRequestException('Ce prospect est déjà converti en client');
     }
 
@@ -105,58 +124,55 @@ export class ProspectsService {
       // Générer la référence client
       const year = new Date().getFullYear();
       const count = await manager.count(Client, {
-        where: { reference: Like(`QW-${year}-%`) },
+        where: { ref: Like(`QW-${year}-%`) },
         withDeleted: true,
       });
       const seq = String(count + 1).padStart(3, '0');
-      const reference = `QW-${year}-${seq}`;
+      const ref = `QW-${year}-${seq}`;
 
-      // Créer le client à partir des données du prospect
+      // Créer le client à partir des champs du prospect, sans KYC
       const client = manager.create(Client, {
-        prenom: prospect.prenom,
-        nom: prospect.nom,
-        raisonSociale: prospect.raisonSociale,
-        email: prospect.email,
-        telephone: prospect.telephone,
-        statut: ClientStatut.EN_COURS,
-        reference,
-        createur: { id: authUser.id } as User,
+        ref,
+        raisonSociale: prospect.nom,
+        typeEntite: prospect.typeEntite,
+        siret: prospect.siret,
+        codeNaf: prospect.codeNaf,
+        activitePrincipale: prospect.activite,
+        adresseSiege: prospect.adresse,
+        ville: prospect.ville,
+        codePostal: prospect.codePostal,
+        pays: prospect.pays,
+        chiffreAffaires: prospect.chiffreAffaires,
+        effectif: prospect.effectif,
+        statut: StatutClient.ACTIF,
+        createdBy: { id: authUser.id } as User,
       });
       const savedClient = await manager.save(client);
-
-      // Créer une fiche KYC vide (pré-remplie avec les données disponibles)
-      const kyc = manager.create(Kyc, {
-        client: { id: savedClient.id } as Client,
-        secteurActivite: prospect.secteurActivite,
-        paysResidence: prospect.paysResidence,
-        estPep: prospect.estPep,
-      });
-      await manager.save(kyc);
 
       // Audit : création du client
       await manager.save(
         manager.create(AuditLog, {
           action: AuditAction.CREATE,
-          entiteType: 'Client',
-          entiteId: savedClient.id,
-          details: { reference, convertedFromProspect: id },
+          ressource: 'Client',
+          ressourceId: savedClient.id,
+          details: { ref, convertedFromProspect: id },
           utilisateur: { id: authUser.id } as User,
         }),
       );
 
       // Marquer le prospect comme converti
-      prospect.statut = ProspectStatut.CONVERTI;
-      prospect.clientId = savedClient.id;
+      prospect.statutKanban = StatutKanban.CONVERTI;
+      prospect.client = savedClient;
       await manager.save(prospect);
 
       // Audit : conversion du prospect
       await manager.save(
         manager.create(AuditLog, {
           action: AuditAction.UPDATE,
-          entiteType: 'Prospect',
-          entiteId: id,
+          ressource: 'Prospect',
+          ressourceId: id,
           details: {
-            statut: ProspectStatut.CONVERTI,
+            statutKanban: StatutKanban.CONVERTI,
             clientId: savedClient.id,
           },
           utilisateur: { id: authUser.id } as User,
@@ -170,20 +186,20 @@ export class ProspectsService {
   async remove(id: string, authUser: AuthUser): Promise<void> {
     const prospect = await this.findOne(id);
 
-    if (prospect.statut === ProspectStatut.CONVERTI) {
+    if (prospect.statutKanban === StatutKanban.CONVERTI) {
       throw new BadRequestException(
         'Impossible de supprimer un prospect converti en client',
       );
     }
 
-    await this.prospectsRepo.delete(id);
+    await this.prospectsRepo.softDelete(id);
 
     await this.auditRepo.save(
       this.auditRepo.create({
         action: AuditAction.DELETE,
-        entiteType: 'Prospect',
-        entiteId: id,
-        details: { nom: prospect.nom, prenom: prospect.prenom },
+        ressource: 'Prospect',
+        ressourceId: id,
+        details: { nom: prospect.nom },
         utilisateur: { id: authUser.id } as User,
       }),
     );

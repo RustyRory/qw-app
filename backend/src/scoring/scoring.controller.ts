@@ -1,11 +1,20 @@
-import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { UserRole } from '../users/entities/user.entity';
+import { Role } from '../common/enums';
 import { ScoringService } from './scoring.service';
+import { CreateScoreDto } from './dto/create-score.dto';
 
 interface RequestWithUser {
-  user: { id: string; role: UserRole };
+  user: { id: string; role: Role };
 }
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -13,13 +22,18 @@ interface RequestWithUser {
 export class ScoringController {
   constructor(private readonly scoringService: ScoringService) {}
 
-  @Post(':clientId')
-  calculate(@Param('clientId') clientId: string, @Req() req: RequestWithUser) {
-    return this.scoringService.calculate(clientId, req.user);
+  @Post()
+  calculate(@Body() dto: CreateScoreDto, @Req() req: RequestWithUser) {
+    return this.scoringService.calculate(dto, req.user.id);
   }
 
-  @Get(':clientId')
+  @Get('client/:clientId')
   findByClient(@Param('clientId') clientId: string) {
     return this.scoringService.findByClient(clientId);
+  }
+
+  @Get('client/:clientId/courant')
+  findCurrent(@Param('clientId') clientId: string) {
+    return this.scoringService.findCurrent(clientId);
   }
 }
