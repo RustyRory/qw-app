@@ -85,7 +85,7 @@ export default function NewClientPage() {
                 <option value="PERSONNE_PHYSIQUE">Personne physique</option>
               </select>
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="siret">SIRET</FieldLabel>
                 <Input id="siret" name="siret" maxLength={14} />
@@ -97,7 +97,7 @@ export default function NewClientPage() {
                 <Input id="formeJuridique" name="formeJuridique" />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="activitePrincipale">
                   Activité principale
@@ -113,7 +113,7 @@ export default function NewClientPage() {
               <FieldLabel htmlFor="adresseSiege">Adresse du siège</FieldLabel>
               <Input id="adresseSiege" name="adresseSiege" />
             </Field>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field>
                 <FieldLabel htmlFor="ville">Ville</FieldLabel>
                 <Input id="ville" name="ville" />

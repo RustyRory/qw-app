@@ -23,7 +23,7 @@ export default function ObligationsGlobalPage() {
         Obligations actuellement en retard, tous clients confondus.
       </p>
 
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">

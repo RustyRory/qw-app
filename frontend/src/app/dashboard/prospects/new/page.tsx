@@ -86,7 +86,7 @@ export default function NewProspectPage() {
                 <option value="PERSONNE_PHYSIQUE">Personne physique</option>
               </select>
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input id="email" name="email" type="email" />
@@ -100,7 +100,7 @@ export default function NewProspectPage() {
               <FieldLabel htmlFor="siret">SIRET</FieldLabel>
               <Input id="siret" name="siret" maxLength={14} />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="activite">Secteur / activité</FieldLabel>
                 <Input id="activite" name="activite" />
@@ -114,7 +114,7 @@ export default function NewProspectPage() {
               <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
               <Input id="adresse" name="adresse" />
             </Field>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field>
                 <FieldLabel htmlFor="ville">Ville</FieldLabel>
                 <Input id="ville" name="ville" />
