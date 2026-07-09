@@ -2,43 +2,37 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { IconPlus, IconSearch } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { apiFetch } from "@/lib/apiFetch";
 import { StatusBadge } from "@/lib/status";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { Prospect } from "@/types";
+import type { Prospect, StatutKanban } from "@/types";
+
+const COLUMNS: StatutKanban[] = [
+  "PRISE_CONTACT",
+  "DECOUVERTE",
+  "OPPORTUNITE",
+  "LAB",
+  "PREPARATION",
+];
 
 export default function ProspectsPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  function load() {
-    setLoading(true);
-    setError(null);
-    apiFetch<Prospect[]>("/prospects")
-      .then(setProspects)
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Erreur de chargement");
-      })
-      .finally(() => setLoading(false));
-  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    setLoading(true);
+    apiFetch<Prospect[]>("/prospects")
+      .then(setProspects)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = prospects.filter((p) => {
-    const q = search.toLowerCase();
-    return (
-      `${p.prenom} ${p.nom}`.toLowerCase().includes(q) ||
-      (p.email ?? "").toLowerCase().includes(q) ||
-      (p.secteurActivite ?? "").toLowerCase().includes(q)
-    );
-  });
+  const archived = prospects.filter(
+    (p) => p.statutKanban === "CONVERTI" || p.statutKanban === "REFUSE",
+  );
 
   return (
     <div className="space-y-4 p-6">
@@ -52,101 +46,77 @@ export default function ProspectsPage() {
         </Button>
       </div>
 
-      <div className="relative">
-        <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher par nom, email ou secteur…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+      {error && (
+        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-      <div className="overflow-hidden rounded-lg border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Nom
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Email
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Secteur
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Statut
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Créé le
-              </th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Chargement…
-                </td>
-              </tr>
-            ) : error ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center">
-                  <p className="text-sm text-destructive">{error}</p>
-                  <button
-                    onClick={load}
-                    className="mt-2 text-sm text-primary hover:underline"
+      {loading ? (
+        <div className="p-6 text-center text-sm text-muted-foreground">
+          Chargement…
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {COLUMNS.map((statut) => {
+              const items = prospects.filter((p) => p.statutKanban === statut);
+              return (
+                <div key={statut} className="rounded-lg border bg-card">
+                  <div className="border-b px-3 py-2">
+                    <StatusBadge status={statut} />
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {items.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2 p-2">
+                    {items.length === 0 ? (
+                      <p className="p-2 text-center text-xs text-muted-foreground">
+                        Vide
+                      </p>
+                    ) : (
+                      items.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/dashboard/prospects/${p.id}`}
+                          className="block rounded-md border bg-background p-2 text-sm transition-colors hover:bg-muted/50"
+                        >
+                          <p className="truncate font-medium">{p.nom}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {p.ref}
+                          </p>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {archived.length > 0 && (
+            <div className="rounded-lg border bg-card">
+              <div className="border-b px-4 py-2 text-sm font-medium text-muted-foreground">
+                Archivés (convertis / refusés)
+              </div>
+              <div className="divide-y">
+                {archived.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/dashboard/prospects/${p.id}`}
+                    className="flex items-center justify-between px-4 py-2 text-sm transition-colors hover:bg-muted/50"
                   >
-                    Réessayer
-                  </button>
-                </td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Aucun prospect trouvé
-                </td>
-              </tr>
-            ) : (
-              filtered.map((p) => (
-                <tr key={p.id} className="transition-colors hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">
-                    {p.prenom} {p.nom}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {p.email ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {p.secteurActivite ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={p.statut} />
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(p.createdAt).toLocaleDateString("fr-FR")}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/dashboard/prospects/${p.id}`}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Voir →
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                    <span>
+                      {p.nom} — {p.ref}
+                    </span>
+                    <StatusBadge status={p.statutKanban} />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

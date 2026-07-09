@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import type { Client, TypeEntite } from "@/types";
 
 export default function NewClientPage() {
   const router = useRouter();
@@ -21,15 +22,21 @@ export default function NewClientPage() {
 
     const form = new FormData(e.currentTarget);
     const data = {
-      prenom: form.get("prenom") as string,
-      nom: form.get("nom") as string,
-      email: (form.get("email") as string) || undefined,
-      telephone: (form.get("telephone") as string) || undefined,
-      raisonSociale: (form.get("raisonSociale") as string) || undefined,
+      raisonSociale: form.get("raisonSociale") as string,
+      typeEntite: form.get("typeEntite") as TypeEntite,
+      siret: (form.get("siret") as string) || undefined,
+      formeJuridique: (form.get("formeJuridique") as string) || undefined,
+      codeNaf: (form.get("codeNaf") as string) || undefined,
+      activitePrincipale:
+        (form.get("activitePrincipale") as string) || undefined,
+      adresseSiege: (form.get("adresseSiege") as string) || undefined,
+      ville: (form.get("ville") as string) || undefined,
+      codePostal: (form.get("codePostal") as string) || undefined,
+      pays: (form.get("pays") as string) || undefined,
     };
 
     try {
-      const client = await apiFetch<{ id: string }>("/clients", {
+      const client = await apiFetch<Client>("/clients", {
         method: "POST",
         body: JSON.stringify(data),
       });
@@ -61,28 +68,65 @@ export default function NewClientPage() {
           )}
 
           <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="raisonSociale">Raison sociale *</FieldLabel>
+              <Input id="raisonSociale" name="raisonSociale" required />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="typeEntite">Type d&apos;entité *</FieldLabel>
+              <select
+                id="typeEntite"
+                name="typeEntite"
+                required
+                defaultValue="PERSONNE_MORALE"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              >
+                <option value="PERSONNE_MORALE">Personne morale</option>
+                <option value="PERSONNE_PHYSIQUE">Personne physique</option>
+              </select>
+            </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field>
-                <FieldLabel htmlFor="prenom">Prénom *</FieldLabel>
-                <Input id="prenom" name="prenom" required />
+                <FieldLabel htmlFor="siret">SIRET</FieldLabel>
+                <Input id="siret" name="siret" maxLength={14} />
               </Field>
               <Field>
-                <FieldLabel htmlFor="nom">Nom *</FieldLabel>
-                <Input id="nom" name="nom" required />
+                <FieldLabel htmlFor="formeJuridique">
+                  Forme juridique
+                </FieldLabel>
+                <Input id="formeJuridique" name="formeJuridique" />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="activitePrincipale">
+                  Activité principale
+                </FieldLabel>
+                <Input id="activitePrincipale" name="activitePrincipale" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
+                <Input id="codeNaf" name="codeNaf" />
               </Field>
             </div>
             <Field>
-              <FieldLabel htmlFor="raisonSociale">Raison sociale</FieldLabel>
-              <Input id="raisonSociale" name="raisonSociale" />
+              <FieldLabel htmlFor="adresseSiege">Adresse du siège</FieldLabel>
+              <Input id="adresseSiege" name="adresseSiege" />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input id="email" name="email" type="email" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
-              <Input id="telephone" name="telephone" type="tel" />
-            </Field>
+            <div className="grid grid-cols-3 gap-4">
+              <Field>
+                <FieldLabel htmlFor="ville">Ville</FieldLabel>
+                <Input id="ville" name="ville" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
+                <Input id="codePostal" name="codePostal" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="pays">Pays</FieldLabel>
+                <Input id="pays" name="pays" defaultValue="France" />
+              </Field>
+            </div>
           </FieldGroup>
 
           <div className="flex gap-3">
