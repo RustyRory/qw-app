@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0] - 2026-07-09
+
+Migration du backend et du frontend vers le nouveau schéma de données LCB-FT défini dans `docs/mvp/` (KYC fusionné dans `Client`, pipeline prospect, questionnaire d'acceptation LAB, bénéficiaires effectifs, contacts, missions, lettres de mission, planning, obligations, opérations sensibles).
+
+### Backend — reset et nouveau schéma (14 entités)
+
+- Suppression du module `kyc/` (entité, dto, service, controller) et des anciennes migrations (`InitSchema`, `AddProspect`) — le KYC est désormais fusionné dans l'entité `Client`
+- Création de `common/enums/index.ts` : tous les enums partagés (`Role`, `TypeEntite`, `StatutKanban`, `StatutClient`, `StatutKyc`, `ScreeningStatut`, `NiveauRisque`, `TypeMission`, `StatutMission`, `TypeObligation`, `StatutObligation`, `TypeOperationSensible`, `StatutOperationSensible`, `TypeContact`, `TypePlanningEtape`, `StatutPlanningEtape`)
+- Réécriture des entités existantes : `User` (rôles en majuscules, `deletedAt`), `Client` (champs KYC + SIRENE fusionnés, toutes les relations), `Prospect` (nouveaux champs, `StatutKanban`), `AuditLog` (`ressource`/`ressourceId`, `ipAddress`), `ScoreRisque` (renommage `risk-score` → `score-risque`, réponses ARPEC 4 dimensions)
+- 8 nouvelles entités et modules NestJS complets (entity + dto + service + controller + module) : `QuestionnaireAcceptation`, `BeneficiaireEffectif`, `Contact`, `Mission`, `LettreMission`, `PlanningEtape`, `Obligation`, `OperationSensible`
+- `ScoringModule` : réécriture de l'algorithme de calcul du risque selon la méthode ARPEC (4 dimensions pondérées, seuils FAIBLE/MOYEN/ÉLEVÉ)
+- `ProspectsModule` : génération de référence `QWP-YYYY-NNN`, conversion prospect → client (`POST /prospects/:id/convert`), soft delete
+- `ClientsModule` : suppression de toute la logique KYC historique, validation KYC directement sur le client (`PATCH /clients/:id/validate`)
+- Mise à jour de `app.module.ts` et `data-source.ts` : les 14 entités et les 14 modules métier enregistrés (const `ALL_ENTITIES` partagée)
+- Migration unique `1782000000000-V2Schema.ts` : création des 14 tables dans l'ordre des dépendances FK (`users` → `prospects` → `questionnaire_acceptation` → `clients` → `beneficiaire_effectif` → `contacts` → `missions` → `documents` → `lettre_mission` → `score_risque` → `planning_etape` → `obligations` → `operation_sensible` → `audit_logs`), générée à partir des entités TypeORM et validée dans les deux sens (`up`/`down`)
+- `database/seed.ts` : jeu de données de test couvrant les 14 tables (utilisateurs, clients, prospects, questionnaire, bénéficiaire effectif, contact, missions + lettre de mission signée, scores de risque, étape de planning, obligations, opération sensible, journal d'audit)
+
+### Frontend — arborescence complète alignée sur le nouveau backend
+
+- `types/index.ts` réécrit intégralement (16 enums + 14 entités) pour correspondre aux nouvelles entités et enums backend
+- `useAuth`, `AppSidebar` et `lib/status.tsx` adaptés aux rôles en majuscules et aux nouveaux statuts (badges KYC, risque, kanban, mission, obligation, opération sensible)
+- `/dashboard` : nouveaux KPIs (prospects actifs, clients actifs, clients à risque élevé, obligations en retard)
+- Module Prospects : pipeline par statut, fiche prospect, page questionnaire d'acceptation (brouillon JSON + validation/refus)
+- Module Clients : liste, création, fiche à 9 onglets (`infos`, `kyc`, `beneficiaires`, `contacts`, `scoring`, `missions`, `planning`, `obligations`, `operations` via `?tab=`)
+- Nouvelles vues globales : `/dashboard/cartographie`, `/dashboard/obligations`, `/dashboard/operations-sensibles`, `/dashboard/planning`
+- Module Admin réorganisé : `/dashboard/admin` (accueil) + `/dashboard/admin/users` (liste, création, édition)
+- Suppression des pages obsolètes `/dashboard/collaborateur`, `/dashboard/responsable`, `/dashboard/scoring` (remplacées par l'onglet scoring de la fiche client)
+- Pages volontairement minimales (pas de drag-and-drop Kanban, pas d'intégration SIRENE, questionnaire LAB en éditeur JSON brut plutôt que les 61 questions détaillées) — le design approfondi est laissé à une itération suivante
+
 ## [0.2.0] - 2026-06-30
 
 ### Backend — premiers modules métier
