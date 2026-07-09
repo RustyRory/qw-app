@@ -1,128 +1,52 @@
-import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ScoringService, computeScore } from './scoring.service';
-import { RiskNiveau, RiskScore } from './entities/risk-score.entity';
-import { Kyc } from '../kyc/entities/kyc.entity';
-import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { UserRole } from '../users/entities/user.entity';
+import { ScoringService, computeNiveau } from './scoring.service';
+import { ScoreRisque } from './entities/score-risque.entity';
+import { NiveauRisque } from '../common/enums';
+import { CreateScoreDto } from './dto/create-score.dto';
 
-const ADMIN: { id: string; role: UserRole } = {
-  id: 'user-1',
-  role: UserRole.ADMIN,
-};
+const USER_ID = 'user-1';
 
-const makeKyc = (override: Partial<Kyc> = {}): Kyc =>
-  ({
-    id: 'kyc-1',
-    estPep: false,
-    paysHautRisque: false,
-    secteurActivite: 'Commerce de détail',
-    chiffreAffaires: 100_000,
-    client: { id: 'client-1' },
-    ...override,
-  }) as Kyc;
-
-const makeScore = (override: Partial<RiskScore> = {}): RiskScore =>
+const makeScore = (override: Partial<ScoreRisque> = {}): ScoreRisque =>
   ({
     id: 'score-1',
     score: 0,
-    niveau: RiskNiveau.FAIBLE,
-    details: {},
-    calculatedAt: new Date(),
+    niveau: NiveauRisque.FAIBLE,
+    reponses: {
+      clientCaracteristiques: 0,
+      activiteSecteur: 0,
+      zoneGeographique: 0,
+      typeMission: 0,
+    },
     client: { id: 'client-1' },
     ...override,
-  }) as RiskScore;
+  }) as ScoreRisque;
 
-describe('computeScore (pure)', () => {
-  it('retourne 0 / faible si aucun critère', () => {
-    const { score, niveau } = computeScore(makeKyc());
-    expect(score).toBe(0);
-    expect(niveau).toBe(RiskNiveau.FAIBLE);
+describe('computeNiveau (pure)', () => {
+  it('retourne FAIBLE pour un score <= 40', () => {
+    expect(computeNiveau(0)).toBe(NiveauRisque.FAIBLE);
+    expect(computeNiveau(40)).toBe(NiveauRisque.FAIBLE);
   });
 
-  it('PEP ajoute 30 pts', () => {
-    const { score, details } = computeScore(makeKyc({ estPep: true }));
-    expect(score).toBe(30);
-    expect(details.pep).toBe(30);
+  it('retourne MOYEN pour un score entre 41 et 80', () => {
+    expect(computeNiveau(41)).toBe(NiveauRisque.MOYEN);
+    expect(computeNiveau(80)).toBe(NiveauRisque.MOYEN);
   });
 
-  it('pays haut risque ajoute 25 pts', () => {
-    const { score, details } = computeScore(makeKyc({ paysHautRisque: true }));
-    expect(score).toBe(25);
-    expect(details.paysHautRisque).toBe(25);
-  });
-
-  it('secteur risque (casino) ajoute 20 pts', () => {
-    const { score, details } = computeScore(
-      makeKyc({ secteurActivite: 'Industrie du Casino' }),
-    );
-    expect(score).toBe(20);
-    expect(details.secteurRisque).toBe(20);
-  });
-
-  it("chiffre d'affaires > 500 000 ajoute 10 pts", () => {
-    const { score, details } = computeScore(
-      makeKyc({ chiffreAffaires: 750_000 }),
-    );
-    expect(score).toBe(10);
-    expect(details.chiffreAffairesEleve).toBe(10);
-  });
-
-  it('PEP + pays haut risque = 55 pts → moyen', () => {
-    const { score, niveau } = computeScore(
-      makeKyc({ estPep: true, paysHautRisque: true }),
-    );
-    expect(score).toBe(55);
-    expect(niveau).toBe(RiskNiveau.MOYEN);
-  });
-
-  it('tous les critères = 85 pts → élevé', () => {
-    const { score, niveau } = computeScore(
-      makeKyc({
-        estPep: true,
-        paysHautRisque: true,
-        secteurActivite: 'crypto',
-        chiffreAffaires: 1_000_000,
-      }),
-    );
-    expect(score).toBe(85);
-    expect(niveau).toBe(RiskNiveau.ELEVE);
-  });
-
-  it('le score est plafonné à 100', () => {
-    const kyc = makeKyc({
-      estPep: true,
-      paysHautRisque: true,
-      secteurActivite: 'casino',
-      chiffreAffaires: 1_000_000,
-    });
-    const { score } = computeScore(kyc);
-    expect(score).toBeLessThanOrEqual(100);
+  it('retourne ELEVE pour un score > 80', () => {
+    expect(computeNiveau(81)).toBe(NiveauRisque.ELEVE);
+    expect(computeNiveau(150)).toBe(NiveauRisque.ELEVE);
   });
 });
 
 describe('ScoringService', () => {
   let service: ScoringService;
 
-  const riskScoreRepoMock = {
-    findOne: jest.fn(),
+  const repoMock = {
     find: jest.fn(),
-    save: jest.fn(),
-    create: jest.fn((data) => data),
-  };
-
-  const kycRepoMock = {
     findOne: jest.fn(),
-  };
-
-  const auditRepoMock = {
     save: jest.fn(),
     create: jest.fn((data) => data),
-  };
-
-  const redisMock = {
-    setex: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -131,10 +55,7 @@ describe('ScoringService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScoringService,
-        { provide: getRepositoryToken(RiskScore), useValue: riskScoreRepoMock },
-        { provide: getRepositoryToken(Kyc), useValue: kycRepoMock },
-        { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
-        { provide: 'REDIS_CLIENT', useValue: redisMock },
+        { provide: getRepositoryToken(ScoreRisque), useValue: repoMock },
       ],
     }).compile();
 
@@ -143,50 +64,51 @@ describe('ScoringService', () => {
 
   // --------------------------------------------------------------- calculate
   describe('calculate', () => {
-    it('persiste le score calculé et enregistre un audit CREATE', async () => {
-      kycRepoMock.findOne.mockResolvedValue(makeKyc({ estPep: true }));
-      riskScoreRepoMock.save.mockResolvedValue(
-        makeScore({ score: 30, niveau: RiskNiveau.FAIBLE }),
+    const dto: CreateScoreDto = {
+      clientId: 'client-1',
+      clientCaracteristiques: 20,
+      activiteSecteur: 10,
+      zoneGeographique: 5,
+      typeMission: 5,
+    };
+
+    it('additionne les 4 dimensions ARPEC et persiste le score', async () => {
+      repoMock.save.mockResolvedValue(
+        makeScore({ score: 40, niveau: NiveauRisque.FAIBLE }),
       );
 
-      await service.calculate('client-1', ADMIN);
+      await service.calculate(dto, USER_ID);
 
-      expect(riskScoreRepoMock.save).toHaveBeenCalledWith(
+      expect(repoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          score: 30,
-          niveau: RiskNiveau.FAIBLE,
+          score: 40,
+          niveau: NiveauRisque.FAIBLE,
+          reponses: {
+            clientCaracteristiques: 20,
+            activiteSecteur: 10,
+            zoneGeographique: 5,
+            typeMission: 5,
+          },
           client: { id: 'client-1' },
-          utilisateur: { id: ADMIN.id },
-        }),
-      );
-      expect(auditRepoMock.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: AuditAction.CREATE,
-          entiteType: 'RiskScore',
-          utilisateur: { id: ADMIN.id },
+          calculatedBy: { id: USER_ID },
         }),
       );
     });
 
-    it('met à jour le cache Redis après le calcul', async () => {
-      kycRepoMock.findOne.mockResolvedValue(makeKyc());
-      const saved = makeScore();
-      riskScoreRepoMock.save.mockResolvedValue(saved);
+    it('un score élevé (>80) est classé ELEVE', async () => {
+      const highDto: CreateScoreDto = {
+        clientId: 'client-1',
+        clientCaracteristiques: 45,
+        activiteSecteur: 35,
+        zoneGeographique: 25,
+        typeMission: 20,
+      };
+      repoMock.save.mockResolvedValue(makeScore({ score: 125 }));
 
-      await service.calculate('client-1', ADMIN);
+      await service.calculate(highDto, USER_ID);
 
-      expect(redisMock.setex).toHaveBeenCalledWith(
-        'scoring:client-1',
-        3600,
-        JSON.stringify(saved),
-      );
-    });
-
-    it('lève NotFoundException si la fiche KYC est introuvable', async () => {
-      kycRepoMock.findOne.mockResolvedValue(null);
-
-      await expect(service.calculate('inexistant', ADMIN)).rejects.toThrow(
-        NotFoundException,
+      expect(repoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ score: 125, niveau: NiveauRisque.ELEVE }),
       );
     });
   });
@@ -195,14 +117,30 @@ describe('ScoringService', () => {
   describe('findByClient', () => {
     it("retourne l'historique trié par date décroissante", async () => {
       const scores = [makeScore(), makeScore({ id: 'score-2' })];
-      riskScoreRepoMock.find.mockResolvedValue(scores);
+      repoMock.find.mockResolvedValue(scores);
 
       const result = await service.findByClient('client-1');
 
       expect(result).toBe(scores);
-      expect(riskScoreRepoMock.find).toHaveBeenCalledWith({
+      expect(repoMock.find).toHaveBeenCalledWith({
         where: { client: { id: 'client-1' } },
-        order: { calculatedAt: 'DESC' },
+        order: { createdAt: 'DESC' },
+      });
+    });
+  });
+
+  // ------------------------------------------------------------- findCurrent
+  describe('findCurrent', () => {
+    it('retourne le score le plus récent du client', async () => {
+      const current = makeScore();
+      repoMock.findOne.mockResolvedValue(current);
+
+      const result = await service.findCurrent('client-1');
+
+      expect(result).toBe(current);
+      expect(repoMock.findOne).toHaveBeenCalledWith({
+        where: { client: { id: 'client-1' } },
+        order: { createdAt: 'DESC' },
       });
     });
   });
