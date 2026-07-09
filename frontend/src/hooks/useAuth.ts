@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { decodeToken, type JwtPayload } from "@/lib/auth";
+import type { Role } from "@/types";
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -12,12 +13,12 @@ function getCookie(name: string): string | null {
 
 export interface AuthState {
   ready: boolean;
-  role: string | null;
+  role: Role | null;
   payload: JwtPayload | null;
   logout: () => void;
 }
 
-export function useAuth(requiredRole?: string): AuthState {
+export function useAuth(requiredRoles?: Role[]): AuthState {
   const router = useRouter();
   const [state, setState] = useState<AuthState>({
     ready: false,
@@ -25,6 +26,7 @@ export function useAuth(requiredRole?: string): AuthState {
     payload: null,
     logout: () => {},
   });
+  const requiredRolesKey = requiredRoles?.join(",");
 
   useEffect(() => {
     const token = getCookie("qw_token");
@@ -45,18 +47,17 @@ export function useAuth(requiredRole?: string): AuthState {
       return;
     }
 
-    if (
-      requiredRole &&
-      payload.role !== requiredRole &&
-      payload.role !== "admin"
-    ) {
+    const role = payload.role as Role;
+
+    if (requiredRoles && role !== "ADMIN" && !requiredRoles.includes(role)) {
       router.push("/dashboard");
       return;
     }
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState({ ready: true, role: payload.role, payload, logout });
-  }, [router, requiredRole]);
+    setState({ ready: true, role, payload, logout });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, requiredRolesKey]);
 
   return state;
 }

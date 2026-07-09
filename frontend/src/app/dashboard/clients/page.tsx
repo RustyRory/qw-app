@@ -34,9 +34,9 @@ export default function ClientsPage() {
   const filtered = clients.filter((c) => {
     const q = search.toLowerCase();
     return (
-      `${c.prenom} ${c.nom}`.toLowerCase().includes(q) ||
-      (c.email ?? "").toLowerCase().includes(q) ||
-      c.reference.toLowerCase().includes(q)
+      c.raisonSociale.toLowerCase().includes(q) ||
+      c.ref.toLowerCase().includes(q) ||
+      (c.siret ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -52,10 +52,10 @@ export default function ClientsPage() {
         </Button>
       </div>
 
-      <div className="relative">
+      <div className="relative max-w-sm">
         <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Rechercher par nom, email ou référence…"
+          placeholder="Rechercher par nom, réf. ou SIRET…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -67,19 +67,19 @@ export default function ClientsPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Référence
+                Réf.
               </th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Nom
+                Raison sociale
               </th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Email
+                SIRET
               </th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                 Statut
               </th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Créé le
+                KYC
               </th>
               <th className="px-4 py-3" />
             </tr>
@@ -122,19 +122,19 @@ export default function ClientsPage() {
                   className="transition-colors hover:bg-muted/30"
                 >
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {client.reference}
+                    {client.ref}
                   </td>
                   <td className="px-4 py-3 font-medium">
-                    {client.prenom} {client.nom}
+                    {client.raisonSociale}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {client.email ?? "—"}
+                    {client.siret ?? "—"}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={client.statut} />
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(client.createdAt).toLocaleDateString("fr-FR")}
+                  <td className="px-4 py-3">
+                    <StatusBadge status={client.kycStatut} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
