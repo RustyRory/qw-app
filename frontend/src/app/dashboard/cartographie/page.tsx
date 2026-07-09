@@ -45,7 +45,7 @@ export default function CartographiePage() {
     <div className="space-y-4 p-6">
       <h1 className="text-xl font-semibold">Cartographie des risques</h1>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {(["FAIBLE", "MOYEN", "ELEVE"] as NiveauRisque[]).map((niveau) => (
           <div key={niveau} className="rounded-lg border bg-card p-4">
             <RiskBadge level={niveau} />
@@ -57,7 +57,7 @@ export default function CartographiePage() {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">

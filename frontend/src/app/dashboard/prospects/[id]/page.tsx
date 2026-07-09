@@ -199,7 +199,7 @@ export default function ProspectDetailPage() {
                 </Button>
               </div>
             )}
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
               {[
                 ["Type d'entité", prospect.typeEntite],
                 ["SIRET", prospect.siret ?? "—"],

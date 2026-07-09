@@ -80,7 +80,7 @@ function InfosTab({
             <IconPencil className="size-4" /> Modifier
           </Button>
         </div>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg border p-4 text-sm">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
           {[
             ["Raison sociale", client.raisonSociale],
             ["SIRET", client.siret ?? "—"],
@@ -141,7 +141,7 @@ function InfosTab({
             defaultValue={client.activitePrincipale ?? ""}
           />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="chiffreAffaires">CA annuel (€)</FieldLabel>
             <Input
@@ -169,7 +169,7 @@ function InfosTab({
             defaultValue={client.adresseSiege ?? ""}
           />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="ville">Ville</FieldLabel>
             <Input id="ville" name="ville" defaultValue={client.ville ?? ""} />
@@ -683,7 +683,7 @@ function ScoringTab({ clientId }: { clientId: string }) {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="grid grid-cols-2 gap-3 rounded-lg border p-4"
+          className="grid grid-cols-1 gap-3 rounded-lg border p-4 sm:grid-cols-2"
         >
           <Field>
             <FieldLabel>Caractéristiques client (0–50)</FieldLabel>
@@ -730,7 +730,7 @@ function ScoringTab({ clientId }: { clientId: string }) {
       {loading ? (
         <p className="text-sm text-muted-foreground">Chargement…</p>
       ) : scores.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -939,7 +939,7 @@ function MissionsTab({ clientId }: { clientId: string }) {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="grid grid-cols-2 gap-3 rounded-lg border p-4"
+          className="grid grid-cols-1 gap-3 rounded-lg border p-4 sm:grid-cols-2"
         >
           <select
             name="type"
@@ -1041,7 +1041,7 @@ function PlanningTab({ clientId }: { clientId: string }) {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="grid grid-cols-2 gap-3 rounded-lg border p-4"
+          className="grid grid-cols-1 gap-3 rounded-lg border p-4 sm:grid-cols-2"
         >
           <Input
             name="titre"
@@ -1166,7 +1166,7 @@ function ObligationsTab({ clientId }: { clientId: string }) {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="grid grid-cols-2 gap-3 rounded-lg border p-4"
+          className="grid grid-cols-1 gap-3 rounded-lg border p-4 sm:grid-cols-2"
         >
           <select
             name="type"
@@ -1294,7 +1294,7 @@ function OperationsTab({ clientId }: { clientId: string }) {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="grid grid-cols-2 gap-3 rounded-lg border p-4"
+          className="grid grid-cols-1 gap-3 rounded-lg border p-4 sm:grid-cols-2"
         >
           <select
             name="type"
