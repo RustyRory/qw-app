@@ -117,6 +117,7 @@ export default function NewUserPage() {
             <div className="flex size-10 items-center justify-center rounded-xl bg-violet-100">
               <IconUserPlus className="size-5 text-violet-700" />
             </div>
+<<<<<<< HEAD
 
             <div>
               <h2 className="font-semibold text-slate-900">
@@ -126,6 +127,19 @@ export default function NewUserPage() {
               <p className="text-xs text-slate-500">
                 Tous les champs marqués d’un astérisque sont obligatoires.
               </p>
+=======
+          )}
+          <FieldGroup>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="prenom">Prénom *</FieldLabel>
+                <Input id="prenom" name="prenom" required />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="nom">Nom *</FieldLabel>
+                <Input id="nom" name="nom" required />
+              </Field>
+>>>>>>> origin/dev
             </div>
           </div>
 

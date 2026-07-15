@@ -107,6 +107,7 @@ export default function NewProspectPage() {
             <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
           )}
 
+<<<<<<< HEAD
           {/* SIRET */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
@@ -119,6 +120,75 @@ export default function NewProspectPage() {
                 placeholder="12345678900012"
                 maxLength={17}
                 className="font-mono rounded-lg"
+=======
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="nom">Raison sociale / Nom *</FieldLabel>
+              <Input id="nom" name="nom" required />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="typeEntite">Type d&apos;entité *</FieldLabel>
+              <select
+                id="typeEntite"
+                name="typeEntite"
+                required
+                defaultValue="PERSONNE_MORALE"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              >
+                <option value="PERSONNE_MORALE">Personne morale</option>
+                <option value="PERSONNE_PHYSIQUE">Personne physique</option>
+              </select>
+            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input id="email" name="email" type="email" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
+                <Input id="telephone" name="telephone" type="tel" />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="siret">SIRET</FieldLabel>
+              <Input id="siret" name="siret" maxLength={14} />
+            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="activite">Secteur / activité</FieldLabel>
+                <Input id="activite" name="activite" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
+                <Input id="codeNaf" name="codeNaf" />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
+              <Input id="adresse" name="adresse" />
+            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field>
+                <FieldLabel htmlFor="ville">Ville</FieldLabel>
+                <Input id="ville" name="ville" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
+                <Input id="codePostal" name="codePostal" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="pays">Pays</FieldLabel>
+                <Input id="pays" name="pays" defaultValue="France" />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="notes">Notes internes</FieldLabel>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+>>>>>>> origin/dev
               />
               <Button type="button" onClick={handleSirene} disabled={sireneLoading} variant="outline" className="shrink-0 rounded-lg gap-2">
                 {sireneLoading ? <IconLoader2 className="size-4 animate-spin" /> : <IconSearch className="size-4" />}

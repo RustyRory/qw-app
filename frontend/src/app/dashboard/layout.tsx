@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { IconMenu2 } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import { IconLogout } from "@tabler/icons-react";
 import { AppSidebar } from "@/components/layout/AppSidebar";
@@ -10,6 +12,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { ready, role, logout } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!ready) {
     return (

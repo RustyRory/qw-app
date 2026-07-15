@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type React from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -106,9 +107,11 @@ function isItemActive(
 function NavSection({
   items,
   pathname,
+  onNavigate,
 }: {
   items: NavItem[];
   pathname: string;
+  onNavigate: () => void;
 }) {
   return (
     <div className="space-y-1">
@@ -427,11 +430,21 @@ function MobileNav({
 export function AppSidebar({
   role,
   onLogout,
+  open,
+  onClose,
 }: {
   role: Role | null;
   onLogout: () => void;
+  open: boolean;
+  onClose: () => void;
 }) {
   const pathname = usePathname();
+
+  // Ferme le tiroir mobile automatiquement après une navigation.
+  useEffect(() => {
+    onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
     <>
