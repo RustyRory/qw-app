@@ -67,7 +67,6 @@ export default function NewUserPage() {
           ? err.message
           : "Une erreur est survenue pendant la création.",
       );
-
       setLoading(false);
     }
   }
@@ -83,7 +82,6 @@ export default function NewUserPage() {
   return (
     <div className="min-h-full bg-slate-50 p-4 pb-20 sm:p-6 md:p-8 md:pb-8">
       <div className="mx-auto max-w-3xl space-y-6">
-        {/* Retour et titre */}
         <div className="flex items-start gap-4">
           <Link
             href="/dashboard/admin/users"
@@ -108,7 +106,6 @@ export default function NewUserPage() {
           </div>
         </div>
 
-        {/* Formulaire */}
         <form
           onSubmit={handleSubmit}
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -117,7 +114,6 @@ export default function NewUserPage() {
             <div className="flex size-10 items-center justify-center rounded-xl bg-violet-100">
               <IconUserPlus className="size-5 text-violet-700" />
             </div>
-<<<<<<< HEAD
 
             <div>
               <h2 className="font-semibold text-slate-900">
@@ -127,19 +123,6 @@ export default function NewUserPage() {
               <p className="text-xs text-slate-500">
                 Tous les champs marqués d’un astérisque sont obligatoires.
               </p>
-=======
-          )}
-          <FieldGroup>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="prenom">Prénom *</FieldLabel>
-                <Input id="prenom" name="prenom" required />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="nom">Nom *</FieldLabel>
-                <Input id="nom" name="nom" required />
-              </Field>
->>>>>>> origin/dev
             </div>
           </div>
 
@@ -186,7 +169,9 @@ export default function NewUserPage() {
               </div>
 
               <Field>
-                <FieldLabel htmlFor="email">Adresse e-mail *</FieldLabel>
+                <FieldLabel htmlFor="email">
+                  Adresse e-mail *
+                </FieldLabel>
 
                 <div className="relative">
                   <IconMail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -218,12 +203,18 @@ export default function NewUserPage() {
                     required
                     className="flex h-10 w-full appearance-none rounded-md border border-input bg-background pl-10 pr-4 text-sm shadow-xs outline-none transition focus-visible:ring-2 focus-visible:ring-ring/30"
                   >
-                    <option value="COLLABORATEUR">Collaborateur</option>
-                    <option value="RESPONSABLE">Responsable</option>
+                    <option value="COLLABORATEUR">
+                      Collaborateur
+                    </option>
+                    <option value="RESPONSABLE">
+                      Responsable
+                    </option>
                     <option value="EXPERT_COMPTABLE">
                       Expert-comptable
                     </option>
-                    <option value="ADMIN">Administrateur</option>
+                    <option value="ADMIN">
+                      Administrateur
+                    </option>
                   </select>
                 </div>
 
@@ -233,7 +224,9 @@ export default function NewUserPage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="password">Mot de passe *</FieldLabel>
+                <FieldLabel htmlFor="password">
+                  Mot de passe *
+                </FieldLabel>
 
                 <div className="relative">
                   <IconLock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -273,7 +266,6 @@ export default function NewUserPage() {
               className="bg-violet-700 text-white hover:bg-violet-800"
             >
               <IconUserPlus className="size-4" />
-
               {loading ? "Création…" : "Créer l’utilisateur"}
             </Button>
           </div>

@@ -59,15 +59,9 @@ export default function NewClientPage() {
       raisonSociale: form.get("raisonSociale") as string,
       typeEntite,
       siret: siret.replace(/\s/g, "") || undefined,
-      siren: sireneData?.siren || undefined,
       codeNaf: (form.get("codeNaf") as string) || undefined,
       formeJuridique: (form.get("formeJuridique") as string) || undefined,
-      email: (form.get("email") as string) || undefined,
-      telephone: (form.get("telephone") as string) || undefined,
-      natureMission: (form.get("natureMission") as string) || undefined,
       activitePrincipale: (form.get("activite") as string) || undefined,
-      chiffreAffaires: form.get("chiffreAffaires") ? Number(form.get("chiffreAffaires")) : undefined,
-      effectif: form.get("effectif") ? Number(form.get("effectif")) : undefined,
       adresseSiege: (form.get("adresse") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
       codePostal: (form.get("codePostal") as string) || undefined,
@@ -131,20 +125,26 @@ export default function NewClientPage() {
               <Field>
                 <FieldLabel htmlFor="raisonSociale">Raison sociale / Nom <span className="text-red-500">*</span></FieldLabel>
                 <Input id="raisonSociale" name="raisonSociale" required
+                  key={sireneData?.nom ?? "raison-sociale-vide"}
                   defaultValue={sireneData?.nom ?? ""} placeholder="SARL Dupont & Associés" className="rounded-lg" />
               </Field>
               <div>
                 <p className="text-sm font-medium text-slate-700 mb-2">Type d'entité <span className="text-red-500">*</span></p>
                 <div className="flex items-center gap-6">
                   {(["PERSONNE_MORALE", "PERSONNE_PHYSIQUE"] as TypeEntite[]).map((type) => (
-                    <label key={type} className="flex items-center gap-2 cursor-pointer">
-                      <div onClick={() => setTypeEntite(type)}
-                        className={`size-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all
-                          ${typeEntite === type ? "border-violet-600 bg-violet-600" : "border-slate-400 bg-white"}`}>
-                        {typeEntite === type && <div className="size-1.5 rounded-full bg-white" />}
-                      </div>
+                    <label key={type} className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="radio"
+                        name="typeEntite"
+                        value={type}
+                        checked={typeEntite === type}
+                        onChange={() => setTypeEntite(type)}
+                        className="size-4 accent-violet-600"
+                      />
                       <span className="text-base font-medium text-slate-800">
-                        {type === "PERSONNE_MORALE" ? "Personne morale" : "Personne physique"}
+                        {type === "PERSONNE_MORALE"
+                          ? "Personne morale"
+                          : "Personne physique"}
                       </span>
                     </label>
                   ))}
@@ -158,58 +158,25 @@ export default function NewClientPage() {
                 <Field>
                   <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
                   <Input id="codeNaf" name="codeNaf" placeholder="6920Z"
+                    key={sireneData?.codeNaf ?? "code-naf-vide"}
                     defaultValue={sireneData?.codeNaf ?? ""} className="rounded-lg font-mono" />
                 </Field>
               </div>
             </FieldGroup>
           </Section>
 
-          {/* Contact */}
-          <Section title="Contact">
-            <FieldGroup>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input id="email" name="email" type="email" placeholder="contact@example.com" className="rounded-lg" />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
-                  <Input id="telephone" name="telephone" type="tel" placeholder="+33 6 00 00 00 00" className="rounded-lg" />
-                </Field>
-              </div>
-            </FieldGroup>
-          </Section>
-
-          {/* Nature de la mission */}
-          <Section title="Nature de la mission">
-            <select name="natureMission"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-              <option value="">— Sélectionner —</option>
-              <option value="COMPTABILITE">Comptabilité</option>
-              <option value="AUDIT">Audit</option>
-              <option value="CONSEIL">Conseil</option>
-              <option value="JURIDIQUE">Juridique</option>
-              <option value="AUTRE">Autre</option>
-            </select>
-          </Section>
-
           {/* Activité */}
           <Section title="Activité">
             <FieldGroup>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="activite">Secteur</FieldLabel>
-                  <Input id="activite" name="activite" placeholder="Finance, Immobilier…" className="rounded-lg" />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="chiffreAffaires">CA annuel (€)</FieldLabel>
-                  <Input id="chiffreAffaires" name="chiffreAffaires" type="number" placeholder="250000" className="rounded-lg" />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="effectif">Effectif</FieldLabel>
-                  <Input id="effectif" name="effectif" type="number" placeholder="8" className="rounded-lg" />
-                </Field>
-              </div>
+              <Field>
+                <FieldLabel htmlFor="activite">Secteur / activité principale</FieldLabel>
+                <Input
+                  id="activite"
+                  name="activite"
+                  placeholder="Finance, Immobilier…"
+                  className="rounded-lg"
+                />
+              </Field>
             </FieldGroup>
           </Section>
 
@@ -218,18 +185,21 @@ export default function NewClientPage() {
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
-                <Input id="adresse" name="adresse" defaultValue={sireneData?.adresse ?? ""}
+                <Input id="adresse" name="adresse" key={sireneData?.adresse ?? "adresse-vide"}
+                  defaultValue={sireneData?.adresse ?? ""}
                   placeholder="12 rue du Marché" className="rounded-lg" />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field>
                   <FieldLabel htmlFor="ville">Ville</FieldLabel>
-                  <Input id="ville" name="ville" defaultValue={sireneData?.ville ?? ""}
+                  <Input id="ville" name="ville" key={sireneData?.ville ?? "ville-vide"}
+                    defaultValue={sireneData?.ville ?? ""}
                     placeholder="Paris" className="rounded-lg" />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
-                  <Input id="codePostal" name="codePostal" defaultValue={sireneData?.codePostal ?? ""}
+                  <Input id="codePostal" name="codePostal" key={sireneData?.codePostal ?? "code-postal-vide"}
+                    defaultValue={sireneData?.codePostal ?? ""}
                     placeholder="75001" className="rounded-lg" />
                 </Field>
               </div>

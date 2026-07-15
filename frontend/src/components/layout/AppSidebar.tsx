@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type React from "react";
-import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -107,11 +106,9 @@ function isItemActive(
 function NavSection({
   items,
   pathname,
-  onNavigate,
 }: {
   items: NavItem[];
   pathname: string;
-  onNavigate: () => void;
 }) {
   return (
     <div className="space-y-1">
@@ -123,11 +120,7 @@ function NavSection({
           exact,
           iconClass,
         }) => {
-          const active = isItemActive(
-            pathname,
-            href,
-            exact,
-          );
+          const active = isItemActive(pathname, href, exact);
 
           return (
             <Link
@@ -190,6 +183,10 @@ function MobileNav({
   onLogout: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   const mainItems: NavItem[] = [
     NAV[0],
@@ -256,9 +253,7 @@ function MobileNav({
                     <Link
                       key={href}
                       href={href}
-                      onClick={() =>
-                        setMenuOpen(false)
-                      }
+                      onClick={() => setMenuOpen(false)}
                       className={cn(
                         "flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-3 text-sm transition",
                         active
@@ -315,9 +310,7 @@ function MobileNav({
 
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">
-                  {role
-                    ? ROLE_LABELS[role]
-                    : "Utilisateur"}
+                  {role ? ROLE_LABELS[role] : "Utilisateur"}
                 </p>
 
                 <p className="text-xs text-slate-400">
@@ -430,27 +423,15 @@ function MobileNav({
 export function AppSidebar({
   role,
   onLogout,
-  open,
-  onClose,
 }: {
   role: Role | null;
   onLogout: () => void;
-  open: boolean;
-  onClose: () => void;
 }) {
   const pathname = usePathname();
 
-  // Ferme le tiroir mobile automatiquement après une navigation.
-  useEffect(() => {
-    onClose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
   return (
     <>
-      {/* Sidebar ordinateur */}
       <aside className="hidden w-72 shrink-0 flex-col overflow-hidden border-r border-slate-800 bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 text-white shadow-2xl md:flex">
-        {/* Logo */}
         <div className="relative border-b border-white/10 px-5 py-5">
           <div className="pointer-events-none absolute -left-10 -top-14 size-36 rounded-full bg-violet-500/20 blur-3xl" />
 
@@ -474,7 +455,6 @@ export function AppSidebar({
           </Link>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
           <section>
             <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
@@ -512,7 +492,6 @@ export function AppSidebar({
           )}
         </nav>
 
-        {/* Utilisateur */}
         <div className="border-t border-white/10 p-4">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
             <div className="flex items-center gap-3">
@@ -522,9 +501,7 @@ export function AppSidebar({
 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-white">
-                  {role
-                    ? ROLE_LABELS[role]
-                    : "Utilisateur"}
+                  {role ? ROLE_LABELS[role] : "Utilisateur"}
                 </p>
 
                 <div className="mt-1 flex items-center gap-1.5">
@@ -549,7 +526,6 @@ export function AppSidebar({
         </div>
       </aside>
 
-      {/* Navigation téléphone */}
       <MobileNav
         pathname={pathname}
         role={role}

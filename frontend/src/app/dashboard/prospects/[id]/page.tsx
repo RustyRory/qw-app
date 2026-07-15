@@ -3,7 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft, IconPencil, IconChevronDown } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconChevronDown,
+  IconPencil,
+} from "@tabler/icons-react";
 import { apiFetch } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
@@ -95,13 +99,30 @@ export default function ProspectDetailPage() {
   }
 
   async function handleConvert() {
-    if (!confirm("Convertir ce prospect en client ? Cette action est irréversible.")) return;
+    if (
+      !window.confirm(
+        "Convertir ce prospect en client ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
+
     setConverting(true);
+    setError(null);
+
     try {
-      const client = await apiFetch<{ id: string }>(`/prospects/${id}/convertir`, { method: "POST" });
+      const client = await apiFetch<{ id: string }>(
+        `/prospects/${id}/convert`,
+        { method: "POST" },
+      );
+
       router.push(`/dashboard/clients/${client.id}`);
     } catch (err) {
-      setError((err as Error).message);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de convertir le prospect en client.",
+      );
       setConverting(false);
     }
   }
@@ -472,44 +493,8 @@ Questionnaire d&apos;acceptation                </p>
                 <span className="text-xs text-slate-400">(RESPONSABLE)</span>
               </div>
             )}
-<<<<<<< HEAD
-=======
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-              {[
-                ["Type d'entité", prospect.typeEntite],
-                ["SIRET", prospect.siret ?? "—"],
-                ["Email", prospect.email ?? "—"],
-                ["Téléphone", prospect.telephone ?? "—"],
-                ["Secteur / activité", prospect.activite ?? "—"],
-                ["Code NAF", prospect.codeNaf ?? "—"],
-                [
-                  "Adresse",
-                  [prospect.adresse, prospect.ville, prospect.codePostal]
-                    .filter(Boolean)
-                    .join(", ") || "—",
-                ],
-                ["Pays", prospect.pays],
-                ["Assigné à", prospect.assignedTo?.email ?? "—"],
-                [
-                  "Créé le",
-                  new Date(prospect.createdAt).toLocaleDateString("fr-FR"),
-                ],
-              ].map(([label, value]) => (
-                <div key={label as string}>
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="mt-0.5 font-medium">{value}</dd>
-                </div>
-              ))}
-              {prospect.notes && (
-                <div className="col-span-2">
-                  <dt className="text-xs text-muted-foreground">Notes</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm">
-                    {prospect.notes}
-                  </dd>
-                </div>
-              )}
-            </dl>
->>>>>>> origin/dev
+
+
           </div>
         )}
 

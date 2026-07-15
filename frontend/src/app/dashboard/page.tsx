@@ -2,13 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  TrendingUp,
-  Activity,
-  AlertTriangle,
-  Clock,
-  ArrowRight,
-} from "lucide-react";
 import { apiFetch } from "@/lib/apiFetch";
 import { RiskBadge } from "@/lib/status";
 import type { Client, Prospect, Obligation, ScoreRisque } from "@/types";
@@ -40,7 +33,7 @@ export default function DashboardPage() {
       apiFetch<Prospect[]>("/prospects"),
       apiFetch<Obligation[]>("/obligations/en-retard").catch(() => []),
     ])
-      .then(async ([clientsData, prospectsData]) => {
+      .then(async ([clientsData, prospectsData, obligationsData]) => {
         setClients(clientsData);
         setProspects(prospectsData);
         setObligationsEnRetard(obligationsData);
@@ -69,11 +62,6 @@ export default function DashboardPage() {
     { label: "Risque Élevé",          value: clientsRisqueEleve.length, colorLeft: "border-l-red-500",     colorText: "text-red-600",     icon: "⚠" },
     { label: "Obligations en retard", value: obligationsEnRetard.length,colorLeft: "border-l-amber-500",   colorText: "text-amber-600",   icon: "🕐" },
   ];
-
-  const moisAnnee = new Date().toLocaleDateString("fr-FR", {
-    month: "long",
-    year: "numeric",
-  });
 
   return (
     <div className="min-h-full bg-slate-50">

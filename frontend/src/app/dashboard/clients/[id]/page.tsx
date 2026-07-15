@@ -166,8 +166,6 @@ function TabInfos({ client, score, audit, onRefresh }: {
     const form = new FormData(e.currentTarget);
     const data = {
       raisonSociale: form.get("raisonSociale") as string,
-      email: (form.get("email") as string) || undefined,
-      telephone: (form.get("telephone") as string) || undefined,
       chiffreAffaires: form.get("chiffreAffaires") ? Number(form.get("chiffreAffaires")) : undefined,
       effectif: form.get("effectif") ? Number(form.get("effectif")) : undefined,
       natureMission: (form.get("natureMission") as string) || undefined,
@@ -190,14 +188,6 @@ function TabInfos({ client, score, audit, onRefresh }: {
             <Input id="raisonSociale" name="raisonSociale" defaultValue={client.raisonSociale} required className="rounded-xl" />
           </Field>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input id="email" name="email" type="email" defaultValue={client.email ?? ""} className="rounded-xl" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
-              <Input id="telephone" name="telephone" defaultValue={client.telephone ?? ""} className="rounded-xl" />
-            </Field>
             <Field>
               <FieldLabel htmlFor="chiffreAffaires">CA annuel (€)</FieldLabel>
               <Input id="chiffreAffaires" name="chiffreAffaires" type="number" defaultValue={client.chiffreAffaires ?? ""} className="rounded-xl" />

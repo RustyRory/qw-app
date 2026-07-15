@@ -40,6 +40,8 @@
     "eventemitter3": "^5.0.4",
     "get-east-asian-width": "^1.5.0",
     "is-fullwidth-code-point": "^5.1.0",
+    "lightningcss": "^1.32.0",
+    "lightningcss-win32-x64-msvc": "^1.32.0",
     "listr2": "^9.0.5",
     "log-update": "^6.1.0",
     "mimic-function": "^5.0.1",

@@ -3,11 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft, IconSearch, IconLoader2 } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconLoader2,
+  IconSearch,
+} from "@tabler/icons-react";
+
 import { apiFetch } from "@/lib/apiFetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import type { Prospect, TypeEntite } from "@/types";
 
 interface SireneData {
@@ -20,316 +29,464 @@ interface SireneData {
 
 export default function NewProspectPage() {
   const router = useRouter();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const [siret, setSiret] = useState("");
   const [sireneLoading, setSireneLoading] = useState(false);
   const [sireneError, setSireneError] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<SireneData | null>(null);
-  const [typeEntite, setTypeEntite] = useState<TypeEntite>("PERSONNE_MORALE");
+
+  const [typeEntite, setTypeEntite] =
+    useState<TypeEntite>("PERSONNE_MORALE");
 
   async function handleSirene() {
     const clean = siret.replace(/\s/g, "");
-    if (clean.length !== 14) { setSireneError("Le SIRET doit contenir 14 chiffres"); return; }
+
+    if (clean.length !== 14) {
+      setSireneError("Le SIRET doit contenir 14 chiffres");
+      return;
+    }
+
     setSireneLoading(true);
     setSireneError(null);
+
     try {
-      const res = await fetch(
+      const response = await fetch(
         `https://api.insee.fr/entreprises/sirene/V3.11/siret/${clean}`,
-        { headers: { Accept: "application/json" } }
+        {
+          headers: {
+            Accept: "application/json",
+          },
+        },
       );
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+
+      if (!response.ok) {
+        throw new Error();
+      }
+
+      const data = await response.json();
       const unite = data.etablissement?.uniteLegale;
-      const adr = data.etablissement?.adresseEtablissement;
+      const adresse = data.etablissement?.adresseEtablissement;
+
       setPrefill({
-        nom: unite?.denominationUniteLegale || `${unite?.prenomUsuelUniteLegale ?? ""} ${unite?.nomUniteLegale ?? ""}`.trim(),
-        adresse: `${adr?.numeroVoieEtablissement ?? ""} ${adr?.typeVoieEtablissement ?? ""} ${adr?.libelleVoieEtablissement ?? ""}`.trim(),
-        ville: adr?.libelleCommuneEtablissement,
-        codePostal: adr?.codePostalEtablissement,
+        nom:
+          unite?.denominationUniteLegale ||
+          `${unite?.prenomUsuelUniteLegale ?? ""} ${
+            unite?.nomUniteLegale ?? ""
+          }`.trim(),
+        adresse: `${adresse?.numeroVoieEtablissement ?? ""} ${
+          adresse?.typeVoieEtablissement ?? ""
+        } ${adresse?.libelleVoieEtablissement ?? ""}`.trim(),
+        ville: adresse?.libelleCommuneEtablissement,
+        codePostal: adresse?.codePostalEtablissement,
         codeNaf: unite?.activitePrincipaleUniteLegale,
       });
     } catch {
-      setSireneError("SIRET introuvable ou service SIRENE indisponible");
+      setSireneError(
+        "SIRET introuvable ou service SIRENE indisponible",
+      );
     } finally {
       setSireneLoading(false);
     }
   }
 
-  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleSubmit(
+    event: React.SyntheticEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
     setError(null);
     setLoading(true);
-    const form = new FormData(e.currentTarget);
-    // Utilise les vrais champs du nouveau backend
+
+    const form = new FormData(event.currentTarget);
+
     const data = {
       nom: form.get("nom") as string,
       typeEntite,
       email: (form.get("email") as string) || undefined,
-      telephone: (form.get("telephone") as string) || undefined,
+      telephone:
+        (form.get("telephone") as string) || undefined,
       siret: siret.replace(/\s/g, "") || undefined,
-      activite: (form.get("activite") as string) || undefined,
-      codeNaf: (form.get("codeNaf") as string) || undefined,
-      adresse: (form.get("adresse") as string) || undefined,
+      activite:
+        (form.get("activite") as string) || undefined,
+      codeNaf:
+        (form.get("codeNaf") as string) || undefined,
+      adresse:
+        (form.get("adresse") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
-      codePostal: (form.get("codePostal") as string) || undefined,
+      codePostal:
+        (form.get("codePostal") as string) || undefined,
       pays: (form.get("pays") as string) || "France",
       notes: (form.get("notes") as string) || undefined,
     };
+
     try {
       const prospect = await apiFetch<Prospect>("/prospects", {
         method: "POST",
         body: JSON.stringify(data),
       });
+
       router.push(`/dashboard/prospects/${prospect.id}`);
     } catch (err) {
-      setError((err as Error).message);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de créer le prospect.",
+      );
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-full bg-slate-50">
-      <div className="bg-white border-b px-5 py-4 md:px-8">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/prospects" className="text-slate-400 hover:text-slate-600 transition-colors">
+    <div className="min-h-full bg-slate-50 pb-20 md:pb-8">
+      <header className="border-b bg-white px-4 py-4 sm:px-6 md:px-8">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <Link
+            href="/dashboard/prospects"
+            aria-label="Retour aux prospects"
+            className="flex size-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
+          >
             <IconArrowLeft className="size-4" />
           </Link>
-          <span className="text-slate-400 text-sm">Retour</span>
-          <h1 className="text-xl font-bold text-slate-900">Nouveau prospect</h1>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-violet-600">
+              Prospects
+            </p>
+            <h1 className="text-xl font-bold text-slate-900">
+              Nouveau prospect
+            </h1>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 md:px-8">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 md:px-8">
         <form onSubmit={handleSubmit} className="space-y-4">
-
           {error && (
-            <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
           )}
 
-<<<<<<< HEAD
-          {/* SIRET */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">SIRET (14 chiffres)</p>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                SIRET
+              </p>
             </div>
-            <div className="px-5 py-4 flex gap-2">
-              <Input
-                value={siret}
-                onChange={(e) => setSiret(e.target.value)}
-                placeholder="12345678900012"
-                maxLength={17}
-                className="font-mono rounded-lg"
-=======
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="nom">Raison sociale / Nom *</FieldLabel>
-              <Input id="nom" name="nom" required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="typeEntite">Type d&apos;entité *</FieldLabel>
-              <select
-                id="typeEntite"
-                name="typeEntite"
-                required
-                defaultValue="PERSONNE_MORALE"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-              >
-                <option value="PERSONNE_MORALE">Personne morale</option>
-                <option value="PERSONNE_PHYSIQUE">Personne physique</option>
-              </select>
-            </Field>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
-                <Input id="email" name="email" type="email" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
-                <Input id="telephone" name="telephone" type="tel" />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="siret">SIRET</FieldLabel>
-              <Input id="siret" name="siret" maxLength={14} />
-            </Field>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="activite">Secteur / activité</FieldLabel>
-                <Input id="activite" name="activite" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
-                <Input id="codeNaf" name="codeNaf" />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
-              <Input id="adresse" name="adresse" />
-            </Field>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field>
-                <FieldLabel htmlFor="ville">Ville</FieldLabel>
-                <Input id="ville" name="ville" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
-                <Input id="codePostal" name="codePostal" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="pays">Pays</FieldLabel>
-                <Input id="pays" name="pays" defaultValue="France" />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="notes">Notes internes</FieldLabel>
-              <textarea
-                id="notes"
-                name="notes"
-                rows={3}
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
->>>>>>> origin/dev
-              />
-              <Button type="button" onClick={handleSirene} disabled={sireneLoading} variant="outline" className="shrink-0 rounded-lg gap-2">
-                {sireneLoading ? <IconLoader2 className="size-4 animate-spin" /> : <IconSearch className="size-4" />}
-                Rechercher SIRENE
-              </Button>
-            </div>
-            {sireneError && <p className="px-5 pb-3 text-xs text-red-600">{sireneError}</p>}
-            {prefill && <p className="px-5 pb-3 text-xs text-emerald-600 font-medium">✓ Données récupérées — {prefill.nom}</p>}
-          </div>
 
-          {/* Identité */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Identité</p>
+            <div className="space-y-3 px-5 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={siret}
+                  onChange={(event) =>
+                    setSiret(event.target.value)
+                  }
+                  placeholder="12345678900012"
+                  maxLength={17}
+                  inputMode="numeric"
+                  className="rounded-xl font-mono"
+                />
+
+                <Button
+                  type="button"
+                  onClick={handleSirene}
+                  disabled={sireneLoading}
+                  variant="outline"
+                  className="shrink-0 gap-2 rounded-xl"
+                >
+                  {sireneLoading ? (
+                    <IconLoader2 className="size-4 animate-spin" />
+                  ) : (
+                    <IconSearch className="size-4" />
+                  )}
+                  Rechercher SIRENE
+                </Button>
+              </div>
+
+              {sireneError && (
+                <p className="text-xs text-red-600">
+                  {sireneError}
+                </p>
+              )}
+
+              {prefill && (
+                <p className="text-xs font-medium text-emerald-600">
+                  ✓ Données récupérées — {prefill.nom}
+                </p>
+              )}
             </div>
-            <div className="px-5 py-4 space-y-4">
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Identité
+              </p>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="nom">Raison sociale / Nom <span className="text-red-500">*</span></FieldLabel>
-                  <Input id="nom" name="nom" required defaultValue={prefill?.nom ?? ""} placeholder="SARL Dupont & Associés" className="rounded-lg" />
+                  <FieldLabel htmlFor="nom">
+                    Raison sociale / Nom *
+                  </FieldLabel>
+                  <Input
+                    id="nom"
+                    name="nom"
+                    key={prefill?.nom ?? "empty-name"}
+                    defaultValue={prefill?.nom ?? ""}
+                    placeholder="SARL Dupont & Associés"
+                    className="rounded-xl"
+                    required
+                  />
                 </Field>
               </FieldGroup>
+
               <div>
-                <p className="text-sm font-medium text-slate-700 mb-2">Type d&apos;entité <span className="text-red-500">*</span></p>
-                <div className="flex items-center gap-6">
-                  {(["PERSONNE_MORALE", "PERSONNE_PHYSIQUE"] as TypeEntite[]).map((type) => (
-                    <label key={type} className="flex items-center gap-2 cursor-pointer">
-                      <div
-                        onClick={() => setTypeEntite(type)}
-                        className={`size-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all
-                          ${typeEntite === type ? "border-violet-600 bg-violet-600" : "border-slate-400 bg-white"}`}
-                      >
-                        {typeEntite === type && <div className="size-1.5 rounded-full bg-white" />}
-                      </div>
-                      <span className="text-base font-medium text-slate-800">
-                        {type === "PERSONNE_MORALE" ? "Personne morale" : "Personne physique"}
+                <p className="mb-2 text-sm font-medium text-slate-700">
+                  Type d&apos;entité *
+                </p>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+                  {(
+                    [
+                      "PERSONNE_MORALE",
+                      "PERSONNE_PHYSIQUE",
+                    ] as TypeEntite[]
+                  ).map((type) => (
+                    <label
+                      key={type}
+                      className="flex cursor-pointer items-center gap-2"
+                    >
+                      <input
+                        type="radio"
+                        name="typeEntite"
+                        value={type}
+                        checked={typeEntite === type}
+                        onChange={() => setTypeEntite(type)}
+                        className="size-4 accent-violet-600"
+                      />
+
+                      <span className="text-sm font-medium text-slate-800">
+                        {type === "PERSONNE_MORALE"
+                          ? "Personne morale"
+                          : "Personne physique"}
                       </span>
                     </label>
                   ))}
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Contact */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Contact</p>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Contact
+              </p>
             </div>
+
             <div className="px-5 py-4">
               <FieldGroup>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="email">Email</FieldLabel>
-                    <Input id="email" name="email" type="email" placeholder="contact@example.com" className="rounded-lg" />
+                    <FieldLabel htmlFor="email">
+                      Email
+                    </FieldLabel>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="contact@example.com"
+                      className="rounded-xl"
+                    />
                   </Field>
+
                   <Field>
-                    <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
-                    <Input id="telephone" name="telephone" type="tel" placeholder="+33 6 00 00 00 00" className="rounded-lg" />
+                    <FieldLabel htmlFor="telephone">
+                      Téléphone
+                    </FieldLabel>
+                    <Input
+                      id="telephone"
+                      name="telephone"
+                      type="tel"
+                      placeholder="+33 6 00 00 00 00"
+                      className="rounded-xl"
+                    />
                   </Field>
                 </div>
               </FieldGroup>
             </div>
-          </div>
+          </section>
 
-          {/* Activité */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Activité</p>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Activité
+              </p>
             </div>
+
             <div className="px-5 py-4">
               <FieldGroup>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="activite">Secteur / activité</FieldLabel>
-                    <Input id="activite" name="activite" placeholder="Finance, Tech…" className="rounded-lg" />
+                    <FieldLabel htmlFor="activite">
+                      Secteur / activité
+                    </FieldLabel>
+                    <Input
+                      id="activite"
+                      name="activite"
+                      placeholder="Finance, Tech…"
+                      className="rounded-xl"
+                    />
                   </Field>
+
                   <Field>
-                    <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
-                    <Input id="codeNaf" name="codeNaf" placeholder="6920Z" defaultValue={prefill?.codeNaf ?? ""} className="rounded-lg font-mono" />
+                    <FieldLabel htmlFor="codeNaf">
+                      Code NAF
+                    </FieldLabel>
+                    <Input
+                      id="codeNaf"
+                      name="codeNaf"
+                      key={prefill?.codeNaf ?? "empty-code-naf"}
+                      defaultValue={prefill?.codeNaf ?? ""}
+                      placeholder="6920Z"
+                      className="rounded-xl font-mono"
+                    />
                   </Field>
                 </div>
               </FieldGroup>
             </div>
-          </div>
+          </section>
 
-          {/* Localisation */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Localisation</p>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Localisation
+              </p>
             </div>
+
             <div className="px-5 py-4">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
-                  <Input id="adresse" name="adresse" defaultValue={prefill?.adresse ?? ""} placeholder="12 rue du Marché" className="rounded-lg" />
+                  <FieldLabel htmlFor="adresse">
+                    Adresse
+                  </FieldLabel>
+                  <Input
+                    id="adresse"
+                    name="adresse"
+                    key={prefill?.adresse ?? "empty-address"}
+                    defaultValue={prefill?.adresse ?? ""}
+                    placeholder="12 rue du Marché"
+                    className="rounded-xl"
+                  />
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="ville">Ville</FieldLabel>
-                    <Input id="ville" name="ville" defaultValue={prefill?.ville ?? ""} placeholder="Paris" className="rounded-lg" />
+                    <FieldLabel htmlFor="ville">
+                      Ville
+                    </FieldLabel>
+                    <Input
+                      id="ville"
+                      name="ville"
+                      key={prefill?.ville ?? "empty-city"}
+                      defaultValue={prefill?.ville ?? ""}
+                      placeholder="Paris"
+                      className="rounded-xl"
+                    />
                   </Field>
+
                   <Field>
-                    <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
-                    <Input id="codePostal" name="codePostal" defaultValue={prefill?.codePostal ?? ""} placeholder="75001" className="rounded-lg" />
+                    <FieldLabel htmlFor="codePostal">
+                      Code postal
+                    </FieldLabel>
+                    <Input
+                      id="codePostal"
+                      name="codePostal"
+                      key={
+                        prefill?.codePostal ??
+                        "empty-postal-code"
+                      }
+                      defaultValue={prefill?.codePostal ?? ""}
+                      placeholder="75001"
+                      className="rounded-xl"
+                    />
                   </Field>
                 </div>
+
                 <Field>
-                  <FieldLabel htmlFor="pays">Pays</FieldLabel>
-                  <select id="pays" name="pays" defaultValue="France"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30">
-                    {["France","Belgique","Suisse","Luxembourg","Allemagne","Espagne","Italie","Royaume-Uni","Autre"].map((p) => (
-                      <option key={p}>{p}</option>
+                  <FieldLabel htmlFor="pays">
+                    Pays
+                  </FieldLabel>
+                  <select
+                    id="pays"
+                    name="pays"
+                    defaultValue="France"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                  >
+                    {[
+                      "France",
+                      "Belgique",
+                      "Suisse",
+                      "Luxembourg",
+                      "Allemagne",
+                      "Espagne",
+                      "Italie",
+                      "Royaume-Uni",
+                      "Autre",
+                    ].map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
                     ))}
                   </select>
                 </Field>
               </FieldGroup>
             </div>
-          </div>
+          </section>
 
-          {/* Notes */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Notes internes</p>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Notes internes
+              </p>
             </div>
+
             <div className="px-5 py-4">
-              <textarea name="notes" rows={4} placeholder="Zone de texte libre…"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 resize-none" />
+              <textarea
+                id="notes"
+                name="notes"
+                rows={4}
+                placeholder="Zone de texte libre…"
+                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+              />
             </div>
-          </div>
+          </section>
 
-          {/* Actions */}
-          <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center gap-3">
-            <Button type="button" variant="outline" onClick={() => router.back()} className="rounded-lg border-slate-200">
+          <div className="flex flex-col-reverse gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={loading}
+              className="rounded-xl"
+            >
               Annuler
             </Button>
-            <Button type="submit" disabled={loading} className="rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold">
-              {loading ? "Création…" : "Créer le prospect"}
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-slate-900 font-semibold text-white hover:bg-slate-800"
+            >
+              {loading
+                ? "Création…"
+                : "Créer le prospect"}
             </Button>
           </div>
-
         </form>
       </div>
     </div>

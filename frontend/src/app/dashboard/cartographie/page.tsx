@@ -232,7 +232,6 @@ export default function CartographiePage() {
           <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-cyan-300/20 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 left-1/3 size-64 rounded-full bg-violet-300/20 blur-3xl" />
 
-<<<<<<< HEAD
           <div className="relative">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-4">
@@ -311,20 +310,9 @@ export default function CartographiePage() {
                 </p>
               </div>
             </div>
-=======
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {(["FAIBLE", "MOYEN", "ELEVE"] as NiveauRisque[]).map((niveau) => (
-          <div key={niveau} className="rounded-lg border bg-card p-4">
-            <RiskBadge level={niveau} />
-            <p className="mt-2 text-2xl font-semibold">
-              {loading ? "—" : counts[niveau]}
-            </p>
-            <p className="text-xs text-muted-foreground">clients</p>
->>>>>>> origin/dev
           </div>
         </section>
 
-<<<<<<< HEAD
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
@@ -359,61 +347,6 @@ export default function CartographiePage() {
                   <div>
                     <p
                       className={`text-xs font-bold uppercase tracking-wide ${styles.title}`}
-=======
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Réf.
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Raison sociale
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Score
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Niveau
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Dernière éval.
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Chargement…
-                </td>
-              </tr>
-            ) : sorted.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
-                  Aucun client
-                </td>
-              </tr>
-            ) : (
-              sorted.map(({ client, score }) => (
-                <tr
-                  key={client.id}
-                  className="transition-colors hover:bg-muted/30"
-                >
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {client.ref}
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    <Link
-                      href={`/dashboard/clients/${client.id}`}
-                      className="hover:underline"
->>>>>>> origin/dev
                     >
                       Risque {RISK_LABELS[niveau]}
                     </p>
