@@ -472,44 +472,8 @@ Questionnaire d&apos;acceptation                </p>
                 <span className="text-xs text-slate-400">(RESPONSABLE)</span>
               </div>
             )}
-<<<<<<< HEAD
-=======
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-              {[
-                ["Type d'entité", prospect.typeEntite],
-                ["SIRET", prospect.siret ?? "—"],
-                ["Email", prospect.email ?? "—"],
-                ["Téléphone", prospect.telephone ?? "—"],
-                ["Secteur / activité", prospect.activite ?? "—"],
-                ["Code NAF", prospect.codeNaf ?? "—"],
-                [
-                  "Adresse",
-                  [prospect.adresse, prospect.ville, prospect.codePostal]
-                    .filter(Boolean)
-                    .join(", ") || "—",
-                ],
-                ["Pays", prospect.pays],
-                ["Assigné à", prospect.assignedTo?.email ?? "—"],
-                [
-                  "Créé le",
-                  new Date(prospect.createdAt).toLocaleDateString("fr-FR"),
-                ],
-              ].map(([label, value]) => (
-                <div key={label as string}>
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="mt-0.5 font-medium">{value}</dd>
-                </div>
-              ))}
-              {prospect.notes && (
-                <div className="col-span-2">
-                  <dt className="text-xs text-muted-foreground">Notes</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm">
-                    {prospect.notes}
-                  </dd>
-                </div>
-              )}
-            </dl>
->>>>>>> origin/dev
+
+
           </div>
         )}
 
