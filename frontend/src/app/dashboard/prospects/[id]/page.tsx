@@ -3,7 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft, IconPencil, IconChevronDown } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconChevronDown,
+  IconPencil,
+} from "@tabler/icons-react";
 import { apiFetch } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
@@ -95,13 +99,30 @@ export default function ProspectDetailPage() {
   }
 
   async function handleConvert() {
-    if (!confirm("Convertir ce prospect en client ? Cette action est irréversible.")) return;
+    if (
+      !window.confirm(
+        "Convertir ce prospect en client ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
+
     setConverting(true);
+    setError(null);
+
     try {
-      const client = await apiFetch<{ id: string }>(`/prospects/${id}/convertir`, { method: "POST" });
+      const client = await apiFetch<{ id: string }>(
+        `/prospects/${id}/convert`,
+        { method: "POST" },
+      );
+
       router.push(`/dashboard/clients/${client.id}`);
     } catch (err) {
-      setError((err as Error).message);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de convertir le prospect en client.",
+      );
       setConverting(false);
     }
   }
