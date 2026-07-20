@@ -35,6 +35,11 @@ export class CreateClientDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
+  representantLegal?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(10)
   codeNaf?: string;
 

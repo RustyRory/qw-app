@@ -87,6 +87,8 @@ export interface Prospect {
   email?: string | null;
   telephone?: string | null;
   typeEntite: TypeEntite;
+  formeJuridique?: string | null;
+  representantLegal?: string | null;
   statutKanban: StatutKanban;
   motifRefus?: string | null;
   activite?: string | null;
@@ -126,6 +128,7 @@ export interface Client {
   raisonSociale: string;
   typeEntite: TypeEntite;
   formeJuridique?: string | null;
+  representantLegal?: string | null;
   codeNaf?: string | null;
   activitePrincipale?: string | null;
   dateCreationEntreprise?: string | null;

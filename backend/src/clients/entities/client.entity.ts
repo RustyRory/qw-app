@@ -53,6 +53,9 @@ export class Client {
   @Column({ type: 'varchar', length: 100, nullable: true })
   formeJuridique: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  representantLegal: string | null;
+
   @Column({ type: 'varchar', length: 10, nullable: true })
   codeNaf: string | null;
 

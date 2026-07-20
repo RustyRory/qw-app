@@ -46,6 +46,12 @@ export class Prospect {
   })
   typeEntite: TypeEntite;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  formeJuridique: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  representantLegal: string | null;
+
   @Column({
     type: 'enum',
     enum: StatutKanban,
