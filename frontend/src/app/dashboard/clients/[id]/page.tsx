@@ -73,7 +73,6 @@ function HeaderBadge({ color, label }: { color: string; label: string }) {
   );
 }
 
-
 function Modal({
   title,
   description,
@@ -153,9 +152,16 @@ function FormActions({
 }
 
 // ─── Onglet Infos ─────────────────────────────────────────────────────────────
-function TabInfos({ client, score, audit, onRefresh }: {
-  client: Client; score?: ScoreRisque | null;
-  audit: AuditLog[]; onRefresh: () => void;
+function TabInfos({
+  client,
+  score,
+  audit,
+  onRefresh,
+}: {
+  client: Client;
+  score?: ScoreRisque | null;
+  audit: AuditLog[];
+  onRefresh: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -166,59 +172,103 @@ function TabInfos({ client, score, audit, onRefresh }: {
     const form = new FormData(e.currentTarget);
     const data = {
       raisonSociale: form.get("raisonSociale") as string,
-      chiffreAffaires: form.get("chiffreAffaires") ? Number(form.get("chiffreAffaires")) : undefined,
+      chiffreAffaires: form.get("chiffreAffaires")
+        ? Number(form.get("chiffreAffaires"))
+        : undefined,
       effectif: form.get("effectif") ? Number(form.get("effectif")) : undefined,
       natureMission: (form.get("natureMission") as string) || undefined,
       adresseSiege: (form.get("adresseSiege") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
     };
     try {
-      await apiFetch(`/clients/${client.id}`, { method: "PATCH", body: JSON.stringify(data) });
+      await apiFetch(`/clients/${client.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
       setEditing(false);
       onRefresh();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
-  if (editing) return (
-    <form onSubmit={handleSave} className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="raisonSociale">Raison sociale</FieldLabel>
-            <Input id="raisonSociale" name="raisonSociale" defaultValue={client.raisonSociale} required className="rounded-xl" />
-          </Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+  if (editing)
+    return (
+      <form onSubmit={handleSave} className="space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
+          <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="chiffreAffaires">CA annuel (€)</FieldLabel>
-              <Input id="chiffreAffaires" name="chiffreAffaires" type="number" defaultValue={client.chiffreAffaires ?? ""} className="rounded-xl" />
+              <FieldLabel htmlFor="raisonSociale">Raison sociale</FieldLabel>
+              <Input
+                id="raisonSociale"
+                name="raisonSociale"
+                defaultValue={client.raisonSociale}
+                required
+                className="rounded-xl"
+              />
             </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="chiffreAffaires">CA annuel (€)</FieldLabel>
+                <Input
+                  id="chiffreAffaires"
+                  name="chiffreAffaires"
+                  type="number"
+                  defaultValue={client.chiffreAffaires ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="effectif">Effectif</FieldLabel>
+                <Input
+                  id="effectif"
+                  name="effectif"
+                  type="number"
+                  defaultValue={client.effectif ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+            </div>
             <Field>
-              <FieldLabel htmlFor="effectif">Effectif</FieldLabel>
-              <Input id="effectif" name="effectif" type="number" defaultValue={client.effectif ?? ""} className="rounded-xl" />
+              <FieldLabel htmlFor="adresseSiege">Adresse</FieldLabel>
+              <Input
+                id="adresseSiege"
+                name="adresseSiege"
+                defaultValue={client.adresseSiege ?? ""}
+                className="rounded-xl"
+              />
             </Field>
+          </FieldGroup>
+          <div className="flex gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={saving}
+              className="bg-slate-800 text-white rounded-xl"
+            >
+              {saving ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setEditing(false)}
+              className="rounded-xl"
+            >
+              Annuler
+            </Button>
           </div>
-          <Field>
-            <FieldLabel htmlFor="adresseSiege">Adresse</FieldLabel>
-            <Input id="adresseSiege" name="adresseSiege" defaultValue={client.adresseSiege ?? ""} className="rounded-xl" />
-          </Field>
-        </FieldGroup>
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={saving} className="bg-slate-800 text-white rounded-xl">
-            {saving ? "Enregistrement…" : "Enregistrer"}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)} className="rounded-xl">
-            Annuler
-          </Button>
         </div>
-      </div>
-    </form>
-  );
+      </form>
+    );
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setEditing(true)}
-          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors">
+        <button
+          onClick={() => setEditing(true)}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors"
+        >
           <IconPencil className="size-3.5" /> Modifier
         </button>
       </div>
@@ -227,19 +277,36 @@ function TabInfos({ client, score, audit, onRefresh }: {
         {/* Identification */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Identification</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Identification
+            </p>
           </div>
           <dl className="divide-y divide-slate-50">
             {[
-              ["Raison sociale", <strong key="rs">{client.raisonSociale}</strong>],
+              [
+                "Raison sociale",
+                <strong key="rs">{client.raisonSociale}</strong>,
+              ],
               ["SIRET", client.siret ?? "—"],
               ["SIREN", client.siren ?? "—"],
               ["Forme juridique", client.formeJuridique ?? "—"],
               ["Code NAF", client.codeNaf ?? "—"],
-              ["Créée le", client.dateCreationEntreprise ? new Date(client.dateCreationEntreprise).toLocaleDateString("fr-FR") : "—"],
+              [
+                "Créée le",
+                client.dateCreationEntreprise
+                  ? new Date(client.dateCreationEntreprise).toLocaleDateString(
+                      "fr-FR",
+                    )
+                  : "—",
+              ],
             ].map(([label, value]) => (
-              <div key={label as string} className="flex items-center px-4 py-2.5">
-                <dt className="w-32 shrink-0 text-xs text-slate-400">{label}</dt>
+              <div
+                key={label as string}
+                className="flex items-center px-4 py-2.5"
+              >
+                <dt className="w-32 shrink-0 text-xs text-slate-400">
+                  {label}
+                </dt>
                 <dd className="text-sm text-slate-800">{value}</dd>
               </div>
             ))}
@@ -250,23 +317,39 @@ function TabInfos({ client, score, audit, onRefresh }: {
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Situation économique</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                Situation économique
+              </p>
             </div>
             <dl className="divide-y divide-slate-50">
               {[
-                ["CA annuel", client.chiffreAffaires ? `${client.chiffreAffaires.toLocaleString("fr-FR")} €` : "—"],
-                ["Effectif", client.effectif ? `${client.effectif} salariés` : "—"],
+                [
+                  "CA annuel",
+                  client.chiffreAffaires
+                    ? `${client.chiffreAffaires.toLocaleString("fr-FR")} €`
+                    : "—",
+                ],
+                [
+                  "Effectif",
+                  client.effectif ? `${client.effectif} salariés` : "—",
+                ],
                 ["Nature mission", client.natureMission ?? "—"],
               ].map(([label, value]) => (
                 <div key={label} className="flex items-center px-4 py-2.5">
-                  <dt className="w-32 shrink-0 text-xs text-slate-400">{label}</dt>
-                  <dd className="text-sm font-medium text-slate-800">{value}</dd>
+                  <dt className="w-32 shrink-0 text-xs text-slate-400">
+                    {label}
+                  </dt>
+                  <dd className="text-sm font-medium text-slate-800">
+                    {value}
+                  </dd>
                 </div>
               ))}
             </dl>
             <div className="px-4 py-3 border-t border-slate-100">
-              <button onClick={onRefresh}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors">
+              <button
+                onClick={onRefresh}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+              >
                 <IconRefresh className="size-3.5" /> Actualiser SIRENE
               </button>
             </div>
@@ -277,10 +360,14 @@ function TabInfos({ client, score, audit, onRefresh }: {
       {/* Adresse */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Adresse du siège</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Adresse du siège
+          </p>
         </div>
         <p className="px-4 py-3 text-sm text-slate-700">
-          {[client.adresseSiege, client.codePostal, client.ville, client.pays].filter(Boolean).join(" — ") || "—"}
+          {[client.adresseSiege, client.codePostal, client.ville, client.pays]
+            .filter(Boolean)
+            .join(" — ") || "—"}
         </p>
       </div>
 
@@ -297,12 +384,15 @@ function TabInfos({ client, score, audit, onRefresh }: {
               <div key={log.id} className="flex items-center gap-3 px-4 py-3">
                 {log.utilisateur && (
                   <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold uppercase text-slate-600">
-                    {log.utilisateur.prenom?.[0]}{log.utilisateur.nom?.[0]}
+                    {log.utilisateur.prenom?.[0]}
+                    {log.utilisateur.nom?.[0]}
                   </div>
                 )}
                 <p className="flex-1 text-sm text-slate-700">
                   <span className="font-semibold">
-                    {log.utilisateur ? `${log.utilisateur.prenom} ${log.utilisateur.nom[0]}.` : "Système"}
+                    {log.utilisateur
+                      ? `${log.utilisateur.prenom} ${log.utilisateur.nom[0]}.`
+                      : "Système"}
                   </span>{" "}
                   <span className="text-slate-500">{log.action}</span>
                 </p>
@@ -319,13 +409,21 @@ function TabInfos({ client, score, audit, onRefresh }: {
 }
 
 // ─── Onglet KYC ───────────────────────────────────────────────────────────────
-function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }) {
+function TabKyc({
+  client,
+  onRefresh,
+}: {
+  client: Client;
+  onRefresh: () => void;
+}) {
   const { can } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    apiFetch<Document[]>(`/documents/client/${client.id}`).then(setDocs).catch(() => {});
+    apiFetch<Document[]>(`/documents/client/${client.id}`)
+      .then(setDocs)
+      .catch(() => {});
   }, [client.id]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -336,15 +434,26 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
     body.append("file", file);
     body.append("type", "AUTRE");
     try {
-      await apiFetch(`/documents/client/${client.id}`, { method: "POST", body });
-      const updated = await apiFetch<Document[]>(`/documents/client/${client.id}`);
+      await apiFetch(`/documents/client/${client.id}`, {
+        method: "POST",
+        body,
+      });
+      const updated = await apiFetch<Document[]>(
+        `/documents/client/${client.id}`,
+      );
       setDocs(updated);
-    } finally { setUploading(false); e.target.value = ""; }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   }
 
   const kycItems = [
     { label: "PPE vérifié", ok: true },
-    { label: `Screening : ${client.screeningStatut === "OK" ? "✅ OK" : "⚠️ " + client.screeningStatut}`, ok: client.screeningStatut === "OK" },
+    {
+      label: `Screening : ${client.screeningStatut === "OK" ? "✅ OK" : "⚠️ " + client.screeningStatut}`,
+      ok: client.screeningStatut === "OK",
+    },
     { label: "Bénéficiaires effectifs saisis", ok: client.uboSaisi },
     { label: "Documents uploadés", ok: docs.length > 0 },
   ];
@@ -355,12 +464,19 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
       {/* Checklist */}
       <div className="bg-amber-50 rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200">
-          <p className="text-xs font-bold uppercase tracking-widest text-amber-700">Checklist KYC</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-700">
+            Checklist KYC
+          </p>
           <div className="flex items-center gap-2">
             <div className="h-1.5 w-24 rounded-full bg-amber-200 overflow-hidden">
-              <div className="h-full rounded-full bg-amber-500" style={{ width: `${(okCount / kycItems.length) * 100}%` }} />
+              <div
+                className="h-full rounded-full bg-amber-500"
+                style={{ width: `${(okCount / kycItems.length) * 100}%` }}
+              />
             </div>
-            <span className="text-xs font-semibold text-amber-700">{okCount}/{kycItems.length}</span>
+            <span className="text-xs font-semibold text-amber-700">
+              {okCount}/{kycItems.length}
+            </span>
           </div>
         </div>
         <div className="px-4 py-4 space-y-2">
@@ -373,7 +489,9 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
           {can.validerQuestionnaire && client.kycStatut !== "VALIDE" && (
             <button
               onClick={async () => {
-                await apiFetch(`/clients/${client.id}/kyc/valider`, { method: "PATCH" });
+                await apiFetch(`/clients/${client.id}/kyc/valider`, {
+                  method: "PATCH",
+                });
                 onRefresh();
               }}
               className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
@@ -387,24 +505,42 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
       {/* Données KYC */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Données KYC</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Données KYC
+          </p>
         </div>
         <div className="px-4 py-4">
           <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span className="text-slate-600">PPE : <strong>{client.ppe ? "Oui ⚠️" : "Non"}</strong></span>
+            <span className="text-slate-600">
+              PPE : <strong>{client.ppe ? "Oui ⚠️" : "Non"}</strong>
+            </span>
             <span className="text-slate-300">|</span>
             <span className="text-slate-600">
-              Screening : <span className={client.screeningStatut === "OK" ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}>
+              Screening :{" "}
+              <span
+                className={
+                  client.screeningStatut === "OK"
+                    ? "text-emerald-600 font-semibold"
+                    : "text-amber-600 font-semibold"
+                }
+              >
                 ● {client.screeningStatut}
-                {client.screeningDate && ` (${new Date(client.screeningDate).toLocaleDateString("fr-FR")})`}
+                {client.screeningDate &&
+                  ` (${new Date(client.screeningDate).toLocaleDateString("fr-FR")})`}
               </span>
             </span>
             <span className="text-slate-300">|</span>
-            <span className="text-slate-600">UBO saisi : <strong>{client.uboSaisi ? "Oui" : "Non"}</strong></span>
+            <span className="text-slate-600">
+              UBO saisi : <strong>{client.uboSaisi ? "Oui" : "Non"}</strong>
+            </span>
           </div>
           <div className="flex gap-4 mt-3">
-            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">[Modifier PPE]</button>
-            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">[Relancer screening]</button>
+            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+              [Modifier PPE]
+            </button>
+            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+              [Relancer screening]
+            </button>
           </div>
         </div>
       </div>
@@ -412,9 +548,16 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
       {/* Documents */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Documents</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Documents
+          </p>
           <label className="cursor-pointer">
-            <input type="file" className="sr-only" onChange={handleUpload} disabled={uploading} />
+            <input
+              type="file"
+              className="sr-only"
+              onChange={handleUpload}
+              disabled={uploading}
+            />
             <span className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 transition-colors">
               <IconUpload className="size-3.5" />
               {uploading ? "Upload…" : "Uploader"}
@@ -422,39 +565,54 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
           </label>
         </div>
         {docs.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">Aucun document</div>
+          <div className="p-8 text-center text-sm text-slate-400">
+            Aucun document
+          </div>
         ) : (
           <>
             {/* Desktop */}
             <table className="hidden md:table w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {["Type", "Nom", "Taille", "Expiration", "Actions"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-400">{h}</th>
+                  {["Type", "Nom", "Taille", "Actions"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-2.5 text-left text-xs font-semibold text-slate-400"
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {docs.map((doc) => {
-                  const expired = doc.expiresAt && new Date(doc.expiresAt) < new Date();
-                  return (
-                    <tr key={doc.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-xs text-slate-500">{doc.type}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{doc.nom}</td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{Math.round(doc.tailleOctets / 1024)} Ko</td>
-                      <td className={`px-4 py-3 text-xs font-medium ${expired ? "text-amber-600" : "text-emerald-600"}`}>
-                        {doc.expiresAt ? `${expired ? "⚠️ EXPIRÉ" : new Date(doc.expiresAt).toLocaleDateString("fr-FR")}` : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer"
-                            className="text-slate-400 hover:text-blue-600 transition-colors"><IconEye className="size-4" /></a>
-                          <button className="text-slate-400 hover:text-red-500 transition-colors"><IconTrash className="size-4" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {docs.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {doc.typeMime}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      {doc.nomFichier}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400">
+                      {Math.round(doc.taille / 1024)} Ko
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`/api/documents/${doc.id}/download`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-slate-400 hover:text-blue-600 transition-colors"
+                        >
+                          <IconEye className="size-4" />
+                        </a>
+                        <button className="text-slate-400 hover:text-red-500 transition-colors">
+                          <IconTrash className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             {/* Mobile */}
@@ -462,14 +620,24 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
               {docs.map((doc) => (
                 <div key={doc.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 text-xs font-bold uppercase">
-                    {doc.nom.split(".").pop()}
+                    {doc.nomFichier.split(".").pop()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-800 truncate">{doc.nom}</p>
-                    <p className="text-xs text-slate-400">{Math.round(doc.tailleOctets / 1024)} Ko</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                      {doc.nomFichier}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {Math.round(doc.taille / 1024)} Ko
+                    </p>
                   </div>
-                  <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer"
-                    className="text-slate-400 hover:text-blue-600"><IconEye className="size-4" /></a>
+                  <a
+                    href={`/api/documents/${doc.id}/download`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-slate-400 hover:text-blue-600"
+                  >
+                    <IconEye className="size-4" />
+                  </a>
                 </div>
               ))}
             </div>
@@ -479,7 +647,6 @@ function TabKyc({ client, onRefresh }: { client: Client; onRefresh: () => void }
     </div>
   );
 }
-
 
 // ─── Onglet UBO ───────────────────────────────────────────────────────────────
 function TabUbo({
@@ -497,11 +664,7 @@ function TabUbo({
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
-    apiFetch<BeneficiaireEffectif[]>(
-      `/beneficiaires/client/${clientId}`,
-    )
+    apiFetch<BeneficiaireEffectif[]>(`/beneficiaires/client/${clientId}`)
       .then(setUbos)
       .catch((err: Error) => {
         setError(err.message);
@@ -531,9 +694,7 @@ function TabUbo({
     setFormOpen(true);
   }
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -546,8 +707,7 @@ function TabUbo({
       prenom: String(form.get("prenom") ?? "").trim() || undefined,
       dateNaissance:
         String(form.get("dateNaissance") ?? "").trim() || undefined,
-      nationalite:
-        String(form.get("nationalite") ?? "").trim() || undefined,
+      nationalite: String(form.get("nationalite") ?? "").trim() || undefined,
       adresse: String(form.get("adresse") ?? "").trim() || undefined,
       pourcentageDetention: Number(form.get("pourcentageDetention")),
       ppe: form.get("ppe") === "on",
@@ -555,9 +715,7 @@ function TabUbo({
 
     try {
       await apiFetch(
-        editing
-          ? `/beneficiaires/${editing.id}`
-          : "/beneficiaires",
+        editing ? `/beneficiaires/${editing.id}` : "/beneficiaires",
         {
           method: editing ? "PATCH" : "POST",
           body: JSON.stringify(payload),
@@ -566,6 +724,7 @@ function TabUbo({
 
       setFormOpen(false);
       setEditing(null);
+      setLoading(true);
       load();
       onRefresh();
     } catch (err) {
@@ -584,6 +743,7 @@ function TabUbo({
 
     try {
       await apiFetch(`/beneficiaires/${id}`, { method: "DELETE" });
+      setLoading(true);
       load();
       onRefresh();
     } catch (err) {
@@ -604,7 +764,8 @@ function TabUbo({
               Bénéficiaires effectifs
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Personnes détenant directement ou indirectement plus de 25 % du capital.
+              Personnes détenant directement ou indirectement plus de 25 % du
+              capital.
             </p>
           </div>
 
@@ -666,12 +827,16 @@ function TabUbo({
                         <p>
                           Date de naissance :{" "}
                           {ubo.dateNaissance
-                            ? new Date(ubo.dateNaissance).toLocaleDateString("fr-FR")
+                            ? new Date(ubo.dateNaissance).toLocaleDateString(
+                                "fr-FR",
+                              )
                             : "—"}
                         </p>
                         <p>Nationalité : {ubo.nationalite ?? "—"}</p>
                         {ubo.adresse && (
-                          <p className="sm:col-span-2">Adresse : {ubo.adresse}</p>
+                          <p className="sm:col-span-2">
+                            Adresse : {ubo.adresse}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -819,7 +984,8 @@ function TabUbo({
                     Personne politiquement exposée (PPE)
                   </p>
                   <p className="mt-1 text-xs text-amber-700">
-                    Cochez cette case lorsque le bénéficiaire est identifié comme PPE.
+                    Cochez cette case lorsque le bénéficiaire est identifié
+                    comme PPE.
                   </p>
                 </div>
               </label>
@@ -840,7 +1006,6 @@ function TabUbo({
   );
 }
 
-
 // ─── Onglet Contacts ──────────────────────────────────────────────────────────
 const CONTACT_LABELS: Record<TypeContact, string> = {
   INTERVENANT: "Intervenant",
@@ -859,8 +1024,6 @@ function TabContacts({ clientId }: { clientId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
     apiFetch<Contact[]>(`/contacts/client/${clientId}`)
       .then(setContacts)
       .catch((err: Error) => {
@@ -886,9 +1049,7 @@ function TabContacts({ clientId }: { clientId: string }) {
     setFormOpen(true);
   }
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -913,6 +1074,7 @@ function TabContacts({ clientId }: { clientId: string }) {
 
       setFormOpen(false);
       setEditing(null);
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -930,6 +1092,7 @@ function TabContacts({ clientId }: { clientId: string }) {
 
     try {
       await apiFetch(`/contacts/${id}`, { method: "DELETE" });
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -1001,7 +1164,9 @@ function TabContacts({ clientId }: { clientId: string }) {
 
                     <div className="mt-3 space-y-1 text-xs text-slate-500">
                       {contact.roleDetail && <p>{contact.roleDetail}</p>}
-                      {contact.email && <p className="break-all">{contact.email}</p>}
+                      {contact.email && (
+                        <p className="break-all">{contact.email}</p>
+                      )}
                       {contact.telephone && <p>{contact.telephone}</p>}
                     </div>
 
@@ -1093,7 +1258,9 @@ function TabContacts({ clientId }: { clientId: string }) {
               </div>
 
               <Field>
-                <FieldLabel htmlFor="contact-type">Type de contact *</FieldLabel>
+                <FieldLabel htmlFor="contact-type">
+                  Type de contact *
+                </FieldLabel>
                 <select
                   id="contact-type"
                   name="type"
@@ -1135,7 +1302,6 @@ function TabContacts({ clientId }: { clientId: string }) {
   );
 }
 
-
 // ─── Onglet Scoring ───────────────────────────────────────────────────────────
 function TabScoring({
   clientId,
@@ -1151,8 +1317,6 @@ function TabScoring({
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
     apiFetch<ScoreRisque[]>(`/scoring/client/${clientId}`)
       .then(setScores)
       .catch((err: Error) => {
@@ -1166,9 +1330,7 @@ function TabScoring({
     load();
   }, [load]);
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -1190,13 +1352,12 @@ function TabScoring({
       });
 
       setFormOpen(false);
+      setLoading(true);
       load();
       onRefresh();
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de calculer le score.",
+        err instanceof Error ? err.message : "Impossible de calculer le score.",
       );
     } finally {
       setSaving(false);
@@ -1259,9 +1420,14 @@ function TabScoring({
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Score courant
                   </p>
-                  <p className={`mt-2 text-4xl font-bold ${niveauColor[latest.niveau]}`}>
+                  <p
+                    className={`mt-2 text-4xl font-bold ${niveauColor[latest.niveau]}`}
+                  >
                     {latest.score}
-                    <span className="text-lg font-normal text-slate-400"> / 150</span>
+                    <span className="text-lg font-normal text-slate-400">
+                      {" "}
+                      / 150
+                    </span>
                   </p>
                 </div>
                 <RiskBadge level={latest.niveau} />
@@ -1270,18 +1436,27 @@ function TabScoring({
               <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className={`h-full rounded-full ${barColor[latest.niveau]}`}
-                  style={{ width: `${Math.min((latest.score / 150) * 100, 100)}%` }}
+                  style={{
+                    width: `${Math.min((latest.score / 150) * 100, 100)}%`,
+                  }}
                 />
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {[
-                  ["Caractéristiques client", latest.reponses.clientCaracteristiques, 50],
+                  [
+                    "Caractéristiques client",
+                    latest.reponses.clientCaracteristiques,
+                    50,
+                  ],
                   ["Activité / secteur", latest.reponses.activiteSecteur, 40],
                   ["Zone géographique", latest.reponses.zoneGeographique, 30],
                   ["Type de mission", latest.reponses.typeMission, 30],
                 ].map(([label, value, max]) => (
-                  <div key={String(label)} className="rounded-xl bg-slate-50 p-3">
+                  <div
+                    key={String(label)}
+                    className="rounded-xl bg-slate-50 p-3"
+                  >
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <span className="text-slate-600">{label}</span>
                       <span className="font-mono font-semibold text-slate-700">
@@ -1291,7 +1466,9 @@ function TabScoring({
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                       <div
                         className="h-full rounded-full bg-blue-500"
-                        style={{ width: `${(Number(value) / Number(max)) * 100}%` }}
+                        style={{
+                          width: `${(Number(value) / Number(max)) * 100}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -1299,7 +1476,8 @@ function TabScoring({
               </div>
 
               <p className="mt-4 text-xs text-slate-400">
-                Calculé le {new Date(latest.createdAt).toLocaleDateString("fr-FR")}
+                Calculé le{" "}
+                {new Date(latest.createdAt).toLocaleDateString("fr-FR")}
               </p>
             </div>
           ) : (
@@ -1368,7 +1546,11 @@ function TabScoring({
                     type="number"
                     min={0}
                     max={Number(max)}
-                    defaultValue={latest?.reponses?.[name as keyof ScoreRisque["reponses"]] ?? 0}
+                    defaultValue={
+                      latest?.reponses?.[
+                        name as keyof ScoreRisque["reponses"]
+                      ] ?? 0
+                    }
                     className="h-11 rounded-xl"
                     required
                   />
@@ -1387,7 +1569,6 @@ function TabScoring({
     </>
   );
 }
-
 
 // ─── Onglet Missions ──────────────────────────────────────────────────────────
 const MISSION_LABELS: Record<TypeMission, string> = {
@@ -1408,8 +1589,6 @@ function TabMissions({ clientId }: { clientId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
     apiFetch<Mission[]>(`/missions/client/${clientId}`)
       .then(setItems)
       .catch((err: Error) => {
@@ -1435,9 +1614,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     setFormOpen(true);
   }
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -1446,7 +1623,8 @@ function TabMissions({ clientId }: { clientId: string }) {
 
     const payload = editing
       ? {
-          description: String(form.get("description") ?? "").trim() || undefined,
+          description:
+            String(form.get("description") ?? "").trim() || undefined,
           dateFin: String(form.get("dateFin") ?? "").trim() || undefined,
           honoraires:
             String(form.get("honoraires") ?? "").trim() !== ""
@@ -1456,7 +1634,8 @@ function TabMissions({ clientId }: { clientId: string }) {
       : {
           clientId,
           type: form.get("type") as TypeMission,
-          description: String(form.get("description") ?? "").trim() || undefined,
+          description:
+            String(form.get("description") ?? "").trim() || undefined,
           dateDebut: String(form.get("dateDebut")),
           dateFin: String(form.get("dateFin") ?? "").trim() || undefined,
           honoraires:
@@ -1473,10 +1652,13 @@ function TabMissions({ clientId }: { clientId: string }) {
 
       setFormOpen(false);
       setEditing(null);
+      setLoading(true);
       load();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Impossible d’enregistrer la mission.",
+        err instanceof Error
+          ? err.message
+          : "Impossible d’enregistrer la mission.",
       );
     } finally {
       setSaving(false);
@@ -1492,10 +1674,13 @@ function TabMissions({ clientId }: { clientId: string }) {
         method: "PATCH",
         body: JSON.stringify({ statut }),
       });
+      setLoading(true);
       load();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Impossible de modifier le statut.",
+        err instanceof Error
+          ? err.message
+          : "Impossible de modifier le statut.",
       );
     } finally {
       setBusy(null);
@@ -1508,6 +1693,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     setBusy(id);
     try {
       await apiFetch(`/missions/${id}`, { method: "DELETE" });
+      setLoading(true);
       load();
     } finally {
       setBusy(null);
@@ -1579,7 +1765,8 @@ function TabMissions({ clientId }: { clientId: string }) {
 
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
                         <span>
-                          Début : {new Date(item.dateDebut).toLocaleDateString("fr-FR")}
+                          Début :{" "}
+                          {new Date(item.dateDebut).toLocaleDateString("fr-FR")}
                         </span>
                         <span>
                           Fin :{" "}
@@ -1701,7 +1888,9 @@ function TabMissions({ clientId }: { clientId: string }) {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="mission-debut">Date de début *</FieldLabel>
+                    <FieldLabel htmlFor="mission-debut">
+                      Date de début *
+                    </FieldLabel>
                     <Input
                       id="mission-debut"
                       name="dateDebut"
@@ -1715,7 +1904,9 @@ function TabMissions({ clientId }: { clientId: string }) {
               )}
 
               <Field>
-                <FieldLabel htmlFor="mission-description">Description</FieldLabel>
+                <FieldLabel htmlFor="mission-description">
+                  Description
+                </FieldLabel>
                 <textarea
                   id="mission-description"
                   name="description"
@@ -1738,7 +1929,9 @@ function TabMissions({ clientId }: { clientId: string }) {
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="mission-honoraires">Honoraires (€)</FieldLabel>
+                  <FieldLabel htmlFor="mission-honoraires">
+                    Honoraires (€)
+                  </FieldLabel>
                   <Input
                     id="mission-honoraires"
                     name="honoraires"
@@ -1767,7 +1960,6 @@ function TabMissions({ clientId }: { clientId: string }) {
   );
 }
 
-
 // ─── Onglet Planning ──────────────────────────────────────────────────────────
 const PLANNING_TYPE_LABELS: Record<TypePlanningEtape, string> = {
   REGLEMENTAIRE: "Réglementaire",
@@ -1784,8 +1976,6 @@ function TabPlanning({ clientId }: { clientId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
     Promise.all([
       apiFetch<PlanningEtape[]>(`/planning/client/${clientId}`),
       apiFetch<User[]>("/users").catch(() => []),
@@ -1805,9 +1995,7 @@ function TabPlanning({ clientId }: { clientId: string }) {
     load();
   }, [load]);
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -1819,10 +2007,8 @@ function TabPlanning({ clientId }: { clientId: string }) {
       titre: String(form.get("titre") ?? "").trim(),
       description: String(form.get("description") ?? "").trim() || undefined,
       type: form.get("type") as TypePlanningEtape,
-      dateEcheance:
-        String(form.get("dateEcheance") ?? "").trim() || undefined,
-      assignedToId:
-        String(form.get("assignedToId") ?? "").trim() || undefined,
+      dateEcheance: String(form.get("dateEcheance") ?? "").trim() || undefined,
+      assignedToId: String(form.get("assignedToId") ?? "").trim() || undefined,
     };
 
     try {
@@ -1831,6 +2017,7 @@ function TabPlanning({ clientId }: { clientId: string }) {
         body: JSON.stringify(payload),
       });
       setFormOpen(false);
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -1847,6 +2034,7 @@ function TabPlanning({ clientId }: { clientId: string }) {
 
     try {
       await apiFetch(`/planning/${id}/completer`, { method: "PATCH" });
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -1863,6 +2051,7 @@ function TabPlanning({ clientId }: { clientId: string }) {
     setBusy(id);
     try {
       await apiFetch(`/planning/${id}`, { method: "DELETE" });
+      setLoading(true);
       load();
     } finally {
       setBusy(null);
@@ -1912,7 +2101,8 @@ function TabPlanning({ clientId }: { clientId: string }) {
         ) : (
           <div className="grid gap-3 p-4">
             {items.map((item) => {
-              const closed = item.statut === "FAIT" || item.statut === "ANNULEE";
+              const closed =
+                item.statut === "FAIT" || item.statut === "ANNULEE";
 
               return (
                 <article
@@ -1928,7 +2118,9 @@ function TabPlanning({ clientId }: { clientId: string }) {
                         </span>
                       </div>
 
-                      <p className="mt-3 font-semibold text-slate-900">{item.titre}</p>
+                      <p className="mt-3 font-semibold text-slate-900">
+                        {item.titre}
+                      </p>
 
                       {item.description && (
                         <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -1940,7 +2132,9 @@ function TabPlanning({ clientId }: { clientId: string }) {
                         <span>
                           Échéance :{" "}
                           {item.dateEcheance
-                            ? new Date(item.dateEcheance).toLocaleDateString("fr-FR")
+                            ? new Date(item.dateEcheance).toLocaleDateString(
+                                "fr-FR",
+                              )
                             : "—"}
                         </span>
                         <span>
@@ -2004,7 +2198,9 @@ function TabPlanning({ clientId }: { clientId: string }) {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="planning-description">Description</FieldLabel>
+                <FieldLabel htmlFor="planning-description">
+                  Description
+                </FieldLabel>
                 <textarea
                   id="planning-description"
                   name="description"
@@ -2071,7 +2267,6 @@ function TabPlanning({ clientId }: { clientId: string }) {
   );
 }
 
-
 // ─── Onglet Obligations ───────────────────────────────────────────────────────
 const OBLIGATION_LABELS: Record<TypeObligation, string> = {
   KYC_VERIFICATION: "Vérification KYC",
@@ -2090,8 +2285,6 @@ function TabObligations({ clientId }: { clientId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
     apiFetch<Obligation[]>(`/obligations/client/${clientId}`)
       .then(setItems)
       .catch((err: Error) => {
@@ -2108,9 +2301,7 @@ function TabObligations({ clientId }: { clientId: string }) {
   const completed = items.filter((item) => item.statut === "FAIT").length;
   const percentage = items.length ? (completed / items.length) * 100 : 0;
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -2120,8 +2311,7 @@ function TabObligations({ clientId }: { clientId: string }) {
     const payload = {
       clientId,
       type: form.get("type") as TypeObligation,
-      dateEcheance:
-        String(form.get("dateEcheance") ?? "").trim() || undefined,
+      dateEcheance: String(form.get("dateEcheance") ?? "").trim() || undefined,
     };
 
     try {
@@ -2130,10 +2320,13 @@ function TabObligations({ clientId }: { clientId: string }) {
         body: JSON.stringify(payload),
       });
       setFormOpen(false);
+      setLoading(true);
       load();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Impossible de créer l’obligation.",
+        err instanceof Error
+          ? err.message
+          : "Impossible de créer l’obligation.",
       );
     } finally {
       setSaving(false);
@@ -2146,6 +2339,7 @@ function TabObligations({ clientId }: { clientId: string }) {
 
     try {
       await apiFetch(`/obligations/${id}/fait`, { method: "PATCH" });
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -2233,7 +2427,9 @@ function TabObligations({ clientId }: { clientId: string }) {
                       <p className="mt-3 text-xs text-slate-500">
                         Échéance :{" "}
                         {item.dateEcheance
-                          ? new Date(item.dateEcheance).toLocaleDateString("fr-FR")
+                          ? new Date(item.dateEcheance).toLocaleDateString(
+                              "fr-FR",
+                            )
                           : "—"}
                       </p>
                     </div>
@@ -2287,7 +2483,9 @@ function TabObligations({ clientId }: { clientId: string }) {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="obligation-date">Date d’échéance</FieldLabel>
+                <FieldLabel htmlFor="obligation-date">
+                  Date d’échéance
+                </FieldLabel>
                 <Input
                   id="obligation-date"
                   name="dateEcheance"
@@ -2309,7 +2507,6 @@ function TabObligations({ clientId }: { clientId: string }) {
   );
 }
 
-
 // ─── Onglet Opérations sensibles ──────────────────────────────────────────────
 const OPERATION_LABELS: Record<TypeOperationSensible, string> = {
   SANS_JUSTIFICATION: "Sans justification économique",
@@ -2330,11 +2527,7 @@ function TabOperations({ clientId }: { clientId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setLoading(true);
-
-    apiFetch<OperationSensible[]>(
-      `/operations-sensibles/client/${clientId}`,
-    )
+    apiFetch<OperationSensible[]>(`/operations-sensibles/client/${clientId}`)
       .then(setItems)
       .catch((err: Error) => {
         setError(err.message);
@@ -2347,9 +2540,7 @@ function TabOperations({ clientId }: { clientId: string }) {
     load();
   }, [load]);
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -2373,6 +2564,7 @@ function TabOperations({ clientId }: { clientId: string }) {
         body: JSON.stringify(payload),
       });
       setFormOpen(false);
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -2395,10 +2587,13 @@ function TabOperations({ clientId }: { clientId: string }) {
       await apiFetch(`/operations-sensibles/${id}/classer`, {
         method: "PATCH",
       });
+      setLoading(true);
       load();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Impossible de classer l’opération.",
+        err instanceof Error
+          ? err.message
+          : "Impossible de classer l’opération.",
       );
     } finally {
       setBusy(null);
@@ -2421,6 +2616,7 @@ function TabOperations({ clientId }: { clientId: string }) {
         method: "PATCH",
         body: JSON.stringify({ date }),
       });
+      setLoading(true);
       load();
     } catch (err) {
       setError(
@@ -2477,8 +2673,7 @@ function TabOperations({ clientId }: { clientId: string }) {
           <div className="grid gap-4 p-4">
             {items.map((item) => {
               const closed =
-                item.statut === "CLASSEE" ||
-                item.statut === "TRACFIN_DECLARE";
+                item.statut === "CLASSEE" || item.statut === "TRACFIN_DECLARE";
 
               return (
                 <article
@@ -2575,7 +2770,9 @@ function TabOperations({ clientId }: { clientId: string }) {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="operation-description">Description *</FieldLabel>
+                <FieldLabel htmlFor="operation-description">
+                  Description *
+                </FieldLabel>
                 <textarea
                   id="operation-description"
                   name="description"
@@ -2631,7 +2828,9 @@ function EmptyTab({ label }: { label: string }) {
         <IconPlus className="size-5 text-slate-400" />
       </div>
       <p className="text-sm font-medium text-slate-600 mb-1">Aucun {label}</p>
-      <p className="text-xs text-slate-400">Ce module sera disponible prochainement</p>
+      <p className="text-xs text-slate-400">
+        Ce module sera disponible prochainement
+      </p>
     </div>
   );
 }
@@ -2650,38 +2849,60 @@ export default function ClientDetailPage() {
 
   const activeTab = searchParams.get("tab") ?? "infos";
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const c = await apiFetch<Client>(`/clients/${id}`);
-      setClient(c);
-      const s = await apiFetch<ScoreRisque | null>(`/scoring/client/${id}/courant`).catch(() => null);
-      setScore(s);
-      const logs = await apiFetch<AuditLog[]>(`/audit/${id}`).catch(() => []);
-      setAudit(logs);
-    } catch (e: unknown) {
-      setError((e as Error).message);
-    } finally { setLoading(false); }
+  const load = useCallback(() => {
+    apiFetch<Client>(`/clients/${id}`)
+      .then((c) => {
+        setClient(c);
+        return apiFetch<ScoreRisque | null>(
+          `/scoring/client/${id}/courant`,
+        ).catch(() => null);
+      })
+      .then((s) => {
+        setScore(s);
+        return apiFetch<AuditLog[]>(`/audit/${id}`).catch(() => []);
+      })
+      .then((logs) => setAudit(logs))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function setTab(tab: string) {
     router.push(`/dashboard/clients/${id}?tab=${tab}`, { scroll: false });
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-20">
-      <div className="size-6 animate-spin rounded-full border-2 border-slate-800 border-t-transparent" />
-    </div>
-  );
-  if (error || !client) return (
-    <div className="p-6 text-sm text-red-600">{error ?? "Client introuvable"}</div>
-  );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 animate-spin rounded-full border-2 border-slate-800 border-t-transparent" />
+      </div>
+    );
+  if (error || !client)
+    return (
+      <div className="p-6 text-sm text-red-600">
+        {error ?? "Client introuvable"}
+      </div>
+    );
 
-  const niveauColor: Record<NiveauRisque, string> = { ELEVE: "text-red-600", MOYEN: "text-amber-600", FAIBLE: "text-emerald-600" };
-  const kycColor: Record<StatutKyc, string> = { VALIDE: "text-emerald-600", COMPLET: "text-blue-600", INCOMPLET: "text-amber-600", EXPIRE: "text-red-600" };
-  const statutColor: Record<StatutClient, string> = { ACTIF: "text-emerald-600", INACTIF: "text-slate-400", RESILIE: "text-red-600" };
+  const niveauColor: Record<NiveauRisque, string> = {
+    ELEVE: "text-red-600",
+    MOYEN: "text-amber-600",
+    FAIBLE: "text-emerald-600",
+  };
+  const kycColor: Record<StatutKyc, string> = {
+    VALIDE: "text-emerald-600",
+    COMPLET: "text-blue-600",
+    INCOMPLET: "text-amber-600",
+    EXPIRE: "text-red-600",
+  };
+  const statutColor: Record<StatutClient, string> = {
+    ACTIF: "text-emerald-600",
+    INACTIF: "text-slate-400",
+    RESILIE: "text-red-600",
+  };
 
   return (
     <div className="min-h-full bg-slate-50 pb-24 md:pb-8">
@@ -2760,20 +2981,36 @@ export default function ClientDetailPage() {
 
             <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5 sm:grid-cols-4">
               <div className="rounded-xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">Statut KYC</p>
-                <p className="mt-1 text-sm font-semibold text-white">{client.kycStatut}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">
+                  Statut KYC
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {client.kycStatut}
+                </p>
               </div>
               <div className="rounded-xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">Screening</p>
-                <p className="mt-1 text-sm font-semibold text-white">{client.screeningStatut}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">
+                  Screening
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {client.screeningStatut}
+                </p>
               </div>
               <div className="rounded-xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">UBO saisi</p>
-                <p className="mt-1 text-sm font-semibold text-white">{client.uboSaisi ? "Oui" : "Non"}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">
+                  UBO saisi
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {client.uboSaisi ? "Oui" : "Non"}
+                </p>
               </div>
               <div className="rounded-xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">Score courant</p>
-                <p className="mt-1 text-sm font-semibold text-white">{score ? `${score.score}/150` : "Non évalué"}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">
+                  Score courant
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {score ? `${score.score}/150` : "Non évalué"}
+                </p>
               </div>
             </div>
           </div>
@@ -2808,11 +3045,20 @@ export default function ClientDetailPage() {
 
         {/* Contenu de l’onglet */}
         <main className="mt-5">
-          {activeTab === "infos" && <TabInfos client={client} score={score} audit={audit} onRefresh={load} />}
+          {activeTab === "infos" && (
+            <TabInfos
+              client={client}
+              score={score}
+              audit={audit}
+              onRefresh={load}
+            />
+          )}
           {activeTab === "kyc" && <TabKyc client={client} onRefresh={load} />}
           {activeTab === "ubo" && <TabUbo clientId={id} onRefresh={load} />}
           {activeTab === "contacts" && <TabContacts clientId={id} />}
-          {activeTab === "scoring" && <TabScoring clientId={id} onRefresh={load} />}
+          {activeTab === "scoring" && (
+            <TabScoring clientId={id} onRefresh={load} />
+          )}
           {activeTab === "missions" && <TabMissions clientId={id} />}
           {activeTab === "planning" && <TabPlanning clientId={id} />}
           {activeTab === "obligations" && <TabObligations clientId={id} />}
