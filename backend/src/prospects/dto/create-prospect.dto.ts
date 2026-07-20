@@ -19,6 +19,14 @@ export class CreateProspectDto {
 
   @IsOptional()
   @IsString()
+  formeJuridique?: string;
+
+  @IsOptional()
+  @IsString()
+  representantLegal?: string;
+
+  @IsOptional()
+  @IsString()
   siret?: string;
 
   @IsOptional()

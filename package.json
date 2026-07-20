@@ -1,7 +1,7 @@
 {
   "name": "qw-app",
   "version": "1.0.0",
-  "description": "App pour QW conseil",
+  "description": "App pour QW conseils",
   "main": "index.js",
   "directories": {
     "doc": "docs"

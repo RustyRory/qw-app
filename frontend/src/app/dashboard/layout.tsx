@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { IconMenu2 } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
+import { IconLogout } from "@tabler/icons-react";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 
 export default function DashboardLayout({
@@ -9,6 +12,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { ready, role, logout } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!ready) {
     return (
@@ -19,9 +23,12 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <AppSidebar role={role} onLogout={logout} />
-      <main className="flex-1 overflow-auto">{children}</main>
+<div className="flex h-screen flex-col md:flex-row overflow-hidden bg-background">     
+   <AppSidebar role={role} onLogout={logout} />
+   <div className="fixed right-4 top-4 z-50 md:hidden">
+  
+</div>
+      <main className="flex-1 overflow-auto pb-16 md:pb-0">{children}</main>
     </div>
   );
 }

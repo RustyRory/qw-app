@@ -3,38 +3,78 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { IconArrowLeft, IconSearch, IconLoader2 } from "@tabler/icons-react";
 import { apiFetch } from "@/lib/apiFetch";
+import { fetchSirene, type SireneData } from "@/lib/sirene";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import type { Client, TypeEntite } from "@/types";
 
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          {title}
+        </p>
+      </div>
+      <div className="px-5 py-4">{children}</div>
+    </div>
+  );
+}
+
 export default function NewClientPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [siret, setSiret] = useState("");
+  const [sireneLoading, setSireneLoading] = useState(false);
+  const [sireneError, setSireneError] = useState<string | null>(null);
+  const [sireneData, setSireneData] = useState<SireneData | null>(null);
+  const [typeEntite, setTypeEntite] = useState<TypeEntite>("PERSONNE_MORALE");
+
+  async function handleSirene() {
+    setSireneLoading(true);
+    setSireneError(null);
+    try {
+      const data = await fetchSirene(siret);
+      setSireneData(data);
+    } catch (err) {
+      setSireneError(
+        err instanceof Error
+          ? err.message
+          : "SIRET introuvable ou service SIRENE indisponible",
+      );
+    } finally {
+      setSireneLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     const form = new FormData(e.currentTarget);
     const data = {
       raisonSociale: form.get("raisonSociale") as string,
-      typeEntite: form.get("typeEntite") as TypeEntite,
-      siret: (form.get("siret") as string) || undefined,
-      formeJuridique: (form.get("formeJuridique") as string) || undefined,
+      typeEntite,
+      siret: siret.replace(/\s/g, "") || undefined,
       codeNaf: (form.get("codeNaf") as string) || undefined,
-      activitePrincipale:
-        (form.get("activitePrincipale") as string) || undefined,
-      adresseSiege: (form.get("adresseSiege") as string) || undefined,
+      formeJuridique: (form.get("formeJuridique") as string) || undefined,
+      representantLegal: (form.get("representantLegal") as string) || undefined,
+      activitePrincipale: (form.get("activite") as string) || undefined,
+      adresseSiege: (form.get("adresse") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
       codePostal: (form.get("codePostal") as string) || undefined,
-      pays: (form.get("pays") as string) || undefined,
+      pays: (form.get("pays") as string) || "France",
     };
-
     try {
       const client = await apiFetch<Client>("/clients", {
         method: "POST",
@@ -48,97 +88,251 @@ export default function NewClientPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center gap-3">
-        <Link
-          href="/dashboard/clients"
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <IconArrowLeft className="size-5" />
-        </Link>
-        <h1 className="text-xl font-semibold">Nouveau client</h1>
+    <div className="min-h-full bg-slate-50">
+      {/* Header */}
+      <div className="bg-white border-b px-5 py-4 md:px-8">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/clients"
+            className="text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <IconArrowLeft className="size-4" />
+          </Link>
+          <span className="text-slate-400 text-sm">Retour</span>
+          <h1 className="text-xl font-bold text-slate-900">Nouveau client</h1>
+        </div>
       </div>
 
-      <div className="max-w-lg">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="max-w-3xl mx-auto px-4 py-6 md:px-8">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
               {error}
             </div>
           )}
 
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="raisonSociale">Raison sociale *</FieldLabel>
-              <Input id="raisonSociale" name="raisonSociale" required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="typeEntite">Type d&apos;entité *</FieldLabel>
-              <select
-                id="typeEntite"
-                name="typeEntite"
-                required
-                defaultValue="PERSONNE_MORALE"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+          {/* SIRET */}
+          <Section title="SIRET (14 chiffres)">
+            <div className="flex gap-2">
+              <Input
+                value={siret}
+                onChange={(e) => setSiret(e.target.value)}
+                placeholder="12345678900012"
+                maxLength={17}
+                className="font-mono rounded-lg"
+              />
+              <Button
+                type="button"
+                onClick={handleSirene}
+                disabled={sireneLoading}
+                variant="outline"
+                className="shrink-0 rounded-lg gap-2"
               >
-                <option value="PERSONNE_MORALE">Personne morale</option>
-                <option value="PERSONNE_PHYSIQUE">Personne physique</option>
-              </select>
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor="siret">SIRET</FieldLabel>
-                <Input id="siret" name="siret" maxLength={14} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="formeJuridique">
-                  Forme juridique
-                </FieldLabel>
-                <Input id="formeJuridique" name="formeJuridique" />
-              </Field>
+                {sireneLoading ? (
+                  <IconLoader2 className="size-4 animate-spin" />
+                ) : (
+                  <IconSearch className="size-4" />
+                )}
+                Rechercher SIRENE
+              </Button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            {sireneError && (
+              <p className="mt-2 text-xs text-red-600">{sireneError}</p>
+            )}
+            {sireneData && (
+              <p className="mt-2 text-xs text-emerald-600 font-medium">
+                ✓ Données récupérées — {sireneData.nom}
+              </p>
+            )}
+          </Section>
+
+          {/* Identité */}
+          <Section title="Identité">
+            <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="activitePrincipale">
-                  Activité principale
+                <FieldLabel htmlFor="raisonSociale">
+                  Raison sociale / Nom <span className="text-red-500">*</span>
                 </FieldLabel>
-                <Input id="activitePrincipale" name="activitePrincipale" />
+                <Input
+                  id="raisonSociale"
+                  name="raisonSociale"
+                  required
+                  key={sireneData?.nom ?? "raison-sociale-vide"}
+                  defaultValue={sireneData?.nom ?? ""}
+                  placeholder="SARL Dupont & Associés"
+                  className="rounded-lg"
+                />
               </Field>
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">
+                  Type d&apos;entité <span className="text-red-500">*</span>
+                </p>
+                <div className="flex items-center gap-6">
+                  {(
+                    ["PERSONNE_MORALE", "PERSONNE_PHYSIQUE"] as TypeEntite[]
+                  ).map((type) => (
+                    <label
+                      key={type}
+                      className="flex cursor-pointer items-center gap-2"
+                    >
+                      <input
+                        type="radio"
+                        name="typeEntite"
+                        value={type}
+                        checked={typeEntite === type}
+                        onChange={() => setTypeEntite(type)}
+                        className="size-4 accent-violet-600"
+                      />
+                      <span className="text-base font-medium text-slate-800">
+                        {type === "PERSONNE_MORALE"
+                          ? "Personne morale"
+                          : "Personne physique"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="formeJuridique">
+                    Forme juridique
+                  </FieldLabel>
+                  <Input
+                    id="formeJuridique"
+                    name="formeJuridique"
+                    placeholder="SARL, SAS…"
+                    key={sireneData?.formeJuridique ?? "forme-juridique-vide"}
+                    defaultValue={sireneData?.formeJuridique ?? ""}
+                    className="rounded-lg"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
+                  <Input
+                    id="codeNaf"
+                    name="codeNaf"
+                    placeholder="6920Z"
+                    key={sireneData?.codeNaf ?? "code-naf-vide"}
+                    defaultValue={sireneData?.codeNaf ?? ""}
+                    className="rounded-lg font-mono"
+                  />
+                </Field>
+              </div>
               <Field>
-                <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
-                <Input id="codeNaf" name="codeNaf" />
+                <FieldLabel htmlFor="representantLegal">
+                  Représentant légal
+                </FieldLabel>
+                <Input
+                  id="representantLegal"
+                  name="representantLegal"
+                  placeholder="Jean Dupont"
+                  key={
+                    sireneData?.representantLegal ?? "representant-legal-vide"
+                  }
+                  defaultValue={sireneData?.representantLegal ?? ""}
+                  className="rounded-lg"
+                />
               </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="adresseSiege">Adresse du siège</FieldLabel>
-              <Input id="adresseSiege" name="adresseSiege" />
-            </Field>
-            <div className="grid grid-cols-3 gap-4">
+            </FieldGroup>
+          </Section>
+
+          {/* Activité */}
+          <Section title="Activité">
+            <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="ville">Ville</FieldLabel>
-                <Input id="ville" name="ville" />
+                <FieldLabel htmlFor="activite">
+                  Secteur / activité principale
+                </FieldLabel>
+                <Input
+                  id="activite"
+                  name="activite"
+                  placeholder="Finance, Immobilier…"
+                  className="rounded-lg"
+                />
               </Field>
+            </FieldGroup>
+          </Section>
+
+          {/* Localisation */}
+          <Section title="Localisation">
+            <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
-                <Input id="codePostal" name="codePostal" />
+                <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
+                <Input
+                  id="adresse"
+                  name="adresse"
+                  key={sireneData?.adresse ?? "adresse-vide"}
+                  defaultValue={sireneData?.adresse ?? ""}
+                  placeholder="12 rue du Marché"
+                  className="rounded-lg"
+                />
               </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel htmlFor="ville">Ville</FieldLabel>
+                  <Input
+                    id="ville"
+                    name="ville"
+                    key={sireneData?.ville ?? "ville-vide"}
+                    defaultValue={sireneData?.ville ?? ""}
+                    placeholder="Paris"
+                    className="rounded-lg"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
+                  <Input
+                    id="codePostal"
+                    name="codePostal"
+                    key={sireneData?.codePostal ?? "code-postal-vide"}
+                    defaultValue={sireneData?.codePostal ?? ""}
+                    placeholder="75001"
+                    className="rounded-lg"
+                  />
+                </Field>
+              </div>
               <Field>
                 <FieldLabel htmlFor="pays">Pays</FieldLabel>
-                <Input id="pays" name="pays" defaultValue="France" />
+                <select
+                  id="pays"
+                  name="pays"
+                  defaultValue="France"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                >
+                  {[
+                    "France",
+                    "Belgique",
+                    "Suisse",
+                    "Luxembourg",
+                    "Allemagne",
+                    "Espagne",
+                    "Italie",
+                    "Royaume-Uni",
+                    "Autre",
+                  ].map((p) => (
+                    <option key={p}>{p}</option>
+                  ))}
+                </select>
               </Field>
-            </div>
-          </FieldGroup>
+            </FieldGroup>
+          </Section>
 
-          <div className="flex gap-3">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Création…" : "Créer le client"}
-            </Button>
+          {/* Actions */}
+          <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={() => router.back()}
+              className="rounded-lg border-slate-200"
             >
               Annuler
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold"
+            >
+              {loading ? "Création…" : "Créer le client"}
             </Button>
           </div>
         </form>

@@ -58,13 +58,6 @@ export function LoginForm({
       {...props}
     >
       <FieldGroup>
-        <div className="flex flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold">QW Conseil</h1>
-          <p className="text-sm text-balance text-muted-foreground">
-            Connectez-vous à votre espace de travail
-          </p>
-        </div>
-
         {error && (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
             {error}
