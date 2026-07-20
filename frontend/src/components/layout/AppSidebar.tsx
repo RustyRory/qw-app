@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -95,11 +95,7 @@ const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrateur",
 };
 
-function isItemActive(
-  pathname: string,
-  href: string,
-  exact?: boolean,
-) {
+function isItemActive(pathname: string, href: string, exact?: boolean) {
   return exact ? pathname === href : pathname.startsWith(href);
 }
 
@@ -112,63 +108,48 @@ function NavSection({
 }) {
   return (
     <div className="space-y-1">
-      {items.map(
-        ({
-          href,
-          label,
-          icon: Icon,
-          exact,
-          iconClass,
-        }) => {
-          const active = isItemActive(pathname, href, exact);
+      {items.map(({ href, label, icon: Icon, exact, iconClass }) => {
+        const active = isItemActive(pathname, href, exact);
 
-          return (
-            <Link
-              key={href}
-              href={href}
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+              active
+                ? "bg-gradient-to-r from-violet-600 to-indigo-600 font-semibold text-white shadow-lg shadow-violet-950/20"
+                : "text-slate-300 hover:bg-white/10 hover:text-white",
+            )}
+          >
+            {active && (
+              <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-white" />
+            )}
+
+            <div
               className={cn(
-                "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-                active
-                  ? "bg-gradient-to-r from-violet-600 to-indigo-600 font-semibold text-white shadow-lg shadow-violet-950/20"
-                  : "text-slate-300 hover:bg-white/10 hover:text-white",
+                "flex size-8 shrink-0 items-center justify-center rounded-lg transition",
+                active ? "bg-white/15" : "bg-white/5 group-hover:bg-white/10",
               )}
             >
-              {active && (
-                <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-white" />
-              )}
-
-              <div
-                className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-lg transition",
-                  active
-                    ? "bg-white/15"
-                    : "bg-white/5 group-hover:bg-white/10",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "size-4.5",
-                    active ? "text-white" : iconClass,
-                  )}
-                />
-              </div>
-
-              <span className="min-w-0 flex-1 truncate">
-                {label}
-              </span>
-
-              <IconChevronRight
-                className={cn(
-                  "size-4 shrink-0 transition",
-                  active
-                    ? "translate-x-0 text-white/80"
-                    : "-translate-x-1 text-slate-500 opacity-0 group-hover:translate-x-0 group-hover:opacity-100",
-                )}
+              <Icon
+                className={cn("size-4.5", active ? "text-white" : iconClass)}
               />
-            </Link>
-          );
-        },
-      )}
+            </div>
+
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+
+            <IconChevronRight
+              className={cn(
+                "size-4 shrink-0 transition",
+                active
+                  ? "translate-x-0 text-white/80"
+                  : "-translate-x-1 text-slate-500 opacity-0 group-hover:translate-x-0 group-hover:opacity-100",
+              )}
+            />
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -183,17 +164,13 @@ function MobileNav({
   onLogout: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setMenuOpen(false);
-  }, [pathname]);
+  }
 
-  const mainItems: NavItem[] = [
-    NAV[0],
-    NAV[1],
-    NAV[2],
-    CONFORMITE_NAV[3],
-  ];
+  const mainItems: NavItem[] = [NAV[0], NAV[1], NAV[2], CONFORMITE_NAV[3]];
 
   const secondaryItems: NavItem[] = [
     CONFORMITE_NAV[0],
@@ -236,18 +213,8 @@ function MobileNav({
 
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
               {secondaryItems.map(
-                ({
-                  href,
-                  label,
-                  icon: Icon,
-                  exact,
-                  iconClass,
-                }) => {
-                  const active = isItemActive(
-                    pathname,
-                    href,
-                    exact,
-                  );
+                ({ href, label, icon: Icon, exact, iconClass }) => {
+                  const active = isItemActive(pathname, href, exact);
 
                   return (
                     <Link
@@ -264,24 +231,18 @@ function MobileNav({
                       <div
                         className={cn(
                           "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                          active
-                            ? "bg-violet-500/30"
-                            : "bg-white/5",
+                          active ? "bg-violet-500/30" : "bg-white/5",
                         )}
                       >
                         <Icon
                           className={cn(
                             "size-5",
-                            active
-                              ? "text-white"
-                              : iconClass,
+                            active ? "text-white" : iconClass,
                           )}
                         />
                       </div>
 
-                      <span className="min-w-0 flex-1 truncate">
-                        {label}
-                      </span>
+                      <span className="min-w-0 flex-1 truncate">{label}</span>
                     </Link>
                   );
                 },
@@ -313,9 +274,7 @@ function MobileNav({
                   {role ? ROLE_LABELS[role] : "Utilisateur"}
                 </p>
 
-                <p className="text-xs text-slate-400">
-                  Session active
-                </p>
+                <p className="text-xs text-slate-400">Session active</p>
               </div>
             </div>
           </div>
@@ -324,73 +283,49 @@ function MobileNav({
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200/80 bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden">
         <div className="grid h-[72px] grid-cols-5 px-1">
-          {mainItems.map(
-            ({
-              href,
-              label,
-              icon: Icon,
-              exact,
-              iconClass,
-            }) => {
-              const active = isItemActive(
-                pathname,
-                href,
-                exact,
-              );
+          {mainItems.map(({ href, label, icon: Icon, exact, iconClass }) => {
+            const active = isItemActive(pathname, href, exact);
 
-              return (
-                <Link
-                  key={href}
-                  href={href}
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",
+                  active ? "text-violet-700" : "text-slate-500",
+                )}
+              >
+                {active && (
+                  <span className="absolute top-0 h-1 w-8 rounded-b-full bg-gradient-to-r from-violet-600 to-indigo-600" />
+                )}
+
+                <div
                   className={cn(
-                    "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",
-                    active
-                      ? "text-violet-700"
-                      : "text-slate-500",
+                    "flex size-9 items-center justify-center rounded-xl transition",
+                    active ? "bg-violet-100 shadow-sm" : "bg-transparent",
                   )}
                 >
-                  {active && (
-                    <span className="absolute top-0 h-1 w-8 rounded-b-full bg-gradient-to-r from-violet-600 to-indigo-600" />
-                  )}
-
-                  <div
+                  <Icon
                     className={cn(
-                      "flex size-9 items-center justify-center rounded-xl transition",
-                      active
-                        ? "bg-violet-100 shadow-sm"
-                        : "bg-transparent",
+                      "size-5 transition",
+                      active ? "scale-110 text-violet-700" : iconClass,
                     )}
-                  >
-                    <Icon
-                      className={cn(
-                        "size-5 transition",
-                        active
-                          ? "scale-110 text-violet-700"
-                          : iconClass,
-                      )}
-                    />
-                  </div>
+                  />
+                </div>
 
-                  <span className="max-w-full truncate px-0.5">
-                    {label === "Tableau de bord"
-                      ? "Accueil"
-                      : label}
-                  </span>
-                </Link>
-              );
-            },
-          )}
+                <span className="max-w-full truncate px-0.5">
+                  {label === "Tableau de bord" ? "Accueil" : label}
+                </span>
+              </Link>
+            );
+          })}
 
           <button
             type="button"
-            onClick={() =>
-              setMenuOpen((value) => !value)
-            }
+            onClick={() => setMenuOpen((value) => !value)}
             className={cn(
               "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",
-              menuOpen
-                ? "text-violet-700"
-                : "text-slate-500",
+              menuOpen ? "text-violet-700" : "text-slate-500",
             )}
           >
             {menuOpen && (
@@ -400,9 +335,7 @@ function MobileNav({
             <div
               className={cn(
                 "flex size-9 items-center justify-center rounded-xl transition",
-                menuOpen
-                  ? "bg-violet-100"
-                  : "bg-transparent",
+                menuOpen ? "bg-violet-100" : "bg-transparent",
               )}
             >
               {menuOpen ? (
@@ -435,22 +368,15 @@ export function AppSidebar({
         <div className="relative border-b border-white/10 px-5 py-5">
           <div className="pointer-events-none absolute -left-10 -top-14 size-36 rounded-full bg-violet-500/20 blur-3xl" />
 
-          <Link
-            href="/dashboard"
-            className="relative flex items-center gap-3"
-          >
+          <Link href="/dashboard" className="relative flex items-center gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-black text-white shadow-lg shadow-violet-950/40">
               QW
             </div>
 
             <div>
-              <p className="text-base font-bold text-white">
-                QW Conseil
-              </p>
+              <p className="text-base font-bold text-white">QW Conseils</p>
 
-              <p className="text-xs text-slate-400">
-                Espace conformité
-              </p>
+              <p className="text-xs text-slate-400">Espace conformité</p>
             </div>
           </Link>
         </div>
@@ -461,10 +387,7 @@ export function AppSidebar({
               Principal
             </p>
 
-            <NavSection
-              items={NAV}
-              pathname={pathname}
-            />
+            <NavSection items={NAV} pathname={pathname} />
           </section>
 
           <section>
@@ -472,10 +395,7 @@ export function AppSidebar({
               Conformité
             </p>
 
-            <NavSection
-              items={CONFORMITE_NAV}
-              pathname={pathname}
-            />
+            <NavSection items={CONFORMITE_NAV} pathname={pathname} />
           </section>
 
           {role === "ADMIN" && (
@@ -484,10 +404,7 @@ export function AppSidebar({
                 Administration
               </p>
 
-              <NavSection
-                items={ADMIN_NAV}
-                pathname={pathname}
-              />
+              <NavSection items={ADMIN_NAV} pathname={pathname} />
             </section>
           )}
         </nav>
@@ -507,9 +424,7 @@ export function AppSidebar({
                 <div className="mt-1 flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-emerald-400" />
 
-                  <p className="text-xs text-slate-400">
-                    Connecté
-                  </p>
+                  <p className="text-xs text-slate-400">Connecté</p>
                 </div>
               </div>
 
@@ -526,11 +441,7 @@ export function AppSidebar({
         </div>
       </aside>
 
-      <MobileNav
-        pathname={pathname}
-        role={role}
-        onLogout={onLogout}
-      />
+      <MobileNav pathname={pathname} role={role} onLogout={onLogout} />
     </>
   );
 }

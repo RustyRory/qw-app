@@ -1,136 +1,562 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { IconArrowLeft, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconChevronDown,
+  IconChevronRight,
+} from "@tabler/icons-react";
+import { apiFetch } from "@/lib/apiFetch";
+import { isCodePostalDrom } from "@/lib/sirene";
+import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
+import type {
+  Prospect,
+  QuestionnaireAcceptation,
+  StatutQuestionnaire,
+} from "@/types";
 
-type Reponse = "oui" | "non" | "sans_objet" | null;
-type Reponses = Record<string, Reponse | string>;
+// Suggestions déduites des données du prospect (SIRENE), appliquées uniquement
+// aux questions pas encore répondues — l'utilisateur reste libre de les corriger.
+function suggestionsFromProspect(prospect: Prospect): Reponses {
+  const suggestions: Reponses = {};
 
-type Question = { id: string; text: string; hasNA?: boolean };
-type Section = { id: string; num: number; title: string; questions: Question[] };
+  if (isCodePostalDrom(prospect.codePostal)) {
+    suggestions["D3_4"] = "oui";
+  }
 
-const SECTIONS: Section[] = [
+  const naf = prospect.codeNaf?.replace(/[^0-9A-Z]/gi, "").toUpperCase();
+  if (naf === "9492Z") {
+    suggestions["D1_3"] = "oui";
+  }
+
+  return suggestions;
+}
+
+type Reponses = Record<string, string>;
+type QuestionKind = "oui_non" | "seuil" | "pct";
+
+type Question = {
+  id: string;
+  text: string;
+  kind: QuestionKind;
+  seuilRM?: string;
+  seuilRE?: string;
+};
+
+type QuestionGroup = { label?: string; questions: Question[] };
+type QModule = {
+  id: string;
+  num: number;
+  title: string;
+  groups: QuestionGroup[];
+};
+
+const PCT_OPTIONS = [
+  { value: "0", label: "0 %" },
+  { value: "lt5", label: "Moins de 5 %" },
+  { value: "5-10", label: "De 5 à 10 %" },
+  { value: "11-20", label: "De 11 à 20 %" },
+  { value: "gt20", label: "Plus de 20 %" },
+];
+
+const MODULES: QModule[] = [
   {
-    id: "s1", num: 1, title: "Identification du client",
-    questions: [
-      { id: "q1_1", text: "L'identité du client a-t-elle été vérifiée sur pièce officielle en cours de validité ?" },
-      { id: "q1_2", text: "Le Kbis (PM) ou la CNI/passeport (PP) a-t-il été collecté et vérifié ?" },
-      { id: "q1_3", text: "Le représentant légal a-t-il été identifié et son pouvoir d'engager vérifié ?" },
-      { id: "q1_4", text: "Un justificatif de domicile de moins de 3 mois a-t-il été obtenu ?" },
-      { id: "q1_5", text: "Les statuts constitutifs (PM) ont-ils été collectés ?", hasNA: true },
-      { id: "q1_6", text: "Le registre des Bénéficiaires Effectifs (RBE) a-t-il été consulté ?", hasNA: true },
-      { id: "q1_7", text: "Les données RBE sont-elles cohérentes avec les déclarations du client ?", hasNA: true },
+    id: "d1",
+    num: 1,
+    title: "Caractéristiques des clients",
+    groups: [
+      {
+        questions: [
+          {
+            id: "D1_1",
+            kind: "oui_non",
+            text: "Association culturelle, cultuelle ou à vocation humanitaire recevant des fonds de l'étranger ou versant des fonds vers l'étranger ?",
+          },
+          {
+            id: "D1_2",
+            kind: "oui_non",
+            text: "Association dirigée par un élu ou un membre de sa famille et recevant des subventions publiques pour un montant annuel supérieur à 25 k€ de la collectivité dont il est élu ?",
+          },
+          { id: "D1_3", kind: "oui_non", text: "Parti politique ?" },
+          {
+            id: "D1_4",
+            kind: "oui_non",
+            text: "Société membre d'un groupe utilisant une superposition d'entités juridiques étrangères qui complexifie l'identification de l'origine des fonds ou du bénéficiaire effectif ?",
+          },
+          {
+            id: "D1_5",
+            kind: "oui_non",
+            text: "Fiducie ou société membre d'un groupe où l'on constate la présence d'une fiducie ou d'un trust ?",
+          },
+          {
+            id: "D1_6",
+            kind: "oui_non",
+            text: "Société ayant recours à des montages fiscaux complexes, transnationaux ou non, mis en place par la structure d'exercice professionnel ou non, que cette dernière ait fait une déclaration DAC6 ou non ?",
+          },
+          {
+            id: "D1_7",
+            kind: "oui_non",
+            text: "Société contrôlée par une personne physique qui contrôle par ailleurs d'autres sociétés (hors SCI) dont votre structure d'exercice professionnel n'est pas l'expert-comptable, qui n'ont pas de lien juridique avec la première, mais qui entretiennent avec elle des liens économiques ?",
+          },
+          {
+            id: "D1_8",
+            kind: "oui_non",
+            text: "Société à prépondérance immobilière détenue via une cascade de véhicules étrangers non régulés ou via un fonds d'investissement alternatif (au sens de la directive AIFM) ?",
+          },
+          {
+            id: "D1_9",
+            kind: "oui_non",
+            text: "Société ou personne physique détenant un/des biens immobiliers de prestige ou de luxe, notamment situés dans des emplacements connus pour être des zones où se concentrent les biens immobiliers de prestige ou de luxe (valeur vénale unitaire supérieure à 3 millions d'euros, hors immobilier professionnel) ?",
+          },
+          {
+            id: "D1_10",
+            kind: "oui_non",
+            text: "Société ayant son siège social dans une société de domiciliation autre que la structure d'exercice professionnel de l'expert-comptable ?",
+          },
+          {
+            id: "D1_11",
+            kind: "oui_non",
+            text: "Client, représentant légal ou bénéficiaire effectif ayant le statut de PPE (personne politiquement exposée) en France ou à l'étranger ?",
+          },
+        ],
+      },
     ],
   },
   {
-    id: "s2", num: 2, title: "Nature de la relation d'affaires",
-    questions: [
-      { id: "q2_1", text: "La nature et le périmètre de la mission sont-ils clairement définis ?" },
-      { id: "q2_2", text: "La mission est-elle dans le périmètre habituel et les compétences du cabinet ?" },
-      { id: "q2_3", text: "Les honoraires sont-ils cohérents avec la mission et la taille de l'entreprise ?" },
-      { id: "q2_4", text: "Le mode de règlement des honoraires est-il exclusivement par virement bancaire identifié ?" },
-      { id: "q2_5", text: "Y a-t-il un conflit d'intérêts potentiel avec un autre client du cabinet ?" },
-      { id: "q2_6", text: "Le client comprend-il et accepte-t-il les obligations LCB-FT de la relation ?" },
+    id: "d2",
+    num: 2,
+    title: "Activités et secteurs",
+    groups: [
+      {
+        questions: [
+          {
+            id: "D2_1",
+            kind: "seuil",
+            text: "Entreprise du bâtiment ou des travaux publics",
+            seuilRM: "CA HT entre 400 et 1 000 k€",
+            seuilRE: "CA HT supérieur à 1 000 k€",
+          },
+          {
+            id: "D2_2",
+            kind: "seuil",
+            text: "Marchand de biens immobiliers",
+            seuilRM: "Opérations entre 400 et 1 000 k€ HT",
+            seuilRE: "Opérations supérieures à 1 000 k€ HT",
+          },
+          {
+            id: "D2_3",
+            kind: "seuil",
+            text: "Promotion immobilière",
+            seuilRM: "Opérations entre 400 et 1 000 k€ HT",
+            seuilRE: "Opérations supérieures à 1 000 k€ HT",
+          },
+          {
+            id: "D2_4",
+            kind: "seuil",
+            text: "Vente de véhicules d'occasion",
+            seuilRM: "Marge de l'activité entre 25 et 50 % de la marge totale",
+            seuilRE: "Marge de l'activité supérieure à 50 % de la marge totale",
+          },
+          {
+            id: "D2_5",
+            kind: "seuil",
+            text: "Point de vente de la Française des jeux ou du PMU",
+            seuilRM: "Commissions « jeux » inférieures à 75 k€ HT",
+            seuilRE: "Commissions « jeux » supérieures à 75 k€ HT",
+          },
+          {
+            id: "D2_6",
+            kind: "seuil",
+            text: "Buraliste (hors point de vente FDJ ou PMU)",
+            seuilRM: "Commissions « tabac » inférieures à 75 k€ HT",
+            seuilRE: "Commissions « tabac » supérieures à 75 k€ HT",
+          },
+          {
+            id: "D2_7",
+            kind: "seuil",
+            text: "Casse automobile ou ferrailleur",
+            seuilRM: "CA HT inférieur à 200 k€",
+            seuilRE: "CA HT supérieur à 200 k€",
+          },
+          {
+            id: "D2_8",
+            kind: "seuil",
+            text: "Établissement de nuit (discothèque, bar…)",
+            seuilRM: "CA HT inférieur à 400 k€",
+            seuilRE: "CA HT supérieur à 400 k€",
+          },
+          {
+            id: "D2_9",
+            kind: "seuil",
+            text: "Restauration rapide hors chaînes nationales",
+            seuilRM: "CA HT inférieur à 200 k€",
+            seuilRE: "CA HT supérieur à 200 k€",
+          },
+          {
+            id: "D2_10",
+            kind: "seuil",
+            text: "Hôtel, café, restaurant (hors établissements de nuit, restauration rapide, FDJ/PMU, buralistes)",
+            seuilRM: "CA HT entre 400 et 1 000 k€",
+            seuilRE: "CA HT supérieur à 1 000 k€",
+          },
+          {
+            id: "D2_11",
+            kind: "seuil",
+            text: "Barber shop, nail bar (onglerie), salon de massage et tout commerce de cette nature",
+            seuilRM: "CA HT inférieur à 200 k€",
+            seuilRE: "CA HT supérieur à 200 k€",
+          },
+          {
+            id: "D2_12",
+            kind: "seuil",
+            text: "Antiquaire, brocanteur ou galerie d'art",
+            seuilRM: "CA HT inférieur à 200 k€",
+            seuilRE: "CA HT supérieur à 200 k€",
+          },
+          {
+            id: "D2_13",
+            kind: "oui_non",
+            text: "Commerce de jetons non fongibles (NFT) ?",
+          },
+          {
+            id: "D2_14",
+            kind: "seuil",
+            text: "Bijoutier ou commerce de métaux précieux ou de pierres précieuses",
+            seuilRM: "CA HT entre 400 et 1 000 k€",
+            seuilRE: "CA HT supérieur à 1 000 k€",
+          },
+          {
+            id: "D2_15",
+            kind: "seuil",
+            text: "Commerce d'objets de luxe (montres, sacs…)",
+            seuilRM: "CA HT entre 400 et 1 000 k€",
+            seuilRE: "CA HT supérieur à 1 000 k€",
+          },
+          {
+            id: "D2_16",
+            kind: "oui_non",
+            text: "Commerce et location de voiture de luxe ou de bateau ?",
+          },
+          {
+            id: "D2_17",
+            kind: "seuil",
+            text: "Pharmacie",
+            seuilRM: "CA HT entre 1 500 et 4 000 k€",
+            seuilRE: "CA HT supérieur à 4 000 k€",
+          },
+          {
+            id: "D2_18",
+            kind: "seuil",
+            text: "Autres commerces de proximité ou commerces de détail sur les marchés",
+            seuilRM: "CA HT entre 400 et 1 000 k€",
+            seuilRE: "CA HT supérieur à 1 000 k€",
+          },
+          {
+            id: "D2_19",
+            kind: "seuil",
+            text: "Entreprise exerçant une activité de e-commerce vers l'étranger ou encaissant ses créances à l'étranger (activité autre que celles listées ci-dessus)",
+            seuilRM: "CA HT inférieur à 200 k€",
+            seuilRE: "CA HT supérieur à 200 k€",
+          },
+          { id: "D2_20", kind: "oui_non", text: "Changeur manuel ?" },
+          {
+            id: "D2_21",
+            kind: "oui_non",
+            text: "Prestataire de transmission de fonds en espèces de ou vers l'étranger (prestataire de services de paiement, pas un client effectuant des paiements pour son activité) ?",
+          },
+          {
+            id: "D2_22",
+            kind: "oui_non",
+            text: "Prestations réalisées au profit ou sur des yachts ?",
+          },
+          {
+            id: "D2_23",
+            kind: "oui_non",
+            text: "Entreprise participant à des transferts dans le sport professionnel ?",
+          },
+          {
+            id: "D2_24",
+            kind: "seuil",
+            text: "Activité d'import/export ou de négoce international de matières premières",
+            seuilRM: "CA HT inférieur à 1 000 k€",
+            seuilRE: "CA HT supérieur à 1 000 k€",
+          },
+          {
+            id: "D2_25",
+            kind: "seuil",
+            text: "Service aux entreprises : gardiennage, sécurité, nettoyage",
+            seuilRM: "CA HT inférieur à 400 k€",
+            seuilRE: "CA HT supérieur à 400 k€",
+          },
+          {
+            id: "D2_26",
+            kind: "oui_non",
+            text: "Prestataire de services sur actifs numériques (plateforme crypto, service de conservation, échange…) sans agrément européen CASP/MiCA ?",
+          },
+          {
+            id: "D2_27",
+            kind: "oui_non",
+            text: "Mixeur/mélangeur de cryptoactifs ?",
+          },
+          {
+            id: "D2_28",
+            kind: "oui_non",
+            text: "Néo-banque (banque dont les services sont accessibles principalement en ligne) ?",
+          },
+        ],
+      },
     ],
   },
   {
-    id: "s3", num: 3, title: "Origine des fonds",
-    questions: [
-      { id: "q3_1", text: "L'origine des fonds affectés à la mission est-elle connue et documentée ?" },
-      { id: "q3_2", text: "La source du patrimoine du client a-t-elle été expliquée et vérifiée ?", hasNA: true },
-      { id: "q3_3", text: "Les flux financiers sont-ils cohérents avec l'activité déclarée ?" },
-      { id: "q3_4", text: "Des transactions en espèces importantes (>1 000 €) ont-elles été détectées ?" },
-      { id: "q3_5", text: "Des paiements proviennent-ils de tiers non identifiés ou de comptes tiers ?" },
+    id: "d3",
+    num: 3,
+    title: "Exposition aux risques / Localisation",
+    groups: [
+      {
+        label: "Pays GAFI / listés à haut risque par l'UE",
+        questions: [
+          {
+            id: "D3_1_1",
+            kind: "oui_non",
+            text: "Client, représentant légal ou bénéficiaire effectif domicilié dans un des pays listés (GAFI / UE à haut risque) ?",
+          },
+          {
+            id: "D3_1_2",
+            kind: "oui_non",
+            text: "Établissement, filiale ou société-mère du client localisé dans un des pays listés ?",
+          },
+          {
+            id: "D3_1_3",
+            kind: "oui_non",
+            text: "Transferts de fonds depuis ou vers un des pays listés pour des montants annuels supérieurs à 50 k€ ?",
+          },
+        ],
+      },
+      {
+        label: "Pays non coopératifs en matière fiscale",
+        questions: [
+          {
+            id: "D3_2_1",
+            kind: "oui_non",
+            text: "Client, représentant légal ou bénéficiaire effectif domicilié dans un des pays listés (liste noire UE / France) ?",
+          },
+          {
+            id: "D3_2_2",
+            kind: "oui_non",
+            text: "Établissement, filiale ou société-mère du client localisé dans un des pays listés ?",
+          },
+          {
+            id: "D3_2_3",
+            kind: "oui_non",
+            text: "Transferts de fonds depuis ou vers un des pays listés pour des montants annuels supérieurs à 50 k€ ?",
+          },
+        ],
+      },
+      {
+        label: "Sanctions financières ciblées",
+        questions: [
+          {
+            id: "D3_3_1",
+            kind: "oui_non",
+            text: "Services rendus à des entités ou personnes physiques figurant sur la liste de gel des avoirs, hormis accord spécifique de la Direction Générale du Trésor ?",
+          },
+          {
+            id: "D3_3_2",
+            kind: "oui_non",
+            text: "Missions de comptabilité, contrôle des comptes, conseil fiscal, conseil en gestion ou domiciliation exécutées depuis le 5 juillet 2022 au profit de personnes morales établies en Russie (ou leurs succursales en France), sauf détention par des entités UE ?",
+          },
+          {
+            id: "D3_3_3",
+            kind: "oui_non",
+            text: "Transferts de fonds identifiés à destination/provenance d'une entité ou personne figurant sur la liste de gel des avoirs liée à la Russie/Biélorussie/Ukraine ?",
+          },
+          {
+            id: "D3_3_4",
+            kind: "oui_non",
+            text: "Transferts de fonds identifiés à destination/provenance de Russie/Biélorussie/Ukraine ?",
+          },
+          {
+            id: "D3_3_5",
+            kind: "oui_non",
+            text: "Transactions identifiées effectuées via une banque russe, biélorusse ou ukrainienne ?",
+          },
+          {
+            id: "D3_3_6",
+            kind: "oui_non",
+            text: "Activité du client liée directement ou indirectement à la Russie, la Biélorussie ou l'Ukraine, figurant sur la liste des secteurs soumis à sanctions (Règlement UE 833/2014) ?",
+          },
+        ],
+      },
+      {
+        label: "Outre-mer",
+        questions: [
+          {
+            id: "D3_4",
+            kind: "oui_non",
+            text: "Le client a-t-il une activité économique significative dans un DROM ?",
+          },
+        ],
+      },
     ],
   },
   {
-    id: "s4", num: 4, title: "Zone géographique / pays à risque",
-    questions: [
-      { id: "q4_1", text: "Le siège social est-il situé en France ou dans un pays de l'UE ?" },
-      { id: "q4_2", text: "Les activités sont-elles exercées principalement en France ?" },
-      { id: "q4_3", text: "Le client a-t-il des filiales ou partenaires dans des pays listés par le GAFI ?" },
-      { id: "q4_4", text: "Le client effectue-t-il des transactions avec des pays sous embargo européen ou ONU ?" },
-      { id: "q4_5", text: "Des flux financiers importants sont-ils dirigés vers ou reçus de pays à risque ?" },
-      { id: "q4_6", text: "Le client opère-t-il dans des zones géographiques à forte criminalité financière ?" },
+    id: "d4",
+    num: 4,
+    title: "Nature de la mission",
+    groups: [
+      {
+        questions: [
+          {
+            id: "D4_1",
+            kind: "seuil",
+            text: "Accompagnement à la création ou à la reprise d'entreprise, financée directement ou indirectement par un bénéficiaire effectif au moyen d'apports personnels de fonds",
+            seuilRM: "Montant entre 30 et 100 k€",
+            seuilRE: "Montant supérieur à 100 k€",
+          },
+          {
+            id: "D4_2",
+            kind: "seuil",
+            text: "Accompagnement dans une prise de participation (autre que reprise d'entreprise) financée directement ou indirectement par un investisseur personne physique au moyen d'apports personnels de fonds",
+            seuilRM: "Montant entre 100 et 250 k€",
+            seuilRE: "Montant supérieur à 250 k€",
+          },
+          {
+            id: "D4_3",
+            kind: "seuil",
+            text: "Accompagnement dans des opérations de restructurations juridiques et/ou financières nécessitant l'injection directe ou indirecte de fonds personnels par un investisseur personne physique, bénéficiaire effectif ou non",
+            seuilRM: "Montant entre 100 et 250 k€",
+            seuilRE: "Montant supérieur à 250 k€",
+          },
+          {
+            id: "D4_4",
+            kind: "oui_non",
+            text: "Accompagnement d'une transmission universelle de patrimoine transnationale (autre que dans les cas susvisés) ?",
+          },
+          {
+            id: "D4_5",
+            kind: "oui_non",
+            text: "Paiement des dettes fournisseurs ?",
+          },
+          {
+            id: "D4_6",
+            kind: "oui_non",
+            text: "Recouvrement amiable des créances ?",
+          },
+          {
+            id: "D4_7",
+            kind: "seuil",
+            text: "Comptes de campagne ayant donné lieu à un financement public",
+            seuilRM: "Montant entre 5 et 20 k€",
+            seuilRE: "Montant supérieur à 20 k€",
+          },
+          {
+            id: "D4_8",
+            kind: "pct",
+            text: "Pourcentage des honoraires facturés au titre des missions de conseil ou montage fiscaux, de conseil en gestion de patrimoine et de conseil en recherche de financement ou de trésorerie",
+          },
+        ],
+      },
     ],
   },
   {
-    id: "s5", num: 5, title: "Activité et secteur",
-    questions: [
-      { id: "q5_1", text: "L'activité principale est-elle cohérente avec le code NAF/APE déclaré ?" },
-      { id: "q5_2", text: "Le secteur est-il sensible (crypto, jeux, immobilier, art, armement, change, forex) ?" },
-      { id: "q5_3", text: "Le chiffre d'affaires déclaré est-il cohérent avec l'effectif et la nature de l'activité ?" },
-      { id: "q5_4", text: "L'activité génère-t-elle des flux transfrontaliers importants sans justification économique claire ?" },
-      { id: "q5_5", text: "L'activité présente-t-elle des variations de CA difficiles à expliquer ?" },
-    ],
-  },
-  {
-    id: "s6", num: 6, title: "PPE et sanctions",
-    questions: [
-      { id: "q6_1", text: "Le client exerce-t-il ou a-t-il exercé des fonctions publiques importantes ?" },
-      { id: "q6_2", text: "Un membre de sa famille proche ou un associé est-il une PPE ?" },
-      { id: "q6_3", text: "Une autorisation hiérarchique a-t-elle été obtenue (si PPE) ?", hasNA: true },
-      { id: "q6_4", text: "Vérifié contre la liste de gel des avoirs (Direction du Trésor) ?" },
-      { id: "q6_5", text: "Vérifié contre les listes de sanctions européennes, OFAC et ONU ?" },
-      { id: "q6_6", text: "Les bénéficiaires effectifs ont-ils également été screenés ?" },
-      { id: "q6_7", text: "Le résultat global du screening est-il négatif (aucune correspondance) ?" },
-    ],
-  },
-  {
-    id: "s7", num: 7, title: "Structure de détention / UBO",
-    questions: [
-      { id: "q7_1", text: "Tous les bénéficiaires effectifs détenant >25% ont-ils été identifiés ?" },
-      { id: "q7_2", text: "Leur pièce d'identité a-t-elle été collectée ?" },
-      { id: "q7_3", text: "La chaîne de détention est-elle simple et transparente (moins de 3 niveaux de holding) ?" },
-      { id: "q7_4", text: "Existe-t-il des filiales ou participations dans des paradis fiscaux ou pays à risque ?" },
-      { id: "q7_5", text: "Des actions au porteur, trusts ou structures fiduciaires sont-ils impliqués ?" },
-      { id: "q7_6", text: "Des entités anonymes (fondations, fonds) figurent-elles dans la chaîne de propriété ?" },
-    ],
-  },
-  {
-    id: "s8", num: 8, title: "Mode de fonctionnement bancaire",
-    questions: [
-      { id: "q8_1", text: "Le client dispose-t-il d'un compte bancaire dans un établissement identifié en France ou dans l'UE ?" },
-      { id: "q8_2", text: "Le compte est-il domicilié dans un pays à risque ou non coopératif ?" },
-      { id: "q8_3", text: "Des mouvements inhabituels ont-ils été détectés ?" },
-      { id: "q8_4", text: "Des opérations avec des pays sous embargo ou des entités sanctionnées sont-elles connues ?" },
-    ],
-  },
-  {
-    id: "s9", num: 9, title: "Cohérence et vigilance",
-    questions: [
-      { id: "q9_1", text: "Les informations fournies sont-elles cohérentes entre elles (pas de contradictions) ?" },
-      { id: "q9_2", text: "Y a-t-il une urgence inhabituelle ou une pression temporelle anormale ?" },
-      { id: "q9_3", text: "Le client a-t-il manifesté des réticences à fournir les documents demandés ?" },
-      { id: "q9_4", text: "Des articles de presse négatifs ou des procédures pénales concernent-ils le client ?" },
-      { id: "q9_5", text: "Le client a-t-il été refusé ou résilié par un précédent cabinet d'expertise comptable ?" },
-      { id: "q9_6", text: "Des procédures collectives (redressement, liquidation) sont-elles en cours ?" },
-      { id: "q9_7", text: "Des dettes fiscales ou sociales significatives et non contestées sont-elles connues ?" },
+    id: "d5",
+    num: 5,
+    title: "Opérations particulières",
+    groups: [
+      {
+        questions: [
+          {
+            id: "D5_1",
+            kind: "oui_non",
+            text: "Prêts accordés par des non-associés n'ayant pas la qualité d'établissement financier, y compris les prêts familiaux ayant ou devant faire l'objet d'une déclaration n° 2062, d'un montant supérieur à 30 k€ ?",
+          },
+          {
+            id: "D5_2",
+            kind: "oui_non",
+            text: "Financements obtenus à des conditions apparemment anormales ?",
+          },
+          {
+            id: "D5_3",
+            kind: "oui_non",
+            text: "Société acquise ou créée domiciliée dans un pays hors UE sans justification économique ?",
+          },
+          {
+            id: "D5_4",
+            kind: "oui_non",
+            text: "Financements pour des montants supérieurs à 100 k€ obtenus via des plateformes de financement participatif ?",
+          },
+          {
+            id: "D5_5",
+            kind: "oui_non",
+            text: "Opérations en cryptoactifs pour un montant annuel supérieur à 50 k€ ?",
+          },
+          {
+            id: "D5_6",
+            kind: "oui_non",
+            text: "Détention d'un portefeuille de cryptoactifs (wallet) auprès d'un PSAN ?",
+          },
+          {
+            id: "D5_7",
+            kind: "oui_non",
+            text: "Acquisitions et cessions de NFT pour un montant annuel supérieur à 50 k€ ?",
+          },
+          {
+            id: "D5_8",
+            kind: "oui_non",
+            text: "Cession de terres viticoles/châteaux/négociants en vins ou spiritueux à des sociétés ou ressortissants de pays où des fortunes importantes et récentes se sont constituées à la suite de changements de politique économique ?",
+          },
+        ],
+      },
     ],
   },
 ];
 
-function RadioGroup({ qid, value, onChange, hasNA = false }: {
-  qid: string; value: Reponse; onChange: (id: string, val: Reponse) => void; hasNA?: boolean;
+const ALL_QUESTIONS = MODULES.flatMap((m) =>
+  m.groups.flatMap((g) => g.questions),
+);
+
+const STATUT_LABEL: Record<
+  StatutQuestionnaire,
+  { label: string; color: string; dot: string }
+> = {
+  EN_COURS: { label: "En cours", color: "text-amber-700", dot: "bg-amber-500" },
+  VALIDE: { label: "Validé", color: "text-emerald-700", dot: "bg-emerald-500" },
+  REFUSE: { label: "Refusé", color: "text-red-700", dot: "bg-red-500" },
+};
+
+function OuiNonGroup({
+  qid,
+  value,
+  onChange,
+  disabled,
+}: {
+  qid: string;
+  value: string | undefined;
+  onChange: (id: string, val: string) => void;
+  disabled?: boolean;
 }) {
   const options = [
-    { val: "oui" as Reponse, label: "Oui" },
-    { val: "non" as Reponse, label: "Non" },
-    ...(hasNA ? [{ val: "sans_objet" as Reponse, label: "Sans objet" }] : []),
+    { val: "oui", label: "Oui" },
+    { val: "non", label: "Non" },
   ];
   return (
     <div className="flex items-center gap-4 mt-1.5">
       {options.map(({ val, label }) => (
-        <label key={val} className="flex items-center gap-1.5 cursor-pointer group">
+        <label
+          key={val}
+          className={`flex items-center gap-1.5 group ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+        >
           <div
-            onClick={() => onChange(qid, value === val ? null : val)}
-            className={`size-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all
+            onClick={() => !disabled && onChange(qid, value === val ? "" : val)}
+            className={`size-4 rounded-full border-2 flex items-center justify-center transition-all
               ${value === val ? "border-slate-800 bg-slate-800" : "border-slate-400 bg-white group-hover:border-slate-600"}`}
           >
-            {value === val && <div className="size-1.5 rounded-full bg-white" />}
+            {value === val && (
+              <div className="size-1.5 rounded-full bg-white" />
+            )}
           </div>
           <span className="text-sm text-slate-700">{label}</span>
         </label>
@@ -139,13 +565,146 @@ function RadioGroup({ qid, value, onChange, hasNA = false }: {
   );
 }
 
-function SectionPanel({ section, reponses, onChange, isOpen, onToggle }: {
-  section: Section; reponses: Reponses;
-  onChange: (id: string, val: Reponse) => void;
-  isOpen: boolean; onToggle: () => void;
+function SeuilGroup({
+  qid,
+  value,
+  onChange,
+  disabled,
+}: {
+  qid: string;
+  value: string | undefined;
+  onChange: (id: string, val: string) => void;
+  disabled?: boolean;
 }) {
-  const answered = section.questions.filter((q) => reponses[q.id] != null).length;
-  const total = section.questions.length;
+  const options = [
+    { val: "non", label: "Non", ring: "border-slate-800 bg-slate-800" },
+    {
+      val: "risque_moyen",
+      label: "Risque moyen",
+      ring: "border-amber-500 bg-amber-500",
+    },
+    {
+      val: "risque_eleve",
+      label: "Risque élevé",
+      ring: "border-red-600 bg-red-600",
+    },
+  ];
+  return (
+    <div className="flex items-center gap-4 mt-1.5 flex-wrap">
+      {options.map(({ val, label, ring }) => (
+        <label
+          key={val}
+          className={`flex items-center gap-1.5 group ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+        >
+          <div
+            onClick={() => !disabled && onChange(qid, value === val ? "" : val)}
+            className={`size-4 rounded-full border-2 flex items-center justify-center transition-all
+              ${value === val ? ring : "border-slate-400 bg-white group-hover:border-slate-600"}`}
+          >
+            {value === val && (
+              <div className="size-1.5 rounded-full bg-white" />
+            )}
+          </div>
+          <span className="text-sm text-slate-700">{label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function PctSelect({
+  qid,
+  value,
+  onChange,
+  disabled,
+}: {
+  qid: string;
+  value: string | undefined;
+  onChange: (id: string, val: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value ?? ""}
+      onChange={(e) => onChange(qid, e.target.value)}
+      disabled={disabled}
+      className="mt-1.5 w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
+    >
+      <option value="">Sélectionner…</option>
+      {PCT_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function QuestionRow({
+  question,
+  value,
+  onChange,
+  disabled,
+}: {
+  question: Question;
+  value: string | undefined;
+  onChange: (id: string, val: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-sm text-slate-800">{question.text}</p>
+      {question.kind === "seuil" && (
+        <p className="mt-0.5 text-xs text-slate-400">
+          RM : {question.seuilRM} · RE : {question.seuilRE}
+        </p>
+      )}
+      {question.kind === "oui_non" && (
+        <OuiNonGroup
+          qid={question.id}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
+      {question.kind === "seuil" && (
+        <SeuilGroup
+          qid={question.id}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
+      {question.kind === "pct" && (
+        <PctSelect
+          qid={question.id}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
+    </div>
+  );
+}
+
+function ModulePanel({
+  module,
+  reponses,
+  onChange,
+  isOpen,
+  onToggle,
+  disabled,
+}: {
+  module: QModule;
+  reponses: Reponses;
+  onChange: (id: string, val: string) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
+  const questions = module.groups.flatMap((g) => g.questions);
+  const answered = questions.filter((q) => !!reponses[q.id]).length;
+  const total = questions.length;
   const complete = answered === total;
 
   return (
@@ -156,33 +715,43 @@ function SectionPanel({ section, reponses, onChange, isOpen, onToggle }: {
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors text-left"
       >
         <span className="text-sm font-medium text-slate-800">
-          {section.num}. {section.title}
+          {module.num}. {module.title}
         </span>
         <div className="flex items-center gap-2 shrink-0">
-          {complete && <span className="text-xs text-emerald-600 font-semibold">✓</span>}
-          {answered > 0 && !complete && (
-            <span className="text-xs text-amber-600 font-medium">{answered}/{total}</span>
+          {complete && (
+            <span className="text-xs text-emerald-600 font-semibold">✓</span>
           )}
-          {isOpen
-            ? <IconChevronDown className="size-4 text-slate-400" />
-            : <IconChevronRight className="size-4 text-slate-400" />
-          }
+          {answered > 0 && !complete && (
+            <span className="text-xs text-amber-600 font-medium">
+              {answered}/{total}
+            </span>
+          )}
+          {isOpen ? (
+            <IconChevronDown className="size-4 text-slate-400" />
+          ) : (
+            <IconChevronRight className="size-4 text-slate-400" />
+          )}
         </div>
       </button>
 
       {isOpen && (
-        <div className="border-t border-slate-100 px-5 py-4 space-y-5">
-          {section.questions.map((q, i) => (
-            <div key={q.id}>
-              <p className="text-sm text-slate-800">
-                Question {section.num}.{i + 1} — {q.text}
-              </p>
-              <RadioGroup
-                qid={q.id}
-                value={(reponses[q.id] as Reponse) ?? null}
-                onChange={onChange}
-                hasNA={q.hasNA}
-              />
+        <div className="border-t border-slate-100 px-5 py-4 space-y-6">
+          {module.groups.map((group, gi) => (
+            <div key={gi} className="space-y-5">
+              {group.label && (
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  {group.label}
+                </p>
+              )}
+              {group.questions.map((q) => (
+                <QuestionRow
+                  key={q.id}
+                  question={q}
+                  value={reponses[q.id]}
+                  onChange={onChange}
+                  disabled={disabled}
+                />
+              ))}
             </div>
           ))}
         </div>
@@ -193,47 +762,165 @@ function SectionPanel({ section, reponses, onChange, isOpen, onToggle }: {
 
 export default function QuestionnairePage() {
   const { id } = useParams<{ id: string }>();
+  const { can } = useRole();
+
+  const [questionnaire, setQuestionnaire] =
+    useState<QuestionnaireAcceptation | null>(null);
   const [reponses, setReponses] = useState<Reponses>({});
-  const [openSection, setOpenSection] = useState<string | null>("s1");
+  const [openModule, setOpenModule] = useState<string | null>("d1");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deciding, setDeciding] = useState(false);
 
-  const totalQuestions = SECTIONS.reduce((acc, s) => acc + s.questions.length, 0);
-  const answeredCount = SECTIONS.reduce(
-    (acc, s) => acc + s.questions.filter((q) => reponses[q.id] != null).length, 0
-  );
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      apiFetch<QuestionnaireAcceptation | null>(
+        `/questionnaires/prospect/${id}`,
+      ),
+      apiFetch<Prospect>(`/prospects/${id}`),
+    ])
+      .then(([q, prospect]) => {
+        setQuestionnaire(q);
+        const existing = (q?.reponses as Reponses | undefined) ?? {};
+        // Les suggestions ne comblent que les questions pas encore répondues.
+        setReponses({ ...suggestionsFromProspect(prospect), ...existing });
+      })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  const statut = questionnaire?.statut ?? "EN_COURS";
+  const editable = statut === "EN_COURS";
+
+  const totalQuestions = ALL_QUESTIONS.length;
+  const answeredCount = ALL_QUESTIONS.filter((q) => !!reponses[q.id]).length;
   const progressPct = Math.round((answeredCount / totalQuestions) * 100);
 
-  function handleChange(qid: string, val: Reponse | string) {
-    setReponses((prev) => ({ ...prev, [qid]: val as Reponse }));
+  function handleChange(qid: string, val: string) {
+    setReponses((prev) => ({ ...prev, [qid]: val }));
   }
 
   async function handleSave() {
     setSaving(true);
-    // TODO: brancher POST /api/questionnaires quand backend prêt
-    await new Promise((r) => setTimeout(r, 600));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setError(null);
+    try {
+      if (questionnaire) {
+        const updated = await apiFetch<QuestionnaireAcceptation>(
+          `/questionnaires/${questionnaire.id}/reponses`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ reponses }),
+          },
+        );
+        setQuestionnaire(updated);
+      } else {
+        const created = await apiFetch<QuestionnaireAcceptation>(
+          "/questionnaires",
+          {
+            method: "POST",
+            body: JSON.stringify({ prospectId: id, reponses }),
+          },
+        );
+        setQuestionnaire(created);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleValider() {
+    if (!questionnaire) return;
+    setDeciding(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<QuestionnaireAcceptation>(
+        `/questionnaires/${questionnaire.id}/valider`,
+        {
+          method: "PATCH",
+        },
+      );
+      setQuestionnaire(updated);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeciding(false);
+    }
+  }
+
+  async function handleRefuser() {
+    if (!questionnaire) return;
+    const motif = reponses["decision_commentaire"]?.trim();
+    if (!motif) {
+      setError(
+        "Merci de renseigner un commentaire expliquant le refus avant de refuser le dossier.",
+      );
+      return;
+    }
+    setDeciding(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<QuestionnaireAcceptation>(
+        `/questionnaires/${questionnaire.id}/refuser`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ motif }),
+        },
+      );
+      setQuestionnaire(updated);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeciding(false);
+    }
   }
 
   function handleAnnuler() {
-    if (confirm("Abandonner les modifications ?")) setReponses({});
+    if (confirm("Abandonner les modifications non enregistrées ?")) {
+      setReponses((questionnaire?.reponses as Reponses | undefined) ?? {});
+    }
   }
+
+  const statutInfo = STATUT_LABEL[statut];
 
   return (
     <div className="min-h-full bg-slate-50">
-
       {/* Header */}
       <div className="bg-white border-b px-5 py-4 md:px-8 sticky top-0 md:top-0 z-10">
         <div className="flex items-center gap-3 mb-2">
-          <Link href={`/dashboard/prospects/${id}`} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <Link
+            href={`/dashboard/prospects/${id}`}
+            className="text-slate-400 hover:text-slate-600 transition-colors"
+          >
             <IconArrowLeft className="size-5" />
           </Link>
-          <div className="min-w-0">
-            <h1 className="text-base font-bold text-slate-900">Questionnaire d&apos;acceptation (LAB)</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold text-slate-900">
+                Questionnaire LAB — Exposition aux risques
+              </h1>
+              <span className="flex items-center gap-1.5">
+                <span className={`size-2 rounded-full ${statutInfo.dot}`} />
+                <span className={`text-xs font-semibold ${statutInfo.color}`}>
+                  {statutInfo.label}
+                </span>
+              </span>
+            </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              9 sections — {totalQuestions} questions au total (+ questions conditionnelles PPE / PM-PP)
+              5 modules — {totalQuestions} questions (D1 Caractéristiques, D2
+              Activités et secteurs, D3 Exposition aux risques/Localisation, D4
+              Nature de la mission, D5 Opérations particulières)
             </p>
           </div>
         </div>
@@ -242,8 +929,12 @@ export default function QuestionnairePage() {
         {answeredCount > 0 && (
           <div className="ml-8">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-slate-500">{answeredCount}/{totalQuestions} questions</p>
-              <p className="text-xs font-semibold text-slate-600">{progressPct}%</p>
+              <p className="text-xs text-slate-500">
+                {answeredCount}/{totalQuestions} questions
+              </p>
+              <p className="text-xs font-semibold text-slate-600">
+                {progressPct}%
+              </p>
             </div>
             <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
               <div
@@ -255,121 +946,149 @@ export default function QuestionnairePage() {
         )}
       </div>
 
+      {error && (
+        <div className="mx-4 mt-4 md:mx-8 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       {saved && (
         <div className="mx-4 mt-4 md:mx-8 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
           ✓ Brouillon enregistré
         </div>
       )}
-
-      {/* Sections — 1 colonne mobile, 2 colonnes desktop */}
-      <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {SECTIONS.map((section) => (
-            <SectionPanel
-              key={section.id}
-              section={section}
-              reponses={reponses}
-              onChange={(id, val) => handleChange(id, val as Reponse)}
-              isOpen={openSection === section.id}
-              onToggle={() => setOpenSection((prev) => prev === section.id ? null : section.id)}
-            />
-          ))}
+      {!editable && (
+        <div className="mx-4 mt-4 md:mx-8 rounded-xl bg-slate-100 border border-slate-200 p-3 text-sm text-slate-600">
+          Ce questionnaire est {statutInfo.label.toLowerCase()} et n&apos;est
+          plus modifiable.
         </div>
+      )}
 
-        {/* Section 10 — Décision finale */}
-        <div className="rounded-xl border border-red-200 bg-red-50 overflow-hidden">
-          <div className="px-5 py-4 space-y-5">
-            <p className="text-xs font-bold uppercase tracking-widest text-red-600">
-              Section 10 — Décision finale (débloquée après sections 1-9)
-            </p>
-
-            {/* Éléments bloquants */}
-            <div>
-              <p className="text-sm text-slate-700 mb-2">Éléments bloquants irréductibles ?</p>
-              <div className="flex items-center gap-6">
-                {(["oui", "non"] as Reponse[]).map((val) => (
-                  <label key={val} className="flex items-center gap-1.5 cursor-pointer group">
-                    <div
-                      onClick={() => handleChange("s10_bloquants", reponses["s10_bloquants"] === val ? null : val)}
-                      className={`size-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all
-                        ${reponses["s10_bloquants"] === val ? "border-slate-800 bg-slate-800" : "border-slate-400 bg-white group-hover:border-slate-600"}`}
-                    >
-                      {reponses["s10_bloquants"] === val && <div className="size-1.5 rounded-full bg-white" />}
-                    </div>
-                    <span className="text-sm text-slate-700 capitalize">{val === "oui" ? "Oui" : "Non"}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Niveau diligences */}
-            <div>
-              <p className="text-sm text-slate-700 mb-2">Niveau de diligences</p>
-              <select
-                value={(reponses["s10_diligences"] as string) ?? "standard"}
-                onChange={(e) => handleChange("s10_diligences", e.target.value)}
-                className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                <option value="standard">Standard</option>
-                <option value="renforcees">Renforcées</option>
-                <option value="renforcees_validation">Renforcées + validation hiérarchique</option>
-              </select>
-            </div>
-
-            {/* Commentaire */}
-            <div>
-              <p className="text-sm text-slate-700 mb-2">Commentaire libre</p>
-              <textarea
-                value={(reponses["s10_commentaire"] as string) ?? ""}
-                onChange={(e) => handleChange("s10_commentaire", e.target.value)}
-                rows={4}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="size-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        </div>
+      ) : (
+        <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {MODULES.map((module) => (
+              <ModulePanel
+                key={module.id}
+                module={module}
+                reponses={reponses}
+                onChange={handleChange}
+                isOpen={openModule === module.id}
+                onToggle={() =>
+                  setOpenModule((prev) =>
+                    prev === module.id ? null : module.id,
+                  )
+                }
+                disabled={!editable}
               />
-            </div>
+            ))}
+          </div>
 
-            {/* Décision */}
-            <div>
-              <p className="text-sm text-slate-700 mb-2">Décision</p>
-              <div className="flex items-center gap-6 flex-wrap">
-                {[
-                  { val: "accepter", label: "Accepter" },
-                  { val: "refuser",  label: "Refuser" },
-                  { val: "attente",  label: "Mettre En Attente" },
-                ].map(({ val, label }) => (
-                  <label key={val} className="flex items-center gap-1.5 cursor-pointer group">
-                    <div
-                      onClick={() => handleChange("s10_decision", reponses["s10_decision"] === val ? null : val)}
-                      className={`size-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all
-                        ${reponses["s10_decision"] === val ? "border-violet-600 bg-violet-600" : "border-slate-400 bg-white group-hover:border-slate-600"}`}
-                    >
-                      {reponses["s10_decision"] === val && <div className="size-1.5 rounded-full bg-white" />}
-                    </div>
-                    <span className="text-sm text-slate-700 font-medium">{label}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-amber-600">
-                ⚠️ Si risque ÉLEVÉ : contresignature de l&apos;expert-comptable requise
+          {/* Décision */}
+          <div className="rounded-xl border border-red-200 bg-red-50 overflow-hidden">
+            <div className="px-5 py-4 space-y-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-red-600">
+                Décision d&apos;acceptation
               </p>
-            </div>
 
-            {/* Boutons */}
-            <div className="flex items-center gap-3 pt-1">
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold"
-              >
-                {saving ? "Enregistrement…" : "Enregistrer"}
-              </Button>
-              <Button type="button" variant="outline" onClick={handleAnnuler} className="rounded-lg border-slate-200">
-                Annuler
-              </Button>
+              {/* Niveau diligences */}
+              <div>
+                <p className="text-sm text-slate-700 mb-2">
+                  Niveau de diligences
+                </p>
+                <select
+                  value={reponses["decision_diligences"] ?? "standard"}
+                  onChange={(e) =>
+                    handleChange("decision_diligences", e.target.value)
+                  }
+                  disabled={!editable}
+                  className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="renforcees">Renforcées</option>
+                  <option value="renforcees_validation">
+                    Renforcées + validation hiérarchique
+                  </option>
+                </select>
+              </div>
+
+              {/* Commentaire */}
+              <div>
+                <p className="text-sm text-slate-700 mb-2">
+                  Commentaire {"/"} motif (obligatoire en cas de refus)
+                </p>
+                <textarea
+                  value={reponses["decision_commentaire"] ?? ""}
+                  onChange={(e) =>
+                    handleChange("decision_commentaire", e.target.value)
+                  }
+                  rows={4}
+                  disabled={!editable}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none disabled:opacity-60"
+                />
+              </div>
+
+              <p className="text-xs text-amber-600">
+                ⚠️ Si un risque élevé a été identifié dans le questionnaire :
+                contresignature de l&apos;expert-comptable requise
+              </p>
+
+              {/* Boutons */}
+              <div className="flex items-center gap-3 pt-1 flex-wrap">
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !editable}
+                  className="rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold"
+                >
+                  {saving ? "Enregistrement…" : "Enregistrer le brouillon"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAnnuler}
+                  disabled={!editable}
+                  className="rounded-lg border-slate-200"
+                >
+                  Annuler
+                </Button>
+
+                {can.validerQuestionnaire && questionnaire && editable && (
+                  <>
+                    <span className="text-slate-300">|</span>
+                    <Button
+                      type="button"
+                      onClick={handleValider}
+                      disabled={deciding}
+                      className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                    >
+                      Valider ✓
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleRefuser}
+                      disabled={deciding}
+                      variant="outline"
+                      className="rounded-lg border-red-300 text-red-600 hover:bg-red-50"
+                    >
+                      Refuser ✗
+                    </Button>
+                  </>
+                )}
+                {can.validerQuestionnaire && !questionnaire && (
+                  <span className="text-xs text-slate-400">
+                    Enregistrez un premier brouillon pour pouvoir valider ou
+                    refuser.
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

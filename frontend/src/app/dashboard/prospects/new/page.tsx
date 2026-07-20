@@ -3,29 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  IconArrowLeft,
-  IconLoader2,
-  IconSearch,
-} from "@tabler/icons-react";
+import { IconArrowLeft, IconLoader2, IconSearch } from "@tabler/icons-react";
 
 import { apiFetch } from "@/lib/apiFetch";
+import { fetchSirene, type SireneData } from "@/lib/sirene";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import type { Prospect, TypeEntite } from "@/types";
-
-interface SireneData {
-  nom: string;
-  adresse?: string;
-  ville?: string;
-  codePostal?: string;
-  codeNaf?: string;
-}
 
 export default function NewProspectPage() {
   const router = useRouter();
@@ -38,63 +23,27 @@ export default function NewProspectPage() {
   const [sireneError, setSireneError] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<SireneData | null>(null);
 
-  const [typeEntite, setTypeEntite] =
-    useState<TypeEntite>("PERSONNE_MORALE");
+  const [typeEntite, setTypeEntite] = useState<TypeEntite>("PERSONNE_MORALE");
 
   async function handleSirene() {
-    const clean = siret.replace(/\s/g, "");
-
-    if (clean.length !== 14) {
-      setSireneError("Le SIRET doit contenir 14 chiffres");
-      return;
-    }
-
     setSireneLoading(true);
     setSireneError(null);
 
     try {
-      const response = await fetch(
-        `https://api.insee.fr/entreprises/sirene/V3.11/siret/${clean}`,
-        {
-          headers: {
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error();
-      }
-
-      const data = await response.json();
-      const unite = data.etablissement?.uniteLegale;
-      const adresse = data.etablissement?.adresseEtablissement;
-
-      setPrefill({
-        nom:
-          unite?.denominationUniteLegale ||
-          `${unite?.prenomUsuelUniteLegale ?? ""} ${
-            unite?.nomUniteLegale ?? ""
-          }`.trim(),
-        adresse: `${adresse?.numeroVoieEtablissement ?? ""} ${
-          adresse?.typeVoieEtablissement ?? ""
-        } ${adresse?.libelleVoieEtablissement ?? ""}`.trim(),
-        ville: adresse?.libelleCommuneEtablissement,
-        codePostal: adresse?.codePostalEtablissement,
-        codeNaf: unite?.activitePrincipaleUniteLegale,
-      });
-    } catch {
+      const data = await fetchSirene(siret);
+      setPrefill(data);
+    } catch (err) {
       setSireneError(
-        "SIRET introuvable ou service SIRENE indisponible",
+        err instanceof Error
+          ? err.message
+          : "SIRET introuvable ou service SIRENE indisponible",
       );
     } finally {
       setSireneLoading(false);
     }
   }
 
-  async function handleSubmit(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setLoading(true);
@@ -105,18 +54,15 @@ export default function NewProspectPage() {
       nom: form.get("nom") as string,
       typeEntite,
       email: (form.get("email") as string) || undefined,
-      telephone:
-        (form.get("telephone") as string) || undefined,
+      telephone: (form.get("telephone") as string) || undefined,
       siret: siret.replace(/\s/g, "") || undefined,
-      activite:
-        (form.get("activite") as string) || undefined,
-      codeNaf:
-        (form.get("codeNaf") as string) || undefined,
-      adresse:
-        (form.get("adresse") as string) || undefined,
+      formeJuridique: (form.get("formeJuridique") as string) || undefined,
+      representantLegal: (form.get("representantLegal") as string) || undefined,
+      activite: (form.get("activite") as string) || undefined,
+      codeNaf: (form.get("codeNaf") as string) || undefined,
+      adresse: (form.get("adresse") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
-      codePostal:
-        (form.get("codePostal") as string) || undefined,
+      codePostal: (form.get("codePostal") as string) || undefined,
       pays: (form.get("pays") as string) || "France",
       notes: (form.get("notes") as string) || undefined,
     };
@@ -130,9 +76,7 @@ export default function NewProspectPage() {
       router.push(`/dashboard/prospects/${prospect.id}`);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de créer le prospect.",
+        err instanceof Error ? err.message : "Impossible de créer le prospect.",
       );
       setLoading(false);
     }
@@ -180,9 +124,7 @@ export default function NewProspectPage() {
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={siret}
-                  onChange={(event) =>
-                    setSiret(event.target.value)
-                  }
+                  onChange={(event) => setSiret(event.target.value)}
                   placeholder="12345678900012"
                   maxLength={17}
                   inputMode="numeric"
@@ -206,9 +148,7 @@ export default function NewProspectPage() {
               </div>
 
               {sireneError && (
-                <p className="text-xs text-red-600">
-                  {sireneError}
-                </p>
+                <p className="text-xs text-red-600">{sireneError}</p>
               )}
 
               {prefill && (
@@ -229,9 +169,7 @@ export default function NewProspectPage() {
             <div className="space-y-4 px-5 py-4">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="nom">
-                    Raison sociale / Nom *
-                  </FieldLabel>
+                  <FieldLabel htmlFor="nom">Raison sociale / Nom *</FieldLabel>
                   <Input
                     id="nom"
                     name="nom"
@@ -251,10 +189,7 @@ export default function NewProspectPage() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
                   {(
-                    [
-                      "PERSONNE_MORALE",
-                      "PERSONNE_PHYSIQUE",
-                    ] as TypeEntite[]
+                    ["PERSONNE_MORALE", "PERSONNE_PHYSIQUE"] as TypeEntite[]
                   ).map((type) => (
                     <label
                       key={type}
@@ -278,6 +213,38 @@ export default function NewProspectPage() {
                   ))}
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="formeJuridique">
+                    Forme juridique
+                  </FieldLabel>
+                  <Input
+                    id="formeJuridique"
+                    name="formeJuridique"
+                    key={prefill?.formeJuridique ?? "empty-forme-juridique"}
+                    defaultValue={prefill?.formeJuridique ?? ""}
+                    placeholder="SAS, SARL…"
+                    className="rounded-xl"
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="representantLegal">
+                    Représentant légal
+                  </FieldLabel>
+                  <Input
+                    id="representantLegal"
+                    name="representantLegal"
+                    key={
+                      prefill?.representantLegal ?? "empty-representant-legal"
+                    }
+                    defaultValue={prefill?.representantLegal ?? ""}
+                    placeholder="Jean Dupont"
+                    className="rounded-xl"
+                  />
+                </Field>
+              </div>
             </div>
           </section>
 
@@ -292,9 +259,7 @@ export default function NewProspectPage() {
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="email">
-                      Email
-                    </FieldLabel>
+                    <FieldLabel htmlFor="email">Email</FieldLabel>
                     <Input
                       id="email"
                       name="email"
@@ -305,9 +270,7 @@ export default function NewProspectPage() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="telephone">
-                      Téléphone
-                    </FieldLabel>
+                    <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
                     <Input
                       id="telephone"
                       name="telephone"
@@ -344,9 +307,7 @@ export default function NewProspectPage() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="codeNaf">
-                      Code NAF
-                    </FieldLabel>
+                    <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
                     <Input
                       id="codeNaf"
                       name="codeNaf"
@@ -371,9 +332,7 @@ export default function NewProspectPage() {
             <div className="px-5 py-4">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="adresse">
-                    Adresse
-                  </FieldLabel>
+                  <FieldLabel htmlFor="adresse">Adresse</FieldLabel>
                   <Input
                     id="adresse"
                     name="adresse"
@@ -386,9 +345,7 @@ export default function NewProspectPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="ville">
-                      Ville
-                    </FieldLabel>
+                    <FieldLabel htmlFor="ville">Ville</FieldLabel>
                     <Input
                       id="ville"
                       name="ville"
@@ -400,16 +357,11 @@ export default function NewProspectPage() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="codePostal">
-                      Code postal
-                    </FieldLabel>
+                    <FieldLabel htmlFor="codePostal">Code postal</FieldLabel>
                     <Input
                       id="codePostal"
                       name="codePostal"
-                      key={
-                        prefill?.codePostal ??
-                        "empty-postal-code"
-                      }
+                      key={prefill?.codePostal ?? "empty-postal-code"}
                       defaultValue={prefill?.codePostal ?? ""}
                       placeholder="75001"
                       className="rounded-xl"
@@ -418,9 +370,7 @@ export default function NewProspectPage() {
                 </div>
 
                 <Field>
-                  <FieldLabel htmlFor="pays">
-                    Pays
-                  </FieldLabel>
+                  <FieldLabel htmlFor="pays">Pays</FieldLabel>
                   <select
                     id="pays"
                     name="pays"
@@ -482,9 +432,7 @@ export default function NewProspectPage() {
               disabled={loading}
               className="rounded-xl bg-slate-900 font-semibold text-white hover:bg-slate-800"
             >
-              {loading
-                ? "Création…"
-                : "Créer le prospect"}
+              {loading ? "Création…" : "Créer le prospect"}
             </Button>
           </div>
         </form>
