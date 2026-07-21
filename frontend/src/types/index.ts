@@ -132,6 +132,7 @@ export interface Client {
   codeNaf?: string | null;
   activitePrincipale?: string | null;
   dateCreationEntreprise?: string | null;
+  sireneUpdatedAt?: string | null;
   adresseSiege?: string | null;
   ville?: string | null;
   codePostal?: string | null;
@@ -150,6 +151,9 @@ export interface Client {
   kycCompletedAt?: string | null;
   kycValidatedBy?: User | null;
   createdBy?: User;
+  // Prospect d'origine si ce client a été créé par conversion — permet de
+  // retrouver le questionnaire d'acceptation rempli avant l'entrée en relation.
+  prospect?: { id: string; ref: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -188,16 +192,24 @@ export interface Document {
   createdAt: string;
 }
 
+export interface AutoScoreCritere {
+  code: string;
+  label: string;
+  poids: number;
+  declenche: boolean;
+}
+
+export interface AutoScoreReponses {
+  criteres: AutoScoreCritere[];
+}
+
 export interface ScoreRisque {
   id: string;
   score: number;
   niveau: NiveauRisque;
-  reponses: {
-    clientCaracteristiques: number;
-    activiteSecteur: number;
-    zoneGeographique: number;
-    typeMission: number;
-  };
+  // Calculé automatiquement, client comme prospect (voir ScoringService
+  // recalculateForClient/recalculateForProspect côté backend) — /100.
+  reponses: AutoScoreReponses;
   calculatedBy?: User;
   createdAt: string;
 }

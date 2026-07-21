@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Like, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Prospect } from './entities/prospect.entity';
 import { Client } from '../clients/entities/client.entity';
 import { Role, StatutClient, StatutKanban } from '../common/enums';
@@ -12,6 +12,8 @@ import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
+import { generateNextRef } from '../common/generate-ref';
+import { ScoringService } from '../scoring/scoring.service';
 
 type AuthUser = { id: string; role: Role };
 
@@ -23,17 +25,13 @@ export class ProspectsService {
     @InjectRepository(AuditLog)
     private readonly auditRepo: Repository<AuditLog>,
     private readonly dataSource: DataSource,
+    private readonly scoringService: ScoringService,
   ) {}
 
   async create(dto: CreateProspectDto, authUser: AuthUser): Promise<Prospect> {
     return this.dataSource.transaction(async (manager) => {
       const year = new Date().getFullYear();
-      const count = await manager.count(Prospect, {
-        where: { ref: Like(`QWP-${year}-%`) },
-        withDeleted: true,
-      });
-      const seq = String(count + 1).padStart(3, '0');
-      const ref = `QWP-${year}-${seq}`;
+      const ref = await generateNextRef(manager, Prospect, `QWP-${year}-`);
 
       const prospect = manager.create(Prospect, {
         ...dto,
@@ -72,7 +70,7 @@ export class ProspectsService {
   async findOne(id: string): Promise<Prospect> {
     const prospect = await this.prospectsRepo.findOne({
       where: { id },
-      relations: ['createdBy', 'assignedTo'],
+      relations: ['createdBy', 'assignedTo', 'client'],
     });
     if (!prospect) throw new NotFoundException('Prospect introuvable');
     return prospect;
@@ -120,15 +118,10 @@ export class ProspectsService {
       throw new BadRequestException('Ce prospect est déjà converti en client');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const savedClient = await this.dataSource.transaction(async (manager) => {
       // Générer la référence client
       const year = new Date().getFullYear();
-      const count = await manager.count(Client, {
-        where: { ref: Like(`QW-${year}-%`) },
-        withDeleted: true,
-      });
-      const seq = String(count + 1).padStart(3, '0');
-      const ref = `QW-${year}-${seq}`;
+      const ref = await generateNextRef(manager, Client, `QW-${year}-`);
 
       // Créer le client à partir des champs du prospect, sans KYC
       const client = manager.create(Client, {
@@ -181,6 +174,10 @@ export class ProspectsService {
 
       return savedClient;
     });
+
+    await this.scoringService.recalculateForClient(savedClient.id, authUser.id);
+
+    return savedClient;
   }
 
   async remove(id: string, authUser: AuthUser): Promise<void> {

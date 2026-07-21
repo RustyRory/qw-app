@@ -24,6 +24,8 @@
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run --dataSource dist/data-source.js",
     "seed": "../node_modules/.bin/ts-node --transpile-only --project tsconfig.cli.json src/database/seed.ts",
+    "seed:users": "../node_modules/.bin/ts-node --transpile-only --project tsconfig.cli.json src/database/seed-users.ts",
+    "seed:data": "../node_modules/.bin/ts-node --transpile-only --project tsconfig.cli.json src/database/seed-data.ts",
     "seed:prod": "node -e \"require('./dist/database/seed.js')\""
   },
   "dependencies": {

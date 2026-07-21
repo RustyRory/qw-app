@@ -22,13 +22,25 @@ Les entiers auto-incrémentés permettent l'énumération des ressources (`GET /
 
 L'obligation LCB-FT impose une **rétention de 5 ans** après la fin de la relation (art. L.561-12 CMF). La suppression physique immédiate est une violation réglementaire.
 
-### 1.4 `score_risque` est une table avec historique
+### 1.4 `score_risque` est une table avec historique, partagée client/prospect
 
-Chaque évaluation ARPEC crée une **nouvelle ligne horodatée**. Cela permet de tracer l'évolution du risque dans le temps (obligation de surveillance continue, art. L.561-6 CMF). Le score courant = la ligne avec le `created_at` le plus récent pour un `client_id` donné. Aucun `UPDATE` n'est autorisé sur cette table (historique immuable).
+Chaque évaluation crée une **nouvelle ligne horodatée**. Cela permet de tracer l'évolution du risque dans le temps (obligation de surveillance continue, art. L.561-6 CMF). Le score courant = la ligne avec le `created_at` le plus récent pour un `client_id` (ou `prospect_id`) donné. Aucun `UPDATE` n'est autorisé sur cette table (historique immuable).
+
+`score_risque` est rattachée soit à un client, soit à un prospect (`id_client` XOR `id_prospect`, contrainte `CHECK` en base), mais dans les deux cas le calcul est **entièrement automatique** — aucune saisie manuelle de score n'existe plus dans l'application (l'ancienne méthode ARPEC manuelle à 4 dimensions, /150, a été retirée). Un seul algorithme (`backend/src/scoring/auto-score.util.ts`) évalue 9 critères pondérés issus du cahier des charges (Module 4), normalisés sur 100 (les 9 poids officiels totalisent 155 pts, pas 100), mais la source des données diffère :
+
+| | Client (`id_client`) | Prospect (`id_prospect`) |
+|---|---|---|
+| Source des 9 critères | Données réelles du client (`ppe`, `screeningStatut`, bénéficiaires effectifs, CA) ; les critères sans équivalent direct (pays à risque, secteur sensible, espèces, structure complexe, pays tiers) retombent sur le questionnaire du **prospect d'origine** s'il existe (`client.prospect`), sinon restent à `false` | Réponses du questionnaire d'acceptation (D1-D5) |
+| Déclenchement | À chaque création/modification du client (`ClientsService.create/update/updateScreening`), ajout/suppression d'un bénéficiaire effectif (`BeneficiairesService`), ou conversion d'un prospect (`ProspectsService.convertToClient`) | À chaque création/modification du questionnaire (`QuestionnairesService.create/updateReponses`) |
+| `reponses` (JSONB) | `{ criteres: [{ code, label, poids, declenche }, …] }` (9 critères) — même forme dans les deux cas |
+
+Toute cette orchestration est centralisée dans `ScoringService.recalculateForClient(clientId, userId)` / `recalculateForProspect(prospectId, userId)`, appelées par les autres services (`ScoringModule` est importé par `ClientsModule`, `BeneficiairesModule`, `QuestionnairesModule` et `ProspectsModule`). Voir `backend/src/scoring/auto-score.util.ts` pour le mapping exact des 9 critères.
 
 ### 1.5 `reponses` en JSONB
 
-Les réponses du questionnaire d'acceptation (`questionnaire_acceptation.reponses`) et le détail d'un score ARPEC (`score_risque.reponses`) sont stockés en JSONB PostgreSQL. Avantages : le schéma peut évoluer sans migration, les données restent queryables, et la structure est auto-documentée.
+Les réponses du questionnaire d'acceptation (`questionnaire_acceptation.reponses`) et le détail d'un score de risque (`score_risque.reponses`, deux formes selon client ou prospect — voir §1.4) sont stockés en JSONB PostgreSQL. Avantages : le schéma peut évoluer sans migration, les données restent queryables, et la structure est auto-documentée.
+
+Exemple concret de cette flexibilité : les notes internes libres ajoutées par module dans le questionnaire d'acceptation (une par section D1-D5, ex. `notes_d1`) sont stockées comme des clés supplémentaires dans le même objet `reponses`, à côté des réponses `D1_1`, `D1_2`… — aucune migration n'a été nécessaire pour les ajouter.
 
 ### 1.6 `audit_log` en INSERT-ONLY
 
@@ -73,8 +85,9 @@ Aucun `UPDATE` ni `DELETE` n'est autorisé sur la table d'audit — c'est la gar
 | a | Client | 1,1 | 0,N | Contact | Un client a 0 ou N contacts tiers |
 | attache | Client | 1,1 | 0,N | Document | Un client possède plusieurs documents |
 | attache | Mission | 1,1 | 0,N | Document | Une mission peut avoir des documents spécifiques |
-| évalue | Client | 1,1 | 0,N | ScoreRisque | Historique de toutes les évaluations ARPEC |
-| calcule | Utilisateur | 1,N | 0,N | ScoreRisque | Un utilisateur déclenche un calcul de score |
+| évalue | Client | 0,1 | 0,N | ScoreRisque | Historique des évaluations ARPEC manuelles (exclusif avec Prospect) |
+| évalue | Prospect | 0,1 | 0,N | ScoreRisque | Historique des évaluations automatiques depuis le questionnaire (exclusif avec Client) |
+| calcule | Utilisateur | 1,N | 0,N | ScoreRisque | Auteur du calcul (manuel) ou du dernier enregistrement ayant déclenché le recalcul automatique |
 | a | Client | 1,1 | 0,N | Mission | Un client peut avoir plusieurs missions |
 | génère | Mission | 1,1 | 0,N | LettreMission | Une mission a plusieurs versions de lettres |
 | signe | Utilisateur | 0,N | 0,1 | LettreMission | Un expert-comptable signe une lettre |
@@ -150,9 +163,12 @@ DOCUMENT (ID, type, nom, mime_type, taille_octets, s3_key UNIQUE, expires_at?, r
         created_at,
         [id_client → CLIENT.id], [id_mission → MISSION.id]?, [id_uploaded_by → UTILISATEUR.id])
 
-SCORE_RISQUE (ID, score CHECK(0-150), niveau, reponses JSONB, created_at,
-        [id_client → CLIENT.id], [id_calculated_by → UTILISATEUR.id])
-        ← INSERT-ONLY, score courant = MAX(created_at) par client
+SCORE_RISQUE (ID, score, niveau, reponses JSONB, created_at,
+        [id_client → CLIENT.id]?, [id_prospect → PROSPECT.id]?,
+        [id_calculated_by → UTILISATEUR.id])
+        ← CHECK(id_client XOR id_prospect renseigné) ; échelle 0-150 pour un score
+          client (ARPEC manuel), 0-100 pour un score prospect (auto, %)
+        ← INSERT-ONLY, score courant = MAX(created_at) par client ou par prospect
 
 MISSION (ID, type, description?, statut, date_debut, date_fin?, honoraires?,
         created_at, updated_at,
@@ -217,6 +233,9 @@ CREATE INDEX idx_client_statut ON client(statut)
 -- Score courant d'un client (dernière évaluation)
 CREATE INDEX idx_score_client_date ON score_risque(client_id, created_at DESC);
 
+-- Score courant d'un prospect (dernière évaluation automatique)
+CREATE INDEX idx_score_prospect_date ON score_risque(prospect_id, created_at DESC);
+
 -- Documents arrivant à expiration (relances automatiques)
 CREATE INDEX idx_document_expires ON document(expires_at)
   WHERE expires_at IS NOT NULL;
@@ -257,4 +276,12 @@ CREATE INDEX idx_operation_statut ON operation_sensible(client_id, statut)
 14. CreateAuditLog                   ← FK → utilisateur
 ```
 
-> **Note TypeORM :** les entités TypeScript (`@Entity`, `@Column`, `@OneToOne`, `@OneToMany`, `@ManyToOne`) génèrent ce schéma via les migrations. Le champ `deletedAt` est géré par `@DeleteDateColumn()` (soft delete natif). Voir `docs/autre/workflow-backend.md` pour le code complet des entités et `docs/autre/modelisation-bdd.md` pour le détail champ par champ.
+Migrations post-MVP (schéma déjà en place, évolutions ponctuelles) :
+
+```
+15. AddFormeJuridiqueRepresentantLegal  ← ajoute formeJuridique/representantLegal (prospect + client)
+16. AddProspectScoring                  ← id_client devient nullable, ajoute id_prospect +
+                                           CHECK(XOR) + index idx_score_prospect_date sur score_risque
+```
+
+> **Note TypeORM :** les entités TypeScript (`@Entity`, `@Column`, `@OneToOne`, `@OneToMany`, `@ManyToOne`) génèrent ce schéma via les migrations. Le champ `deletedAt` est géré par `@DeleteDateColumn()` (soft delete natif). Voir `docs/mvp/workflow-backend.md` pour le code complet des entités (schéma d'origine) et `docs/mvp/modelisation-bdd.md` pour le détail champ par champ.

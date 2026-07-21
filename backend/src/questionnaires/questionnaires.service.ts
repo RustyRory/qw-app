@@ -11,6 +11,7 @@ import {
 } from './entities/questionnaire-acceptation.entity';
 import { Prospect } from '../prospects/entities/prospect.entity';
 import { User } from '../users/entities/user.entity';
+import { ScoringService } from '../scoring/scoring.service';
 import { CreateQuestionnaireDto } from './dto/create-questionnaire.dto';
 import { UpdateQuestionnaireDto } from './dto/update-questionnaire.dto';
 
@@ -19,6 +20,7 @@ export class QuestionnairesService {
   constructor(
     @InjectRepository(QuestionnaireAcceptation)
     private readonly repo: Repository<QuestionnaireAcceptation>,
+    private readonly scoringService: ScoringService,
   ) {}
 
   async create(
@@ -38,7 +40,11 @@ export class QuestionnairesService {
       reponses: dto.reponses ?? null,
       createdBy: { id: userId } as User,
     });
-    return this.repo.save(q);
+    const saved = await this.repo.save(q);
+
+    await this.scoringService.recalculateForProspect(dto.prospectId, userId);
+
+    return saved;
   }
 
   findByProspect(prospectId: string): Promise<QuestionnaireAcceptation | null> {
@@ -60,8 +66,12 @@ export class QuestionnairesService {
   async updateReponses(
     id: string,
     dto: UpdateQuestionnaireDto,
+    userId: string,
   ): Promise<QuestionnaireAcceptation> {
-    const q = await this.repo.findOneBy({ id });
+    const q = await this.repo.findOne({
+      where: { id },
+      relations: ['prospect'],
+    });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
       throw new BadRequestException(
@@ -69,7 +79,11 @@ export class QuestionnairesService {
       );
     }
     if (dto.reponses !== undefined) q.reponses = dto.reponses;
-    return this.repo.save(q);
+    const saved = await this.repo.save(q);
+
+    await this.scoringService.recalculateForProspect(q.prospect.id, userId);
+
+    return saved;
   }
 
   async validate(

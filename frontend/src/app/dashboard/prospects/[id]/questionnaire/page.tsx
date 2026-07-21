@@ -35,6 +35,23 @@ function suggestionsFromProspect(prospect: Prospect): Reponses {
   return suggestions;
 }
 
+// Indices affichés à côté de certaines questions à partir des données du
+// prospect, sans jamais présélectionner de réponse : le NAF/pays est un
+// indice pertinent mais pas une preuve suffisante pour cocher à la place
+// du collaborateur (pas de table NAF↔question ni de liste GAFI/UE fiable
+// embarquée ici).
+function hintsFromProspect(prospect: Prospect): Record<string, string> {
+  const hints: Record<string, string> = {};
+
+  if (prospect.pays && prospect.pays !== "France") {
+    const msg = `Pays du prospect : ${prospect.pays} — à vérifier dans la liste`;
+    hints["D3_1_1"] = `${msg} GAFI / UE à haut risque.`;
+    hints["D3_2_1"] = `${msg} des pays non coopératifs (UE / France).`;
+  }
+
+  return hints;
+}
+
 type Reponses = Record<string, string>;
 type QuestionKind = "oui_non" | "seuil" | "pct";
 
@@ -547,11 +564,11 @@ function OuiNonGroup({
       {options.map(({ val, label }) => (
         <label
           key={val}
-          className={`flex items-center gap-1.5 group ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+          onClick={() => !disabled && onChange(qid, value === val ? "" : val)}
+          className={`flex items-center gap-1.5 py-1 group ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
         >
           <div
-            onClick={() => !disabled && onChange(qid, value === val ? "" : val)}
-            className={`size-4 rounded-full border-2 flex items-center justify-center transition-all
+            className={`size-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all
               ${value === val ? "border-slate-800 bg-slate-800" : "border-slate-400 bg-white group-hover:border-slate-600"}`}
           >
             {value === val && (
@@ -594,11 +611,11 @@ function SeuilGroup({
       {options.map(({ val, label, ring }) => (
         <label
           key={val}
-          className={`flex items-center gap-1.5 group ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+          onClick={() => !disabled && onChange(qid, value === val ? "" : val)}
+          className={`flex items-center gap-1.5 py-1 group ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
         >
           <div
-            onClick={() => !disabled && onChange(qid, value === val ? "" : val)}
-            className={`size-4 rounded-full border-2 flex items-center justify-center transition-all
+            className={`size-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-all
               ${value === val ? ring : "border-slate-400 bg-white group-hover:border-slate-600"}`}
           >
             {value === val && (
@@ -645,15 +662,20 @@ function QuestionRow({
   value,
   onChange,
   disabled,
+  hint,
 }: {
   question: Question;
   value: string | undefined;
   onChange: (id: string, val: string) => void;
   disabled?: boolean;
+  hint?: string;
 }) {
   return (
     <div>
       <p className="text-sm text-slate-800">{question.text}</p>
+      {hint && (
+        <p className="mt-0.5 text-xs font-medium text-blue-600">ℹ️ {hint}</p>
+      )}
       {question.kind === "seuil" && (
         <p className="mt-0.5 text-xs text-slate-400">
           RM : {question.seuilRM} · RE : {question.seuilRE}
@@ -694,6 +716,7 @@ function ModulePanel({
   isOpen,
   onToggle,
   disabled,
+  hints,
 }: {
   module: QModule;
   reponses: Reponses;
@@ -701,6 +724,7 @@ function ModulePanel({
   isOpen: boolean;
   onToggle: () => void;
   disabled?: boolean;
+  hints?: Record<string, string>;
 }) {
   const questions = module.groups.flatMap((g) => g.questions);
   const answered = questions.filter((q) => !!reponses[q.id]).length;
@@ -750,10 +774,25 @@ function ModulePanel({
                   value={reponses[q.id]}
                   onChange={onChange}
                   disabled={disabled}
+                  hint={hints?.[q.id]}
                 />
               ))}
             </div>
           ))}
+
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+              Notes internes
+            </p>
+            <textarea
+              value={reponses[`notes_${module.id}`] ?? ""}
+              onChange={(e) => onChange(`notes_${module.id}`, e.target.value)}
+              rows={3}
+              disabled={disabled}
+              placeholder="Précisions, contexte, éléments à tracer pour ce module…"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -766,6 +805,7 @@ export default function QuestionnairePage() {
 
   const [questionnaire, setQuestionnaire] =
     useState<QuestionnaireAcceptation | null>(null);
+  const [prospect, setProspect] = useState<Prospect | null>(null);
   const [reponses, setReponses] = useState<Reponses>({});
   const [openModule, setOpenModule] = useState<string | null>("d1");
   const [loading, setLoading] = useState(true);
@@ -782,11 +822,15 @@ export default function QuestionnairePage() {
       ),
       apiFetch<Prospect>(`/prospects/${id}`),
     ])
-      .then(([q, prospect]) => {
+      .then(([q, fetchedProspect]) => {
         setQuestionnaire(q);
+        setProspect(fetchedProspect);
         const existing = (q?.reponses as Reponses | undefined) ?? {};
         // Les suggestions ne comblent que les questions pas encore répondues.
-        setReponses({ ...suggestionsFromProspect(prospect), ...existing });
+        setReponses({
+          ...suggestionsFromProspect(fetchedProspect),
+          ...existing,
+        });
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -803,6 +847,13 @@ export default function QuestionnairePage() {
   const totalQuestions = ALL_QUESTIONS.length;
   const answeredCount = ALL_QUESTIONS.filter((q) => !!reponses[q.id]).length;
   const progressPct = Math.round((answeredCount / totalQuestions) * 100);
+
+  const hasRisqueEleve = ALL_QUESTIONS.some((q) => {
+    const val = reponses[q.id];
+    return q.kind === "seuil" ? val === "risque_eleve" : val === "oui";
+  });
+
+  const hints = prospect ? hintsFromProspect(prospect) : {};
 
   function handleChange(qid: string, val: string) {
     setReponses((prev) => ({ ...prev, [qid]: val }));
@@ -900,7 +951,11 @@ export default function QuestionnairePage() {
       <div className="bg-white border-b px-5 py-4 md:px-8 sticky top-0 md:top-0 z-10">
         <div className="flex items-center gap-3 mb-2">
           <Link
-            href={`/dashboard/prospects/${id}`}
+            href={
+              prospect?.client
+                ? `/dashboard/clients/${prospect.client.id}`
+                : `/dashboard/prospects/${id}`
+            }
             className="text-slate-400 hover:text-slate-600 transition-colors"
           >
             <IconArrowLeft className="size-5" />
@@ -922,6 +977,14 @@ export default function QuestionnairePage() {
               Activités et secteurs, D3 Exposition aux risques/Localisation, D4
               Nature de la mission, D5 Opérations particulières)
             </p>
+            {prospect && (prospect.pays || prospect.codeNaf) && (
+              <p className="mt-1 text-xs text-slate-400">
+                Fiche prospect — {prospect.pays && <>Pays : {prospect.pays}</>}
+                {prospect.pays && prospect.codeNaf && " · "}
+                {prospect.codeNaf && <>NAF : {prospect.codeNaf}</>} (à
+                rapprocher manuellement des modules D2/D3)
+              </p>
+            )}
           </div>
         </div>
 
@@ -969,7 +1032,7 @@ export default function QuestionnairePage() {
         </div>
       ) : (
         <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-3">
             {MODULES.map((module) => (
               <ModulePanel
                 key={module.id}
@@ -983,14 +1046,25 @@ export default function QuestionnairePage() {
                   )
                 }
                 disabled={!editable}
+                hints={hints}
               />
             ))}
           </div>
 
           {/* Décision */}
-          <div className="rounded-xl border border-red-200 bg-red-50 overflow-hidden">
+          <div
+            className={`rounded-xl border overflow-hidden ${
+              hasRisqueEleve
+                ? "border-red-200 bg-red-50"
+                : "border-slate-200 bg-white"
+            }`}
+          >
             <div className="px-5 py-4 space-y-5">
-              <p className="text-xs font-bold uppercase tracking-widest text-red-600">
+              <p
+                className={`text-xs font-bold uppercase tracking-widest ${
+                  hasRisqueEleve ? "text-red-600" : "text-slate-400"
+                }`}
+              >
                 Décision d&apos;acceptation
               </p>
 
@@ -1031,10 +1105,17 @@ export default function QuestionnairePage() {
                 />
               </div>
 
-              <p className="text-xs text-amber-600">
-                ⚠️ Si un risque élevé a été identifié dans le questionnaire :
-                contresignature de l&apos;expert-comptable requise
-              </p>
+              {hasRisqueEleve ? (
+                <p className="text-xs font-medium text-amber-700">
+                  ⚠️ Risque élevé identifié dans le questionnaire :
+                  contresignature de l&apos;expert-comptable requise
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Si un risque élevé est identifié dans le questionnaire, la
+                  contresignature de l&apos;expert-comptable sera requise.
+                </p>
+              )}
 
               {/* Boutons */}
               <div className="flex items-center gap-3 pt-1 flex-wrap">
