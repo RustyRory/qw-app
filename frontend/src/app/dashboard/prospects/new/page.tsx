@@ -301,6 +301,8 @@ export default function NewProspectPage() {
                     <Input
                       id="activite"
                       name="activite"
+                      key={prefill?.secteurActivite ?? "empty-secteur"}
+                      defaultValue={prefill?.secteurActivite ?? ""}
                       placeholder="Finance, Tech…"
                       className="rounded-xl"
                     />

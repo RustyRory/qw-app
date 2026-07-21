@@ -123,19 +123,18 @@ export default function ClientsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [filterStatut, setFilterStatut] = useState<
-    "Tous" | StatutClient
-  >("Tous");
-  const [filterKyc, setFilterKyc] = useState<"Tous" | StatutKyc>(
+  const [filterStatut, setFilterStatut] = useState<"Tous" | StatutClient>(
     "Tous",
   );
-  const [filterRisque, setFilterRisque] = useState<
-    "Tous" | NiveauRisque
-  >("Tous");
+  const [filterKyc, setFilterKyc] = useState<"Tous" | StatutKyc>("Tous");
+  const [filterRisque, setFilterRisque] = useState<"Tous" | NiveauRisque>(
+    "Tous",
+  );
 
   const [page, setPage] = useState(1);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
 
@@ -193,23 +192,11 @@ export default function ClientsPage() {
         return score?.niveau === filterRisque;
       })
       .sort((a, b) =>
-        a.client.raisonSociale.localeCompare(
-          b.client.raisonSociale,
-          "fr",
-        ),
+        a.client.raisonSociale.localeCompare(b.client.raisonSociale, "fr"),
       );
-  }, [
-    rows,
-    search,
-    filterStatut,
-    filterKyc,
-    filterRisque,
-  ]);
+  }, [rows, search, filterStatut, filterKyc, filterRisque]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filtered.length / PAGE_SIZE),
-  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
   const currentPage = Math.min(page, totalPages);
 
@@ -264,17 +251,15 @@ export default function ClientsPage() {
                   </h1>
 
                   <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">
-                    Consultez les dossiers clients, leur statut KYC et
-                    leur niveau de risque.
+                    Consultez les dossiers clients, leur statut KYC et leur
+                    niveau de risque.
                   </p>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  router.push("/dashboard/clients/new")
-                }
+                onClick={() => router.push("/dashboard/clients/new")}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-indigo-800 shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-50 sm:w-auto"
               >
                 <IconPlus className="size-5" />
@@ -421,9 +406,7 @@ export default function ClientsPage() {
                 type="search"
                 placeholder="Rechercher par nom, référence, SIRET ou ville..."
                 value={search}
-                onChange={(event) =>
-                  changeSearch(event.target.value)
-                }
+                onChange={(event) => changeSearch(event.target.value)}
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
               />
             </div>
@@ -431,11 +414,7 @@ export default function ClientsPage() {
             <select
               value={filterStatut}
               onChange={(event) => {
-                setFilterStatut(
-                  event.target.value as
-                    | "Tous"
-                    | StatutClient,
-                );
+                setFilterStatut(event.target.value as "Tous" | StatutClient);
                 setPage(1);
               }}
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
@@ -449,9 +428,7 @@ export default function ClientsPage() {
             <select
               value={filterKyc}
               onChange={(event) => {
-                setFilterKyc(
-                  event.target.value as "Tous" | StatutKyc,
-                );
+                setFilterKyc(event.target.value as "Tous" | StatutKyc);
                 setPage(1);
               }}
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
@@ -466,11 +443,7 @@ export default function ClientsPage() {
             <select
               value={filterRisque}
               onChange={(event) => {
-                setFilterRisque(
-                  event.target.value as
-                    | "Tous"
-                    | NiveauRisque,
-                );
+                setFilterRisque(event.target.value as "Tous" | NiveauRisque);
                 setPage(1);
               }}
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
@@ -566,9 +539,7 @@ export default function ClientsPage() {
                     <tr
                       key={client.id}
                       onClick={() =>
-                        router.push(
-                          `/dashboard/clients/${client.id}`,
-                        )
+                        router.push(`/dashboard/clients/${client.id}`)
                       }
                       className="cursor-pointer transition hover:bg-indigo-50/40"
                     >
@@ -611,7 +582,7 @@ export default function ClientsPage() {
                       </td>
 
                       <td className="px-5 py-4 font-mono text-sm text-slate-600">
-                        {score ? `${score.score}/150` : "—"}
+                        {score ? `${score.score}/100` : "—"}
                       </td>
 
                       <td className="px-5 py-4 text-right">
@@ -637,9 +608,7 @@ export default function ClientsPage() {
             ) : (
               paginated.map(({ client, score }) => {
                 const avatarClass =
-                  AVATAR_CLASSES[
-                    score?.niveau ?? "SANS_SCORE"
-                  ];
+                  AVATAR_CLASSES[score?.niveau ?? "SANS_SCORE"];
 
                 return (
                   <Link
@@ -654,9 +623,7 @@ export default function ClientsPage() {
                         <div
                           className={`flex size-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold uppercase text-white shadow-sm ${avatarClass}`}
                         >
-                          {client.raisonSociale
-                            .slice(0, 2)
-                            .toUpperCase()}
+                          {client.raisonSociale.slice(0, 2).toUpperCase()}
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -697,7 +664,7 @@ export default function ClientsPage() {
                             </p>
 
                             <p className="font-mono text-xs font-semibold text-indigo-700">
-                              {score ? `${score.score}/150` : "—"}
+                              {score ? `${score.score}/100` : "—"}
                             </p>
                           </div>
                         </div>
@@ -721,11 +688,7 @@ export default function ClientsPage() {
               <div className="flex max-w-full items-center gap-1 overflow-x-auto">
                 <button
                   type="button"
-                  onClick={() =>
-                    setPage((value) =>
-                      Math.max(1, value - 1),
-                    )
-                  }
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
                   disabled={currentPage === 1}
                   className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-30"
                 >
@@ -753,9 +716,7 @@ export default function ClientsPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setPage((value) =>
-                      Math.min(totalPages, value + 1),
-                    )
+                    setPage((value) => Math.min(totalPages, value + 1))
                   }
                   disabled={currentPage === totalPages}
                   className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-30"

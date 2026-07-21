@@ -1,53 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ScoringService, computeNiveau } from './scoring.service';
+import { ScoringService } from './scoring.service';
 import { ScoreRisque } from './entities/score-risque.entity';
-import { NiveauRisque } from '../common/enums';
-import { CreateScoreDto } from './dto/create-score.dto';
+import { Client } from '../clients/entities/client.entity';
+import { Prospect } from '../prospects/entities/prospect.entity';
+import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
+import { QuestionnaireAcceptation } from '../questionnaires/entities/questionnaire-acceptation.entity';
+import { NiveauRisque, ScreeningStatut, TypeEntite } from '../common/enums';
 
 const USER_ID = 'user-1';
-
-const makeScore = (override: Partial<ScoreRisque> = {}): ScoreRisque =>
-  ({
-    id: 'score-1',
-    score: 0,
-    niveau: NiveauRisque.FAIBLE,
-    reponses: {
-      clientCaracteristiques: 0,
-      activiteSecteur: 0,
-      zoneGeographique: 0,
-      typeMission: 0,
-    },
-    client: { id: 'client-1' },
-    ...override,
-  }) as ScoreRisque;
-
-describe('computeNiveau (pure)', () => {
-  it('retourne FAIBLE pour un score <= 40', () => {
-    expect(computeNiveau(0)).toBe(NiveauRisque.FAIBLE);
-    expect(computeNiveau(40)).toBe(NiveauRisque.FAIBLE);
-  });
-
-  it('retourne MOYEN pour un score entre 41 et 80', () => {
-    expect(computeNiveau(41)).toBe(NiveauRisque.MOYEN);
-    expect(computeNiveau(80)).toBe(NiveauRisque.MOYEN);
-  });
-
-  it('retourne ELEVE pour un score > 80', () => {
-    expect(computeNiveau(81)).toBe(NiveauRisque.ELEVE);
-    expect(computeNiveau(150)).toBe(NiveauRisque.ELEVE);
-  });
-});
 
 describe('ScoringService', () => {
   let service: ScoringService;
 
-  const repoMock = {
+  const scoreRepoMock = {
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(),
     create: jest.fn((data) => data),
   };
+  const clientRepoMock = { findOne: jest.fn() };
+  const prospectRepoMock = { findOneBy: jest.fn() };
+  const beneficiaireRepoMock = { find: jest.fn() };
+  const questionnaireRepoMock = { findOne: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -55,60 +30,160 @@ describe('ScoringService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScoringService,
-        { provide: getRepositoryToken(ScoreRisque), useValue: repoMock },
+        { provide: getRepositoryToken(ScoreRisque), useValue: scoreRepoMock },
+        { provide: getRepositoryToken(Client), useValue: clientRepoMock },
+        { provide: getRepositoryToken(Prospect), useValue: prospectRepoMock },
+        {
+          provide: getRepositoryToken(BeneficiaireEffectif),
+          useValue: beneficiaireRepoMock,
+        },
+        {
+          provide: getRepositoryToken(QuestionnaireAcceptation),
+          useValue: questionnaireRepoMock,
+        },
       ],
     }).compile();
 
     service = module.get<ScoringService>(ScoringService);
   });
 
-  // --------------------------------------------------------------- calculate
-  describe('calculate', () => {
-    const dto: CreateScoreDto = {
-      clientId: 'client-1',
-      clientCaracteristiques: 20,
-      activiteSecteur: 10,
-      zoneGeographique: 5,
-      typeMission: 5,
-    };
+  // ------------------------------------------------------- recalculateForProspect
+  describe('recalculateForProspect', () => {
+    it('renvoie null si le prospect est introuvable', async () => {
+      prospectRepoMock.findOneBy.mockResolvedValue(null);
 
-    it('additionne les 4 dimensions ARPEC et persiste le score', async () => {
-      repoMock.save.mockResolvedValue(
-        makeScore({ score: 40, niveau: NiveauRisque.FAIBLE }),
+      const result = await service.recalculateForProspect(
+        'prospect-1',
+        USER_ID,
       );
 
-      await service.calculate(dto, USER_ID);
+      expect(result).toBeNull();
+      expect(scoreRepoMock.save).not.toHaveBeenCalled();
+    });
 
-      expect(repoMock.save).toHaveBeenCalledWith(
+    it('calcule le score depuis le questionnaire et le persiste rattaché au prospect', async () => {
+      prospectRepoMock.findOneBy.mockResolvedValue({
+        id: 'prospect-1',
+        typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+        chiffreAffaires: null,
+      });
+      questionnaireRepoMock.findOne.mockResolvedValue({
+        reponses: { D1_11: 'oui' },
+      });
+      scoreRepoMock.save.mockResolvedValue({});
+
+      await service.recalculateForProspect('prospect-1', USER_ID);
+
+      expect(scoreRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          score: 40,
+          score: Math.round((30 / 155) * 100),
           niveau: NiveauRisque.FAIBLE,
-          reponses: {
-            clientCaracteristiques: 20,
-            activiteSecteur: 10,
-            zoneGeographique: 5,
-            typeMission: 5,
-          },
+          prospect: { id: 'prospect-1' },
+          calculatedBy: { id: USER_ID },
+        }),
+      );
+      expect(scoreRepoMock.save.mock.calls[0][0]).not.toHaveProperty('client');
+    });
+
+    it('calcule un score nul quand le prospect n’a pas encore de questionnaire', async () => {
+      prospectRepoMock.findOneBy.mockResolvedValue({
+        id: 'prospect-1',
+        typeEntite: TypeEntite.PERSONNE_MORALE,
+        chiffreAffaires: null,
+      });
+      questionnaireRepoMock.findOne.mockResolvedValue(null);
+      scoreRepoMock.save.mockResolvedValue({});
+
+      await service.recalculateForProspect('prospect-1', USER_ID);
+
+      expect(scoreRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ score: 0, niveau: NiveauRisque.FAIBLE }),
+      );
+    });
+  });
+
+  // --------------------------------------------------------- recalculateForClient
+  describe('recalculateForClient', () => {
+    it('renvoie null si le client est introuvable', async () => {
+      clientRepoMock.findOne.mockResolvedValue(null);
+
+      const result = await service.recalculateForClient('client-1', USER_ID);
+
+      expect(result).toBeNull();
+      expect(scoreRepoMock.save).not.toHaveBeenCalled();
+    });
+
+    it('calcule le score depuis les données réelles du client (ppe, CA) et le persiste rattaché au client', async () => {
+      clientRepoMock.findOne.mockResolvedValue({
+        id: 'client-1',
+        typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+        chiffreAffaires: 600_000,
+        ppe: true,
+        screeningStatut: ScreeningStatut.OK,
+        prospect: null,
+      });
+      beneficiaireRepoMock.find.mockResolvedValue([]);
+      scoreRepoMock.save.mockResolvedValue({});
+
+      await service.recalculateForClient('client-1', USER_ID);
+
+      // ppe (30) + chiffre_affaires (10) = 40 sur 155.
+      expect(scoreRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          score: Math.round((40 / 155) * 100),
           client: { id: 'client-1' },
           calculatedBy: { id: USER_ID },
         }),
       );
+      expect(scoreRepoMock.save.mock.calls[0][0]).not.toHaveProperty(
+        'prospect',
+      );
+      expect(questionnaireRepoMock.findOne).not.toHaveBeenCalled();
     });
 
-    it('un score élevé (>80) est classé ELEVE', async () => {
-      const highDto: CreateScoreDto = {
-        clientId: 'client-1',
-        clientCaracteristiques: 45,
-        activiteSecteur: 35,
-        zoneGeographique: 25,
-        typeMission: 20,
-      };
-      repoMock.save.mockResolvedValue(makeScore({ score: 125 }));
+    it('déclenche les alertes nationales quand le screening est en ALERTE', async () => {
+      clientRepoMock.findOne.mockResolvedValue({
+        id: 'client-1',
+        typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
+        chiffreAffaires: null,
+        ppe: false,
+        screeningStatut: ScreeningStatut.ALERTE,
+        prospect: null,
+      });
+      beneficiaireRepoMock.find.mockResolvedValue([]);
+      scoreRepoMock.save.mockResolvedValue({});
 
-      await service.calculate(highDto, USER_ID);
+      await service.recalculateForClient('client-1', USER_ID);
 
-      expect(repoMock.save).toHaveBeenCalledWith(
-        expect.objectContaining({ score: 125, niveau: NiveauRisque.ELEVE }),
+      // alertes_nationales (20) / 155
+      expect(scoreRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ score: Math.round((20 / 155) * 100) }),
+      );
+    });
+
+    it('complète avec le questionnaire du prospect d’origine si le client en a un', async () => {
+      clientRepoMock.findOne.mockResolvedValue({
+        id: 'client-1',
+        typeEntite: TypeEntite.PERSONNE_MORALE,
+        chiffreAffaires: null,
+        ppe: false,
+        screeningStatut: ScreeningStatut.NON_EFFECTUE,
+        prospect: { id: 'prospect-1' },
+      });
+      beneficiaireRepoMock.find.mockResolvedValue([]);
+      questionnaireRepoMock.findOne.mockResolvedValue({
+        reponses: { D3_1_1: 'oui' },
+      });
+      scoreRepoMock.save.mockResolvedValue({});
+
+      await service.recalculateForClient('client-1', USER_ID);
+
+      expect(questionnaireRepoMock.findOne).toHaveBeenCalledWith({
+        where: { prospect: { id: 'prospect-1' } },
+      });
+      // pays_gafi (25) / 155
+      expect(scoreRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ score: Math.round((25 / 155) * 100) }),
       );
     });
   });
@@ -116,13 +191,13 @@ describe('ScoringService', () => {
   // ------------------------------------------------------------ findByClient
   describe('findByClient', () => {
     it("retourne l'historique trié par date décroissante", async () => {
-      const scores = [makeScore(), makeScore({ id: 'score-2' })];
-      repoMock.find.mockResolvedValue(scores);
+      const scores = [{ id: 'score-1' }, { id: 'score-2' }];
+      scoreRepoMock.find.mockResolvedValue(scores);
 
       const result = await service.findByClient('client-1');
 
       expect(result).toBe(scores);
-      expect(repoMock.find).toHaveBeenCalledWith({
+      expect(scoreRepoMock.find).toHaveBeenCalledWith({
         where: { client: { id: 'client-1' } },
         order: { createdAt: 'DESC' },
       });
@@ -132,14 +207,46 @@ describe('ScoringService', () => {
   // ------------------------------------------------------------- findCurrent
   describe('findCurrent', () => {
     it('retourne le score le plus récent du client', async () => {
-      const current = makeScore();
-      repoMock.findOne.mockResolvedValue(current);
+      const current = { id: 'score-1' };
+      scoreRepoMock.findOne.mockResolvedValue(current);
 
       const result = await service.findCurrent('client-1');
 
       expect(result).toBe(current);
-      expect(repoMock.findOne).toHaveBeenCalledWith({
+      expect(scoreRepoMock.findOne).toHaveBeenCalledWith({
         where: { client: { id: 'client-1' } },
+        order: { createdAt: 'DESC' },
+      });
+    });
+  });
+
+  // ---------------------------------------------------------- findByProspect
+  describe('findByProspect', () => {
+    it("retourne l'historique du prospect trié par date décroissante", async () => {
+      const scores = [{ id: 'score-1' }, { id: 'score-2' }];
+      scoreRepoMock.find.mockResolvedValue(scores);
+
+      const result = await service.findByProspect('prospect-1');
+
+      expect(result).toBe(scores);
+      expect(scoreRepoMock.find).toHaveBeenCalledWith({
+        where: { prospect: { id: 'prospect-1' } },
+        order: { createdAt: 'DESC' },
+      });
+    });
+  });
+
+  // ------------------------------------------------------- findCurrentByProspect
+  describe('findCurrentByProspect', () => {
+    it('retourne le score le plus récent du prospect', async () => {
+      const current = { id: 'score-1' };
+      scoreRepoMock.findOne.mockResolvedValue(current);
+
+      const result = await service.findCurrentByProspect('prospect-1');
+
+      expect(result).toBe(current);
+      expect(scoreRepoMock.findOne).toHaveBeenCalledWith({
+        where: { prospect: { id: 'prospect-1' } },
         order: { createdAt: 'DESC' },
       });
     });

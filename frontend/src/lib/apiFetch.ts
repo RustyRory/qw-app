@@ -28,10 +28,16 @@ export async function apiFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    const text = await res.text();
+    let data: { message?: string } = {};
+    try {
+      if (text) data = JSON.parse(text);
+    } catch {
+      // corps d'erreur non-JSON (ex: page d'erreur d'un proxy) — ignoré
+    }
     throw new Error(data.message ?? `HTTP ${res.status}`);
   }
 
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }

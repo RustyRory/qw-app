@@ -39,7 +39,7 @@ backend/src/
 ├── missions/                     # Missions cabinet ↔ client
 ├── lettres-mission/               # Lettres de mission versionnées
 ├── documents/                     # Métadonnées documents (stockage OVHcloud Object Storage)
-├── scoring/                       # Évaluation de risque ARPEC
+├── scoring/                       # Évaluation de risque : calcul automatique (client et prospect)
 ├── planning/                      # Diligences planifiées
 ├── obligations/                   # Suivi des obligations réglementaires
 ├── operations-sensibles/          # Opérations atypiques / Tracfin
@@ -105,7 +105,9 @@ frontend/src/
 ├── components/
 │   ├── ui/                     # Composants shadcn/ui
 │   ├── layout/                 # AppSidebar, SiteHeader, NavMain…
-│   └── features/               # KanbanBoard, ClientHeader, ArpecForm, DocumentUpload…
+│   ├── scoring-panel.tsx       # Score de risque : calcul et affichage automatiques (client et prospect)
+│   ├── login-form.tsx          # Formulaire de connexion (affichage/masquage du mot de passe)
+│   └── logout-button.tsx
 ├── hooks/
 │   ├── useAuth.ts               # Protection des pages
 │   └── useRole.ts                # Droits RBAC côté UI
@@ -113,7 +115,7 @@ frontend/src/
     └── index.ts                  # Types partagés (Role, Client, Prospect, ScoreRisque…)
 ```
 
-> Détail des routes, zonings d'écran et ordre d'implémentation par sprint : `docs/autre/workflow-frontend.md`.
+> Détail des routes, zonings d'écran et ordre d'implémentation par sprint : `docs/mvp/workflow-frontend.md`.
 
 ### Dépendances clés
 

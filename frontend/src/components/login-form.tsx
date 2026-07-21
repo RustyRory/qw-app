@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { decodeToken, getDashboardPath } from "@/lib/auth";
 import { apiUrl } from "@/lib/api-url";
@@ -16,6 +17,7 @@ export function LoginForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -77,13 +79,31 @@ export function LoginForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            required
-            className="bg-background"
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              className="bg-background pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={
+                showPassword
+                  ? "Masquer le mot de passe"
+                  : "Afficher le mot de passe"
+              }
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? (
+                <IconEyeOff className="size-4" />
+              ) : (
+                <IconEye className="size-4" />
+              )}
+            </button>
+          </div>
         </Field>
         <Field>
           <Button type="submit" disabled={loading}>

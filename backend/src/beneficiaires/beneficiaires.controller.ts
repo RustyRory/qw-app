@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -17,6 +18,10 @@ import { Role } from '../common/enums';
 import { BeneficiairesService } from './beneficiaires.service';
 import { CreateBeneficiaireDto } from './dto/create-beneficiaire.dto';
 import { UpdateBeneficiaireDto } from './dto/update-beneficiaire.dto';
+
+interface RequestWithUser {
+  user: { id: string; role: Role };
+}
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/beneficiaires')
@@ -30,8 +35,8 @@ export class BeneficiairesController {
     Role.EXPERT_COMPTABLE,
     Role.ADMIN,
   )
-  create(@Body() dto: CreateBeneficiaireDto) {
-    return this.svc.create(dto);
+  create(@Body() dto: CreateBeneficiaireDto, @Req() req: RequestWithUser) {
+    return this.svc.create(dto, req.user.id);
   }
 
   @Get('client/:clientId')
@@ -51,8 +56,12 @@ export class BeneficiairesController {
     Role.EXPERT_COMPTABLE,
     Role.ADMIN,
   )
-  update(@Param('id') id: string, @Body() dto: UpdateBeneficiaireDto) {
-    return this.svc.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBeneficiaireDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.svc.update(id, dto, req.user.id);
   }
 
   @Delete(':id')
@@ -63,7 +72,7 @@ export class BeneficiairesController {
     Role.EXPERT_COMPTABLE,
     Role.ADMIN,
   )
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  remove(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.svc.remove(id, req.user.id);
   }
 }

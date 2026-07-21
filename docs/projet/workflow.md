@@ -310,13 +310,20 @@ npm run typeorm migration:revert
 
 ### 3.3 Seed de données
 
-Créer `backend/src/database/seed.ts` avec :
-- 1 compte admin (`role: Role.ADMIN`, email + hash bcrypt)
-- 1 compte collaborateur de test
-- Quelques clients de démonstration avec KYC déjà complété
+Le seed est scindé en deux fichiers indépendants dans `backend/src/database/` :
+
+| Fichier | Rôle |
+|---|---|
+| `seed-users.ts` | 3 comptes de test (`admin@qwconseil.fr`, `responsable@qwconseil.fr`, `collab@qwconseil.fr`). Idempotent, exporte `seedUsers()` réutilisable par les autres seeds. |
+| `seed-data.ts` | Clients, prospects, questionnaires, scores de risque, missions, documents, planning, obligations, opérations sensibles. Exporte `seedData()`, appelle `seedUsers()` si besoin (peut donc être lancé seul). |
+| `seed.ts` | Point d'entrée combiné : appelle `seedUsers()` puis `seedData()`. |
+
+`seed-data.ts` couvre volontairement **toutes les valeurs des enums** métier plutôt qu'un seul cas nominal : les 7 statuts de `StatutClient`/`StatutKyc`/`ScreeningStatut` combinés sur plusieurs clients, les 7 étapes de `StatutKanban` sur plusieurs prospects, les 3 statuts de `StatutQuestionnaire`, et les 3 niveaux de `NiveauRisque` obtenus à la fois côté client et côté prospect — y compris le cas « aucun score » et un historique de plusieurs évaluations sur un même dossier. Le seed contourne la couche service (pas d'appel HTTP) : il appelle directement les fonctions pures `flagsFromClient`/`flagsFromQuestionnaire`/`computeAutoScore` de `auto-score.util.ts` pour rester cohérent avec l'algorithme réel plutôt que d'inventer des scores à la main.
 
 ```bash
-npm run seed
+npm run seed         # seed complet (users + data)
+npm run seed:users   # comptes de test uniquement
+npm run seed:data    # reste des données (relance seedUsers si nécessaire)
 ```
 
 ---
@@ -358,7 +365,7 @@ backend/src/
 ├── missions/                   ← MissionsModule
 ├── documents/                   ← DocumentsModule (métadonnées, stockage OVHcloud Object Storage)
 ├── lettres-mission/               ← LettresMissionModule
-├── scoring/                        ← ScoringModule (ARPEC)
+├── scoring/                        ← ScoringModule (calcul automatique, client et prospect)
 ├── planning/                        ← PlanningModule
 ├── obligations/                      ← ObligationsModule
 ├── operations-sensibles/              ← OperationsSensiblesModule
@@ -366,7 +373,7 @@ backend/src/
 └── database/                            ← migrations, seed
 ```
 
-> Référence complète des entités et de leurs relations : [database.md](./database.md). Le code détaillé de chaque entité/DTO/service est conservé dans `docs/autre/workflow-backend.md`.
+> Référence complète des entités et de leurs relations : [database.md](./database.md). Le code détaillé de chaque entité/DTO/service est conservé dans `docs/mvp/workflow-backend.md`.
 
 ### 4.3 Ordre d'implémentation des modules
 
@@ -384,32 +391,48 @@ L'ordre suit les dépendances de clé étrangère (cf. [database.md §6](./datab
 | 8 | **Missions** | `POST/GET/PATCH/DELETE /api/missions`, `PATCH /:id/statut` | Type, statut, honoraires |
 | 9 | **Documents** | `POST /api/documents` (upload vers OVHcloud Object Storage), `GET /:id/download` (URL pré-signée 15 min), `DELETE /:id` | Audit `CREATE`/`READ` à chaque opération |
 | 10 | **Lettres de mission** | `POST /api/lettres-mission`, `GET ?missionId=`, `PATCH /:id/signer` | Versionnée, signature réservée à EXPERT_COMPTABLE/ADMIN |
-| 11 | **Scoring** | `POST /api/scoring`, `GET /client/:id`, `GET /client/:id/courant` | Algorithme ARPEC (voir 4.4), INSERT-ONLY |
+| 11 | **Scoring** | `GET /client/:id`, `GET /client/:id/courant`, `GET /prospect/:id`, `GET /prospect/:id/courant` (lecture uniquement) | Voir 4.4 — calcul entièrement automatique, aucune route `POST`, INSERT-ONLY |
 | 12 | **Planning** | `POST/GET/DELETE /api/planning`, `PATCH /:id/completer` | Diligences réglementaires ou manuelles |
 | 13 | **Obligations** | `POST/GET /api/obligations`, `PATCH /:id/fait` | Suivi de conformité par client |
 | 14 | **Opérations sensibles** | `POST/GET /api/operations-sensibles`, `PATCH /:id/classer`, `/tracfin` | Statut `SIGNALEE → EN_ANALYSE → CLASSEE/TRACFIN_DECLARE` |
 | 15 | **Audit** | `GET /api/audit`, `GET /api/audit/:ressourceId` | `AuditService.log(userId, action, ressource, ressourceId, details)` injecté dans tous les autres services ; INSERT-ONLY |
 
-### 4.4 Algorithme de scoring ARPEC
+### 4.4 Algorithme de scoring automatique
 
-Le score de risque n'est plus une somme de critères binaires pondérés à 100 ; il repose sur **4 dimensions ARPEC** notées indépendamment, pour un total sur 150 :
+Un seul algorithme (`backend/src/scoring/auto-score.util.ts`) note **9 critères pondérés** repris de la grille officielle du cahier des charges (`docs/mvp/cahier-des-charges.md`, Module 4). Il n'y a plus aucune saisie manuelle de score dans l'application — seule la **source** des 9 critères change selon qu'on évalue un client ou un prospect :
 
-| Dimension | Plage |
-|---|:---:|
-| Caractéristiques client | 0–50 |
-| Activité / secteur | 0–40 |
-| Zone géographique | 0–30 |
-| Type de mission | 0–30 |
+| Critère | Poids | Prospect (réponses D1-D5) | Client (données réelles) |
+|---|:---:|---|---|
+| PPE | 30 | `D1_11` | `client.ppe` |
+| Pays à risque (GAFI/UE) | 25 | `D3_1_1` / `D3_1_2` / `D3_1_3` | *(via le questionnaire du prospect d'origine, si connu)* |
+| Secteur sensible (crypto, jeux, immobilier) | 20 | `D2_13`, `D2_26`, `D2_27`, ou seuil « risque élevé » sur `D2_2`/`D2_3`/`D2_5` | *(idem)* |
+| CA annuel > 500 k€ | 10 | `prospect.chiffreAffaires` | `client.chiffreAffaires` |
+| Espèces (change, transmission de fonds) | 15 | `D2_20` / `D2_21` | *(idem)* |
+| Structure de propriété complexe/opaque | 15 | `D1_4` à `D1_8` | *(idem)* |
+| Pays tiers à risque (fiscal ou sanctions) | 10 | `D3_2_1..3`, `D3_3_1..6` | *(idem)* |
+| Personne morale + bénéficiaire/établissement lié à l'étranger | 10 | `typeEntite = PERSONNE_MORALE` et (`D3_1_2` ou `D3_2_2`) | `typeEntite = PERSONNE_MORALE` et un bénéficiaire effectif de nationalité non française |
+| Alertes sources nationales (LIMPI) | 20 | jamais déclenché (pas de screening sur un prospect) | `client.screeningStatut = ALERTE` |
+
+Les critères marqués *(idem)* n'ont pas d'équivalent direct dans les données client : ils sont comblés par le questionnaire d'acceptation du **prospect d'origine** (`client.prospect`) s'il existe, sinon restent à `false`. Un client créé directement (jamais passé par le pipeline prospect) ne peut donc déclencher que PPE / CA / screening / UBO étranger — le score maximal atteignable dans ce cas est mathématiquement plafonné (~45/100), ce qui est cohérent : sans questionnaire de risque rempli, on ne peut pas conclure à un risque géographique/sectoriel élevé.
+
+**Point d'attention** : ces 9 poids totalisent 155 pts, pas 100 (incohérence de la grille source elle-même). Le score persisté est donc **normalisé** : `score = round(Σ(poids déclenchés) / 155 × 100)`, ce qui garantit un score toujours compris entre 0 et 100.
 
 ```
-score = clientCaracteristiques + activiteSecteur + zoneGeographique + typeMission
-
-niveau = FAIBLE  si score ≤ 40
-         MOYEN   si score ≤ 80
+niveau = FAIBLE  si score ≤ 33
+         MOYEN   si score ≤ 66
          ELEVE   sinon
 ```
 
-Chaque évaluation crée une nouvelle ligne dans `score_risque` (`reponses` en JSONB) ; le score courant est celui dont `created_at` est le plus récent pour le client.
+**Déclenchement** — `ScoringService.recalculateForProspect(prospectId, userId)` et `recalculateForClient(clientId, userId)` centralisent tout le calcul (chargement du client/prospect, de ses bénéficiaires effectifs et du questionnaire d'origine le cas échéant) et sont appelés par les autres services :
+
+| Événement | Service appelant |
+|---|---|
+| Création/modification du questionnaire d'acceptation | `QuestionnairesService.create` / `updateReponses` |
+| Création/modification d'un client, résultat de screening | `ClientsService.create` / `update` / `updateScreening` |
+| Ajout/modification/suppression d'un bénéficiaire effectif | `BeneficiairesService.create` / `update` / `remove` |
+| Conversion d'un prospect en client | `ProspectsService.convertToClient` |
+
+`ScoringModule` exporte `ScoringService` et est importé par `ClientsModule`, `BeneficiairesModule`, `QuestionnairesModule` et `ProspectsModule`. Chaque évaluation crée une nouvelle ligne dans `score_risque` (`reponses` en JSONB, `{ criteres: [...] }` dans les deux cas) ; le score courant est celui dont `created_at` est le plus récent. Il n'existe plus de route `POST /api/scoring` — seules les routes `GET /client/:id[/courant]` et `GET /prospect/:id[/courant]` subsistent, en lecture.
 
 ### 4.5 Pipes et validation globale
 
@@ -459,7 +482,7 @@ app.use(cookieParser());
     └── /[id]                      ← Éditer un utilisateur
 ```
 
-> Zonings d'écran détaillés pour chaque page : `docs/autre/workflow-frontend.md`. Types TypeScript partagés (enums, entités) : à réécrire intégralement dans `frontend/src/types/index.ts` d'après le même fichier §3.
+> Zonings d'écran détaillés pour chaque page : `docs/mvp/workflow-frontend.md`. Types TypeScript partagés (enums, entités) : à réécrire intégralement dans `frontend/src/types/index.ts` d'après le même fichier §3.
 
 ### 5.2 Structure des dossiers
 
@@ -515,7 +538,8 @@ Créer les fichiers `*.spec.ts` dans chaque module :
 
 | Service | Cas à tester |
 |---------|--------------|
-| `ScoringService` | Calcul correct du score ARPEC (4 dimensions) et du niveau associé (FAIBLE/MOYEN/ELEVE) |
+| `ScoringService` | Calcul correct du score automatique (9 critères pondérés, /100) pour un client comme pour un prospect, et des niveaux associés (FAIBLE/MOYEN/ELEVE) |
+| `auto-score.util` (pure) | Déclenchement correct de chacun des 9 critères, normalisation du score sur 100, cas « aucun critère déclenché » |
 | `AuthService` | Login valide, mauvais mdp, compte inactif, pose du cookie JWT |
 | `ClientsService` | Création (avec/sans prospect d'origine), soft delete, filtre par rôle |
 | `ProspectsService` | Transitions de `statutKanban`, conversion en client (génération `Client` + `ref`) |
@@ -834,7 +858,7 @@ git push origin feat/42-creation-client
 
 ## 11. Ordre de développement recommandé (MVP)
 
-Cette roadmap part de l'état actuel du backend (encore sur l'ancien schéma à 7 entités) vers la cible décrite dans [database.md](./database.md) et `docs/autre/workflow-backend.md` / `workflow-frontend.md`.
+Cette roadmap part de l'état actuel du backend (encore sur l'ancien schéma à 7 entités) vers la cible décrite dans [database.md](./database.md) et `docs/mvp/workflow-backend.md` / `workflow-frontend.md`.
 
 ### Phase A — Migration du schéma de données
 

@@ -21,7 +21,9 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // Liste accessible aux rôles pouvant assigner un prospect/dossier, pas seulement à l'admin.
   @Get()
+  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   findAll() {
     return this.usersService.findAll();
   }
