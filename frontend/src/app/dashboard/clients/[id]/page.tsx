@@ -27,7 +27,9 @@ import {
 import { apiFetch } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
-import { StatusBadge, RiskBadge } from "@/lib/status";
+import { StatusBadge } from "@/lib/status";
+import { fetchSirene } from "@/lib/sirene";
+import { ScoringPanel } from "@/components/scoring-panel";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import type {
@@ -165,6 +167,42 @@ function TabInfos({
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sireneLoading, setSireneLoading] = useState(false);
+  const [sireneError, setSireneError] = useState<string | null>(null);
+
+  async function handleRefreshSirene() {
+    if (!client.siret) return;
+    setSireneLoading(true);
+    setSireneError(null);
+    try {
+      const data = await fetchSirene(client.siret);
+      await apiFetch(`/clients/${client.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          raisonSociale: data.nom || undefined,
+          siren: data.siren || undefined,
+          formeJuridique: data.formeJuridique,
+          representantLegal: data.representantLegal,
+          codeNaf: data.codeNaf,
+          activitePrincipale: data.secteurActivite,
+          dateCreationEntreprise: data.dateCreation,
+          adresseSiege: data.adresse,
+          ville: data.ville,
+          codePostal: data.codePostal,
+          sireneUpdatedAt: new Date().toISOString(),
+        }),
+      });
+      onRefresh();
+    } catch (err) {
+      setSireneError(
+        err instanceof Error
+          ? err.message
+          : "SIRET introuvable ou service SIRENE indisponible",
+      );
+    } finally {
+      setSireneLoading(false);
+    }
+  }
 
   async function handleSave(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -229,6 +267,18 @@ function TabInfos({
                 />
               </Field>
             </div>
+            <Field>
+              <FieldLabel htmlFor="natureMission">
+                Nature de la mission
+              </FieldLabel>
+              <Input
+                id="natureMission"
+                name="natureMission"
+                defaultValue={client.natureMission ?? ""}
+                placeholder="Tenue de comptabilité, audit, conseil…"
+                className="rounded-xl"
+              />
+            </Field>
             <Field>
               <FieldLabel htmlFor="adresseSiege">Adresse</FieldLabel>
               <Input
@@ -310,6 +360,21 @@ function TabInfos({
                 <dd className="text-sm text-slate-800">{value}</dd>
               </div>
             ))}
+            {client.prospect && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <dt className="text-xs text-slate-400">
+                  Questionnaire d&apos;acceptation
+                </dt>
+                <dd>
+                  <Link
+                    href={`/dashboard/prospects/${client.prospect.id}/questionnaire`}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    Voir le questionnaire →
+                  </Link>
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
 
@@ -345,13 +410,35 @@ function TabInfos({
                 </div>
               ))}
             </dl>
-            <div className="px-4 py-3 border-t border-slate-100">
+            <div className="px-4 py-3 border-t border-slate-100 space-y-1.5">
               <button
-                onClick={onRefresh}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                onClick={handleRefreshSirene}
+                disabled={!client.siret || sireneLoading}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <IconRefresh className="size-3.5" /> Actualiser SIRENE
+                <IconRefresh
+                  className={`size-3.5 ${sireneLoading ? "animate-spin" : ""}`}
+                />
+                {sireneLoading ? "Actualisation…" : "Actualiser SIRENE"}
               </button>
+              {!client.siret && (
+                <p className="text-xs text-slate-400">
+                  Aucun SIRET enregistré pour ce client.
+                </p>
+              )}
+              {sireneError && (
+                <p className="text-xs text-red-600">{sireneError}</p>
+              )}
+              {client.sireneUpdatedAt && (
+                <p className="text-xs text-slate-400">
+                  Dernière actualisation :{" "}
+                  {new Date(client.sireneUpdatedAt).toLocaleDateString("fr-FR")}
+                </p>
+              )}
+              <p className="text-xs text-slate-400">
+                Chiffre d&apos;affaires et effectif restent à saisir
+                manuellement — non disponibles via SIRENE.
+              </p>
             </div>
           </div>
         </div>
@@ -419,12 +506,49 @@ function TabKyc({
   const { can } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showScreeningPicker, setShowScreeningPicker] = useState(false);
+  const [screeningSaving, setScreeningSaving] = useState(false);
+  const [showPpeEditor, setShowPpeEditor] = useState(false);
+  const [ppeSaving, setPpeSaving] = useState(false);
 
   useEffect(() => {
     apiFetch<Document[]>(`/documents/client/${client.id}`)
       .then(setDocs)
       .catch(() => {});
   }, [client.id]);
+
+  async function handleScreening(statut: "OK" | "ALERTE") {
+    setScreeningSaving(true);
+    try {
+      await apiFetch(`/clients/${client.id}/screening`, {
+        method: "PATCH",
+        body: JSON.stringify({ statut }),
+      });
+      setShowScreeningPicker(false);
+      onRefresh();
+    } finally {
+      setScreeningSaving(false);
+    }
+  }
+
+  async function handleSavePpe(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPpeSaving(true);
+    const form = new FormData(e.currentTarget);
+    try {
+      await apiFetch(`/clients/${client.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ppe: form.get("ppe") === "oui",
+          ppeDetail: (form.get("ppeDetail") as string) || undefined,
+        }),
+      });
+      setShowPpeEditor(false);
+      onRefresh();
+    } finally {
+      setPpeSaving(false);
+    }
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -489,7 +613,7 @@ function TabKyc({
           {can.validerQuestionnaire && client.kycStatut !== "VALIDE" && (
             <button
               onClick={async () => {
-                await apiFetch(`/clients/${client.id}/kyc/valider`, {
+                await apiFetch(`/clients/${client.id}/validate`, {
                   method: "PATCH",
                 });
                 onRefresh();
@@ -535,13 +659,88 @@ function TabKyc({
             </span>
           </div>
           <div className="flex gap-4 mt-3">
-            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-              [Modifier PPE]
+            <button
+              onClick={() => setShowPpeEditor(!showPpeEditor)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              {showPpeEditor ? "[Fermer]" : "[Modifier PPE]"}
             </button>
-            <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-              [Relancer screening]
+            <button
+              onClick={() => setShowScreeningPicker(!showScreeningPicker)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              {showScreeningPicker ? "[Fermer]" : "[Relancer screening]"}
             </button>
           </div>
+
+          {showPpeEditor && (
+            <form
+              onSubmit={handleSavePpe}
+              className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3"
+            >
+              <div className="flex items-center gap-6">
+                <span className="text-xs text-slate-500">
+                  Personne politiquement exposée :
+                </span>
+                {(["non", "oui"] as const).map((v) => (
+                  <label
+                    key={v}
+                    className="flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="ppe"
+                      value={v}
+                      defaultChecked={client.ppe ? v === "oui" : v === "non"}
+                      className="accent-blue-600"
+                    />
+                    <span className="text-xs text-slate-700">
+                      {v === "oui" ? "Oui" : "Non"}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <Input
+                name="ppeDetail"
+                defaultValue={client.ppeDetail ?? ""}
+                placeholder="Détail (fonction, mandat…)"
+                className="h-9 rounded-lg text-xs"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={ppeSaving}
+                className="rounded-lg bg-blue-700 text-white"
+              >
+                {ppeSaving ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </form>
+          )}
+
+          {showScreeningPicker && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <span className="text-xs text-slate-500">
+                Résultat du screening :
+              </span>
+              <button
+                onClick={() => handleScreening("OK")}
+                disabled={screeningSaving}
+                className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                OK
+              </button>
+              <button
+                onClick={() => handleScreening("ALERTE")}
+                disabled={screeningSaving}
+                className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                Alerte
+              </button>
+              {screeningSaving && (
+                <span className="text-xs text-slate-400">Enregistrement…</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1303,273 +1502,6 @@ function TabContacts({ clientId }: { clientId: string }) {
 }
 
 // ─── Onglet Scoring ───────────────────────────────────────────────────────────
-function TabScoring({
-  clientId,
-  onRefresh,
-}: {
-  clientId: string;
-  onRefresh: () => void;
-}) {
-  const [scores, setScores] = useState<ScoreRisque[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [formOpen, setFormOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    apiFetch<ScoreRisque[]>(`/scoring/client/${clientId}`)
-      .then(setScores)
-      .catch((err: Error) => {
-        setError(err.message);
-        setScores([]);
-      })
-      .finally(() => setLoading(false));
-  }, [clientId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-
-    const form = new FormData(event.currentTarget);
-
-    const payload = {
-      clientId,
-      clientCaracteristiques: Number(form.get("clientCaracteristiques")),
-      activiteSecteur: Number(form.get("activiteSecteur")),
-      zoneGeographique: Number(form.get("zoneGeographique")),
-      typeMission: Number(form.get("typeMission")),
-    };
-
-    try {
-      await apiFetch("/scoring", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      setFormOpen(false);
-      setLoading(true);
-      load();
-      onRefresh();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Impossible de calculer le score.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const latest = scores[0];
-  const niveauColor: Record<NiveauRisque, string> = {
-    ELEVE: "text-red-600",
-    MOYEN: "text-amber-600",
-    FAIBLE: "text-emerald-600",
-  };
-  const barColor: Record<NiveauRisque, string> = {
-    ELEVE: "bg-red-500",
-    MOYEN: "bg-amber-500",
-    FAIBLE: "bg-emerald-500",
-  };
-
-  return (
-    <>
-      <div className="space-y-4">
-        <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-blue-800">
-                Score de risque
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Évaluation ARPEC sur un total de 150 points.
-              </p>
-            </div>
-
-            <Button
-              size="sm"
-              onClick={() => {
-                setError(null);
-                setFormOpen(true);
-              }}
-              className="w-full rounded-xl bg-blue-700 text-white sm:w-auto"
-            >
-              <IconRefresh className="size-4" />
-              {latest ? "Recalculer" : "Évaluer"}
-            </Button>
-          </div>
-
-          {error && !formOpen && (
-            <div className="m-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="p-10 text-center text-sm text-slate-400">
-              Chargement du scoring…
-            </div>
-          ) : latest ? (
-            <div className="p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Score courant
-                  </p>
-                  <p
-                    className={`mt-2 text-4xl font-bold ${niveauColor[latest.niveau]}`}
-                  >
-                    {latest.score}
-                    <span className="text-lg font-normal text-slate-400">
-                      {" "}
-                      / 150
-                    </span>
-                  </p>
-                </div>
-                <RiskBadge level={latest.niveau} />
-              </div>
-
-              <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className={`h-full rounded-full ${barColor[latest.niveau]}`}
-                  style={{
-                    width: `${Math.min((latest.score / 150) * 100, 100)}%`,
-                  }}
-                />
-              </div>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {[
-                  [
-                    "Caractéristiques client",
-                    latest.reponses.clientCaracteristiques,
-                    50,
-                  ],
-                  ["Activité / secteur", latest.reponses.activiteSecteur, 40],
-                  ["Zone géographique", latest.reponses.zoneGeographique, 30],
-                  ["Type de mission", latest.reponses.typeMission, 30],
-                ].map(([label, value, max]) => (
-                  <div
-                    key={String(label)}
-                    className="rounded-xl bg-slate-50 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-3 text-xs">
-                      <span className="text-slate-600">{label}</span>
-                      <span className="font-mono font-semibold text-slate-700">
-                        {String(value)} / {String(max)}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-blue-500"
-                        style={{
-                          width: `${(Number(value) / Number(max)) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <p className="mt-4 text-xs text-slate-400">
-                Calculé le{" "}
-                {new Date(latest.createdAt).toLocaleDateString("fr-FR")}
-              </p>
-            </div>
-          ) : (
-            <div className="p-10 text-center text-sm text-slate-400">
-              Aucun score calculé pour ce client
-            </div>
-          )}
-        </section>
-
-        {scores.length > 1 && (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                Historique
-              </p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {scores.slice(1).map((score) => (
-                <div
-                  key={score.id}
-                  className="flex items-center justify-between gap-4 px-5 py-4"
-                >
-                  <div>
-                    <p className="font-semibold text-slate-900">
-                      {score.score} / 150
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {new Date(score.createdAt).toLocaleDateString("fr-FR")}
-                    </p>
-                  </div>
-                  <RiskBadge level={score.niveau} />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-
-      {formOpen && (
-        <Modal
-          title="Calculer le score de risque"
-          description="Attribuez une note à chacune des quatre dimensions ARPEC."
-          onClose={() => setFormOpen(false)}
-        >
-          <form onSubmit={handleSubmit}>
-            {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <FieldGroup>
-              {[
-                ["clientCaracteristiques", "Caractéristiques du client", 50],
-                ["activiteSecteur", "Activité et secteur", 40],
-                ["zoneGeographique", "Zone géographique", 30],
-                ["typeMission", "Type de mission", 30],
-              ].map(([name, label, max]) => (
-                <Field key={String(name)}>
-                  <FieldLabel htmlFor={`score-${name}`}>
-                    {String(label)} (0 à {String(max)})
-                  </FieldLabel>
-                  <Input
-                    id={`score-${name}`}
-                    name={String(name)}
-                    type="number"
-                    min={0}
-                    max={Number(max)}
-                    defaultValue={
-                      latest?.reponses?.[
-                        name as keyof ScoreRisque["reponses"]
-                      ] ?? 0
-                    }
-                    className="h-11 rounded-xl"
-                    required
-                  />
-                </Field>
-              ))}
-            </FieldGroup>
-
-            <FormActions
-              saving={saving}
-              submitLabel="Calculer le score"
-              onCancel={() => setFormOpen(false)}
-            />
-          </form>
-        </Modal>
-      )}
-    </>
-  );
-}
-
 // ─── Onglet Missions ──────────────────────────────────────────────────────────
 const MISSION_LABELS: Record<TypeMission, string> = {
   COMPTABILITE: "Comptabilité",
@@ -2959,7 +2891,7 @@ export default function ClientDetailPage() {
 
                   {score ? (
                     <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-3 py-1.5 text-xs font-semibold text-amber-100">
-                      ● RISQUE {score.niveau} ({score.score}/150)
+                      ● RISQUE {score.niveau} ({score.score}/100)
                     </span>
                   ) : (
                     <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white/80">
@@ -3009,7 +2941,7 @@ export default function ClientDetailPage() {
                   Score courant
                 </p>
                 <p className="mt-1 text-sm font-semibold text-white">
-                  {score ? `${score.score}/150` : "Non évalué"}
+                  {score ? `${score.score}/100` : "Non évalué"}
                 </p>
               </div>
             </div>
@@ -3057,7 +2989,7 @@ export default function ClientDetailPage() {
           {activeTab === "ubo" && <TabUbo clientId={id} onRefresh={load} />}
           {activeTab === "contacts" && <TabContacts clientId={id} />}
           {activeTab === "scoring" && (
-            <TabScoring clientId={id} onRefresh={load} />
+            <ScoringPanel entityType="client" entityId={id} />
           )}
           {activeTab === "missions" && <TabMissions clientId={id} />}
           {activeTab === "planning" && <TabPlanning clientId={id} />}

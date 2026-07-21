@@ -5,7 +5,14 @@ import { DataSource } from 'typeorm';
 import { ClientsService } from './clients.service';
 import { Client } from './entities/client.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { Role, StatutClient, StatutKyc, TypeEntite } from '../common/enums';
+import {
+  Role,
+  ScreeningStatut,
+  StatutClient,
+  StatutKyc,
+  TypeEntite,
+} from '../common/enums';
+import { ScoringService } from '../scoring/scoring.service';
 
 const COLLAB: { id: string; role: Role } = {
   id: 'user-1',
@@ -45,14 +52,27 @@ describe('ClientsService', () => {
     create: jest.fn((data) => data),
   };
 
+  const refQueryBuilderMock = {
+    select: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    withDeleted: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    getRawOne: jest.fn(),
+  };
+
   const managerMock = {
-    count: jest.fn(),
     create: jest.fn((_, data) => data),
     save: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(refQueryBuilderMock),
   };
 
   const dataSourceMock = {
     transaction: jest.fn((cb) => cb(managerMock)),
+  };
+
+  const scoringServiceMock = {
+    recalculateForClient: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -64,6 +84,7 @@ describe('ClientsService', () => {
         { provide: getRepositoryToken(Client), useValue: clientsRepoMock },
         { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
         { provide: DataSource, useValue: dataSourceMock },
+        { provide: ScoringService, useValue: scoringServiceMock },
       ],
     }).compile();
 
@@ -78,7 +99,7 @@ describe('ClientsService', () => {
     };
 
     it('génère la référence QW-YYYY-XXX avec le bon séquençage', async () => {
-      managerMock.count.mockResolvedValue(2);
+      refQueryBuilderMock.getRawOne.mockResolvedValue({ ref: 'QW-2026-002' });
       managerMock.save.mockImplementation((entity) =>
         Promise.resolve({ ...entity, id: 'client-new' }),
       );
@@ -90,7 +111,7 @@ describe('ClientsService', () => {
     });
 
     it("enregistre un audit CREATE avec l'id du créateur", async () => {
-      managerMock.count.mockResolvedValue(0);
+      refQueryBuilderMock.getRawOne.mockResolvedValue(null);
       managerMock.save
         .mockResolvedValueOnce({ id: 'client-new', ref: 'QW-2026-001' })
         .mockResolvedValue({});
@@ -103,6 +124,18 @@ describe('ClientsService', () => {
         ressource: 'Client',
         utilisateur: { id: COLLAB.id },
       });
+    });
+
+    it('déclenche le recalcul automatique du score après création', async () => {
+      refQueryBuilderMock.getRawOne.mockResolvedValue(null);
+      managerMock.save.mockResolvedValue({ id: 'client-new' });
+
+      await service.create(dto, COLLAB);
+
+      expect(scoringServiceMock.recalculateForClient).toHaveBeenCalledWith(
+        'client-new',
+        COLLAB.id,
+      );
     });
   });
 
@@ -178,6 +211,54 @@ describe('ClientsService', () => {
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({ action: AuditAction.UPDATE }),
       );
+      expect(scoringServiceMock.recalculateForClient).toHaveBeenCalledWith(
+        'client-1',
+        ADMIN.id,
+      );
+    });
+  });
+
+  // ------------------------------------------------------- updateScreening
+  describe('updateScreening', () => {
+    it('enregistre le statut, la date et déclenche le recalcul du score', async () => {
+      const client = makeClient();
+      clientsRepoMock.findOneBy.mockResolvedValue(client);
+      clientsRepoMock.save.mockResolvedValue({
+        ...client,
+        screeningStatut: ScreeningStatut.ALERTE,
+      });
+
+      await service.updateScreening(
+        'client-1',
+        { statut: ScreeningStatut.ALERTE },
+        ADMIN,
+      );
+
+      expect(clientsRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          screeningStatut: ScreeningStatut.ALERTE,
+          screeningDate: expect.any(Date),
+        }),
+      );
+      expect(auditRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ action: AuditAction.VALIDATE }),
+      );
+      expect(scoringServiceMock.recalculateForClient).toHaveBeenCalledWith(
+        'client-1',
+        ADMIN.id,
+      );
+    });
+
+    it('lève NotFoundException si le client est introuvable', async () => {
+      clientsRepoMock.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.updateScreening(
+          'inexistant',
+          { statut: ScreeningStatut.OK },
+          ADMIN,
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

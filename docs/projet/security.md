@@ -11,6 +11,7 @@ QW-App traite des données personnelles et financières sensibles (KYC, pièces 
 | Action | Collaborateur | Responsable | Expert-comptable | Administrateur |
 |--------|:-------------:|:-----------:|:----------------:|:--------------:|
 | Créer un prospect / gérer le Kanban | ✅ | ✅ | ✅ | ✅ |
+| Assigner un prospect / consulter la liste des utilisateurs | ✅ | ✅ | ❌ | ✅ |
 | Saisir le KYC | ✅ | ✅ | ✅ | ✅ |
 | Valider le questionnaire d'acceptation | ❌ | ✅ | ✅ | ✅ |
 | Convertir prospect → client | ❌ | ✅ | ✅ | ✅ |
@@ -22,6 +23,8 @@ QW-App traite des données personnelles et financières sensibles (KYC, pièces 
 | Supprimer un dossier (soft delete) | ❌ | ❌ | ❌ | ✅ |
 
 Implémentation backend : `JwtAuthGuard` (authentification) + `RolesGuard` couplé au décorateur `@Roles(...roles: Role[])` sur chaque route protégée. Implémentation frontend : hook `useRole()` + composant `<Guard roles={[...]}>` pour masquer les actions non autorisées (voir [workflow.md](./workflow.md)).
+
+> **Nuance sur `GET /api/users`** : la lecture de la liste des utilisateurs (nécessaire pour peupler le sélecteur d'assignation d'un prospect) est ouverte à `COLLABORATEUR`/`RESPONSABLE`/`ADMIN` via un `@Roles()` au niveau de la méthode `findAll()`, qui prime sur le `@Roles(ADMIN)` posé au niveau du contrôleur (`RolesGuard` utilise `getAllAndOverride`). Les autres routes du module `users` (création, modification, désactivation d'un compte) restent strictement réservées à `ADMIN`.
 
 ---
 

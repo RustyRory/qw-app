@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -82,4 +83,16 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   natureMission?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  ppe?: boolean;
+
+  @IsOptional()
+  @IsString()
+  ppeDetail?: string;
+
+  @IsOptional()
+  @IsDateString()
+  sireneUpdatedAt?: string;
 }

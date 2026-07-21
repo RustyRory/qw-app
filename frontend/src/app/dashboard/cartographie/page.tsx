@@ -15,22 +15,14 @@ import {
 import { apiFetch } from "@/lib/apiFetch";
 import { RiskBadge } from "@/lib/status";
 
-import type {
-  Client,
-  NiveauRisque,
-  ScoreRisque,
-} from "@/types";
+import type { Client, NiveauRisque, ScoreRisque } from "@/types";
 
 interface ClientWithScore {
   client: Client;
   score: ScoreRisque | null;
 }
 
-const RISK_LEVELS: NiveauRisque[] = [
-  "FAIBLE",
-  "MOYEN",
-  "ELEVE",
-];
+const RISK_LEVELS: NiveauRisque[] = ["FAIBLE", "MOYEN", "ELEVE"];
 
 const RISK_LABELS: Record<NiveauRisque, string> = {
   FAIBLE: "Faible",
@@ -50,8 +42,7 @@ const CARD_STYLES: Record<
   }
 > = {
   FAIBLE: {
-    container:
-      "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white",
+    container: "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white",
     title: "text-emerald-700",
     value: "text-emerald-800",
     iconContainer: "bg-emerald-100",
@@ -60,8 +51,7 @@ const CARD_STYLES: Record<
   },
 
   MOYEN: {
-    container:
-      "border-amber-200 bg-gradient-to-br from-amber-50 to-white",
+    container: "border-amber-200 bg-gradient-to-br from-amber-50 to-white",
     title: "text-amber-700",
     value: "text-amber-800",
     iconContainer: "bg-amber-100",
@@ -70,8 +60,7 @@ const CARD_STYLES: Record<
   },
 
   ELEVE: {
-    container:
-      "border-red-200 bg-gradient-to-br from-red-50 to-white",
+    container: "border-red-200 bg-gradient-to-br from-red-50 to-white",
     title: "text-red-700",
     value: "text-red-800",
     iconContainer: "bg-red-100",
@@ -93,6 +82,7 @@ export default function CartographiePage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
 
@@ -120,50 +110,31 @@ export default function CartographiePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const counts = useMemo<
-    Record<NiveauRisque, number>
-  >(
+  const counts = useMemo<Record<NiveauRisque, number>>(
     () => ({
-      FAIBLE: rows.filter(
-        ({ score }) => score?.niveau === "FAIBLE",
-      ).length,
+      FAIBLE: rows.filter(({ score }) => score?.niveau === "FAIBLE").length,
 
-      MOYEN: rows.filter(
-        ({ score }) => score?.niveau === "MOYEN",
-      ).length,
+      MOYEN: rows.filter(({ score }) => score?.niveau === "MOYEN").length,
 
-      ELEVE: rows.filter(
-        ({ score }) => score?.niveau === "ELEVE",
-      ).length,
+      ELEVE: rows.filter(({ score }) => score?.niveau === "ELEVE").length,
     }),
     [rows],
   );
 
-  const withoutScoreCount = rows.filter(
-    ({ score }) => score === null,
-  ).length;
+  const withoutScoreCount = rows.filter(({ score }) => score === null).length;
 
-  const totalScoredClients =
-    counts.FAIBLE + counts.MOYEN + counts.ELEVE;
+  const totalScoredClients = counts.FAIBLE + counts.MOYEN + counts.ELEVE;
 
   const sectors = useMemo(() => {
     const values = rows
-      .map(({ client }) =>
-        client.activitePrincipale?.trim(),
-      )
-      .filter(
-        (value): value is string => Boolean(value),
-      );
+      .map(({ client }) => client.activitePrincipale?.trim())
+      .filter((value): value is string => Boolean(value));
 
-    return [...new Set(values)].sort((a, b) =>
-      a.localeCompare(b, "fr"),
-    );
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b, "fr"));
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
+    const normalizedSearch = search.trim().toLowerCase();
 
     return [...rows]
       .filter(({ score }) => {
@@ -178,46 +149,25 @@ export default function CartographiePage() {
       .filter(({ client }) => {
         if (sectorFilter === "TOUS") return true;
 
-        return (
-          client.activitePrincipale === sectorFilter
-        );
+        return client.activitePrincipale === sectorFilter;
       })
       .filter(({ client }) => {
         if (!normalizedSearch) return true;
 
         return (
-          client.ref
-            .toLowerCase()
-            .includes(normalizedSearch) ||
-          client.raisonSociale
-            .toLowerCase()
-            .includes(normalizedSearch) ||
-          client.activitePrincipale
-            ?.toLowerCase()
-            .includes(normalizedSearch) ||
-          client.ville
-            ?.toLowerCase()
-            .includes(normalizedSearch)
+          client.ref.toLowerCase().includes(normalizedSearch) ||
+          client.raisonSociale.toLowerCase().includes(normalizedSearch) ||
+          client.activitePrincipale?.toLowerCase().includes(normalizedSearch) ||
+          client.ville?.toLowerCase().includes(normalizedSearch)
         );
       })
-      .sort(
-        (a, b) =>
-          (b.score?.score ?? -1) -
-          (a.score?.score ?? -1),
-      );
-  }, [
-    rows,
-    riskFilter,
-    sectorFilter,
-    search,
-  ]);
+      .sort((a, b) => (b.score?.score ?? -1) - (a.score?.score ?? -1));
+  }, [rows, riskFilter, sectorFilter, search]);
 
   function getPercentage(niveau: NiveauRisque) {
     if (totalScoredClients === 0) return 0;
 
-    return Math.round(
-      (counts[niveau] / totalScoredClients) * 100,
-    );
+    return Math.round((counts[niveau] / totalScoredClients) * 100);
   }
 
   function handleExportPdf() {
@@ -249,8 +199,8 @@ export default function CartographiePage() {
                   </h1>
 
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
-                    Visualisez la répartition du portefeuille
-                    selon le niveau de risque de chaque client.
+                    Visualisez la répartition du portefeuille selon le niveau de
+                    risque de chaque client.
                   </p>
                 </div>
               </div>
@@ -272,9 +222,7 @@ export default function CartographiePage() {
                 </p>
 
                 <p className="mt-1 text-3xl font-bold text-white">
-                  {loading
-                    ? "—"
-                    : totalScoredClients}
+                  {loading ? "—" : totalScoredClients}
                 </p>
               </div>
 
@@ -304,9 +252,7 @@ export default function CartographiePage() {
                 </p>
 
                 <p className="mt-1 text-3xl font-bold text-white">
-                  {loading
-                    ? "—"
-                    : withoutScoreCount}
+                  {loading ? "—" : withoutScoreCount}
                 </p>
               </div>
             </div>
@@ -323,8 +269,7 @@ export default function CartographiePage() {
         <div className="grid gap-4 sm:grid-cols-3">
           {RISK_LEVELS.map((niveau) => {
             const styles = CARD_STYLES[niveau];
-            const percentage =
-              getPercentage(niveau);
+            const percentage = getPercentage(niveau);
 
             return (
               <button
@@ -332,15 +277,11 @@ export default function CartographiePage() {
                 type="button"
                 onClick={() =>
                   setRiskFilter((current) =>
-                    current === niveau
-                      ? "TOUS"
-                      : niveau,
+                    current === niveau ? "TOUS" : niveau,
                   )
                 }
                 className={`rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md ${styles.container} ${
-                  riskFilter === niveau
-                    ? "ring-2 ring-blue-500/20"
-                    : ""
+                  riskFilter === niveau ? "ring-2 ring-blue-500/20" : ""
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -351,12 +292,8 @@ export default function CartographiePage() {
                       Risque {RISK_LABELS[niveau]}
                     </p>
 
-                    <p
-                      className={`mt-2 text-3xl font-bold ${styles.value}`}
-                    >
-                      {loading
-                        ? "—"
-                        : counts[niveau]}
+                    <p className={`mt-2 text-3xl font-bold ${styles.value}`}>
+                      {loading ? "—" : counts[niveau]}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500">
@@ -368,17 +305,11 @@ export default function CartographiePage() {
                     className={`flex size-11 items-center justify-center rounded-xl ${styles.iconContainer}`}
                   >
                     {niveau === "FAIBLE" ? (
-                      <IconShieldCheck
-                        className={`size-6 ${styles.icon}`}
-                      />
+                      <IconShieldCheck className={`size-6 ${styles.icon}`} />
                     ) : niveau === "MOYEN" ? (
-                      <IconMapPin
-                        className={`size-6 ${styles.icon}`}
-                      />
+                      <IconMapPin className={`size-6 ${styles.icon}`} />
                     ) : (
-                      <IconAlertTriangle
-                        className={`size-6 ${styles.icon}`}
-                      />
+                      <IconAlertTriangle className={`size-6 ${styles.icon}`} />
                     )}
                   </div>
                 </div>
@@ -403,47 +334,27 @@ export default function CartographiePage() {
               value={riskFilter}
               onChange={(event) =>
                 setRiskFilter(
-                  event.target.value as
-                    | "TOUS"
-                    | NiveauRisque
-                    | "SANS_SCORE",
+                  event.target.value as "TOUS" | NiveauRisque | "SANS_SCORE",
                 )
               }
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
             >
-              <option value="TOUS">
-                Tous les niveaux
-              </option>
-              <option value="FAIBLE">
-                Risque faible
-              </option>
-              <option value="MOYEN">
-                Risque moyen
-              </option>
-              <option value="ELEVE">
-                Risque élevé
-              </option>
-              <option value="SANS_SCORE">
-                Sans scoring
-              </option>
+              <option value="TOUS">Tous les niveaux</option>
+              <option value="FAIBLE">Risque faible</option>
+              <option value="MOYEN">Risque moyen</option>
+              <option value="ELEVE">Risque élevé</option>
+              <option value="SANS_SCORE">Sans scoring</option>
             </select>
 
             <select
               value={sectorFilter}
-              onChange={(event) =>
-                setSectorFilter(event.target.value)
-              }
+              onChange={(event) => setSectorFilter(event.target.value)}
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
             >
-              <option value="TOUS">
-                Tous les secteurs
-              </option>
+              <option value="TOUS">Tous les secteurs</option>
 
               {sectors.map((sector) => (
-                <option
-                  key={sector}
-                  value={sector}
-                >
+                <option key={sector} value={sector}>
                   {sector}
                 </option>
               ))}
@@ -455,9 +366,7 @@ export default function CartographiePage() {
               <input
                 type="search"
                 value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
+                onChange={(event) => setSearch(event.target.value)}
                 placeholder="Rechercher un client, une référence, un secteur..."
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
               />
@@ -482,14 +391,8 @@ export default function CartographiePage() {
                   {loading
                     ? "Chargement..."
                     : `${filteredRows.length} client${
-                        filteredRows.length > 1
-                          ? "s"
-                          : ""
-                      } affiché${
-                        filteredRows.length > 1
-                          ? "s"
-                          : ""
-                      }`}
+                        filteredRows.length > 1 ? "s" : ""
+                      } affiché${filteredRows.length > 1 ? "s" : ""}`}
                 </p>
               </div>
             </div>
@@ -548,73 +451,64 @@ export default function CartographiePage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map(
-                    ({ client, score }) => (
-                      <tr
-                        key={client.id}
-                        className="transition hover:bg-blue-50/30"
-                      >
-                        <td className="px-5 py-4 font-mono text-xs text-slate-500">
-                          {client.ref}
-                        </td>
+                  filteredRows.map(({ client, score }) => (
+                    <tr
+                      key={client.id}
+                      className="transition hover:bg-blue-50/30"
+                    >
+                      <td className="px-5 py-4 font-mono text-xs text-slate-500">
+                        {client.ref}
+                      </td>
 
-                        <td className="px-5 py-4">
-                          <p className="font-semibold text-slate-900">
-                            {client.raisonSociale}
+                      <td className="px-5 py-4">
+                        <p className="font-semibold text-slate-900">
+                          {client.raisonSociale}
+                        </p>
+
+                        {client.ville && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {client.ville}
                           </p>
+                        )}
+                      </td>
 
-                          {client.ville && (
-                            <p className="mt-1 text-xs text-slate-400">
-                              {client.ville}
-                            </p>
-                          )}
-                        </td>
+                      <td className="px-5 py-4 text-slate-500">
+                        {client.activitePrincipale ?? "—"}
+                      </td>
 
-                        <td className="px-5 py-4 text-slate-500">
-                          {client.activitePrincipale ??
-                            "—"}
-                        </td>
+                      <td className="px-5 py-4 font-mono font-medium text-slate-700">
+                        {score ? `${score.score}/100` : "—"}
+                      </td>
 
-                        <td className="px-5 py-4 font-mono font-medium text-slate-700">
-                          {score
-                            ? `${score.score}/150`
-                            : "—"}
-                        </td>
+                      <td className="px-5 py-4">
+                        {score ? (
+                          <RiskBadge level={score.niveau} />
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
+                            Non évalué
+                          </span>
+                        )}
+                      </td>
 
-                        <td className="px-5 py-4">
-                          {score ? (
-                            <RiskBadge
-                              level={score.niveau}
-                            />
-                          ) : (
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
-                              Non évalué
-                            </span>
-                          )}
-                        </td>
+                      <td className="px-5 py-4 text-slate-500">
+                        {score
+                          ? new Date(score.createdAt).toLocaleDateString(
+                              "fr-FR",
+                            )
+                          : "—"}
+                      </td>
 
-                        <td className="px-5 py-4 text-slate-500">
-                          {score
-                            ? new Date(
-                                score.createdAt,
-                              ).toLocaleDateString(
-                                "fr-FR",
-                              )
-                            : "—"}
-                        </td>
-
-                        <td className="px-5 py-4 text-right">
-                          <Link
-                            href={`/dashboard/clients/${client.id}`}
-                            title="Voir le dossier"
-                            className="inline-flex size-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-100 hover:text-blue-700"
-                          >
-                            <IconChevronRight className="size-5" />
-                          </Link>
-                        </td>
-                      </tr>
-                    ),
-                  )
+                      <td className="px-5 py-4 text-right">
+                        <Link
+                          href={`/dashboard/clients/${client.id}`}
+                          title="Voir le dossier"
+                          className="inline-flex size-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-100 hover:text-blue-700"
+                        >
+                          <IconChevronRight className="size-5" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -631,82 +525,69 @@ export default function CartographiePage() {
                 Aucun client trouvé
               </div>
             ) : (
-              filteredRows.map(
-                ({ client, score }) => (
-                  <Link
-                    key={client.id}
-                    href={`/dashboard/clients/${client.id}`}
-                    className="block p-4 transition hover:bg-blue-50/30"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-slate-900">
-                          {client.raisonSociale}
-                        </p>
+              filteredRows.map(({ client, score }) => (
+                <Link
+                  key={client.id}
+                  href={`/dashboard/clients/${client.id}`}
+                  className="block p-4 transition hover:bg-blue-50/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">
+                        {client.raisonSociale}
+                      </p>
 
-                        <p className="mt-1 font-mono text-xs text-slate-400">
-                          {client.ref}
-                        </p>
-                      </div>
-
-                      <IconChevronRight className="size-5 shrink-0 text-slate-300" />
+                      <p className="mt-1 font-mono text-xs text-slate-400">
+                        {client.ref}
+                      </p>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {score ? (
-                        <RiskBadge
-                          level={score.niveau}
-                        />
-                      ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
-                          Sans scoring
-                        </span>
-                      )}
+                    <IconChevronRight className="size-5 shrink-0 text-slate-300" />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {score ? (
+                      <RiskBadge level={score.niveau} />
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
+                        Sans scoring
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-slate-400">Secteur</p>
+
+                      <p className="mt-1 truncate text-slate-600">
+                        {client.activitePrincipale ?? "—"}
+                      </p>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          Secteur
-                        </p>
+                    <div>
+                      <p className="text-xs text-slate-400">Score</p>
 
-                        <p className="mt-1 truncate text-slate-600">
-                          {client.activitePrincipale ??
-                            "—"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          Score
-                        </p>
-
-                        <p className="mt-1 font-mono text-slate-600">
-                          {score
-                            ? `${score.score}/150`
-                            : "—"}
-                        </p>
-                      </div>
-
-                      <div className="col-span-2">
-                        <p className="text-xs text-slate-400">
-                          Dernière évaluation
-                        </p>
-
-                        <p className="mt-1 text-slate-600">
-                          {score
-                            ? new Date(
-                                score.createdAt,
-                              ).toLocaleDateString(
-                                "fr-FR",
-                              )
-                            : "Aucune évaluation"}
-                        </p>
-                      </div>
+                      <p className="mt-1 font-mono text-slate-600">
+                        {score ? `${score.score}/100` : "—"}
+                      </p>
                     </div>
-                  </Link>
-                ),
-              )
+
+                    <div className="col-span-2">
+                      <p className="text-xs text-slate-400">
+                        Dernière évaluation
+                      </p>
+
+                      <p className="mt-1 text-slate-600">
+                        {score
+                          ? new Date(score.createdAt).toLocaleDateString(
+                              "fr-FR",
+                            )
+                          : "Aucune évaluation"}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))
             )}
           </div>
         </div>

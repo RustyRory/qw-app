@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BeneficiaireEffectif } from './entities/beneficiaire-effectif.entity';
 import { Client } from '../clients/entities/client.entity';
+import { ScoringService } from '../scoring/scoring.service';
 import { CreateBeneficiaireDto } from './dto/create-beneficiaire.dto';
 import { UpdateBeneficiaireDto } from './dto/update-beneficiaire.dto';
 
@@ -11,9 +12,25 @@ export class BeneficiairesService {
   constructor(
     @InjectRepository(BeneficiaireEffectif)
     private readonly repo: Repository<BeneficiaireEffectif>,
+    @InjectRepository(Client)
+    private readonly clientRepo: Repository<Client>,
+    private readonly scoringService: ScoringService,
   ) {}
 
-  create(dto: CreateBeneficiaireDto): Promise<BeneficiaireEffectif> {
+  // Maintient `client.uboSaisi` synchronisé avec la présence réelle d'au moins
+  // un bénéficiaire effectif (rien ne le mettait à jour auparavant : la
+  // checklist KYC restait bloquée sur ❌ même après saisie).
+  private async syncUboSaisi(clientId: string): Promise<void> {
+    const count = await this.repo.count({
+      where: { client: { id: clientId } },
+    });
+    await this.clientRepo.update({ id: clientId }, { uboSaisi: count > 0 });
+  }
+
+  async create(
+    dto: CreateBeneficiaireDto,
+    userId: string,
+  ): Promise<BeneficiaireEffectif> {
     const b = this.repo.create({
       nom: dto.nom,
       prenom: dto.prenom ?? null,
@@ -24,7 +41,12 @@ export class BeneficiairesService {
       ppe: dto.ppe ?? false,
       client: { id: dto.clientId } as Client,
     });
-    return this.repo.save(b);
+    const saved = await this.repo.save(b);
+
+    await this.syncUboSaisi(dto.clientId);
+    await this.scoringService.recalculateForClient(dto.clientId, userId);
+
+    return saved;
   }
 
   findByClient(clientId: string): Promise<BeneficiaireEffectif[]> {
@@ -46,8 +68,9 @@ export class BeneficiairesService {
   async update(
     id: string,
     dto: UpdateBeneficiaireDto,
+    userId: string,
   ): Promise<BeneficiaireEffectif> {
-    const b = await this.repo.findOneBy({ id });
+    const b = await this.repo.findOne({ where: { id }, relations: ['client'] });
     if (!b) throw new NotFoundException('Bénéficiaire effectif introuvable');
     if (dto.nom !== undefined) b.nom = dto.nom;
     if (dto.prenom !== undefined) b.prenom = dto.prenom ?? null;
@@ -58,12 +81,20 @@ export class BeneficiairesService {
     if (dto.pourcentageDetention !== undefined)
       b.pourcentageDetention = dto.pourcentageDetention;
     if (dto.ppe !== undefined) b.ppe = dto.ppe;
-    return this.repo.save(b);
+    const saved = await this.repo.save(b);
+
+    await this.scoringService.recalculateForClient(b.client.id, userId);
+
+    return saved;
   }
 
-  async remove(id: string): Promise<void> {
-    const b = await this.repo.findOneBy({ id });
+  async remove(id: string, userId: string): Promise<void> {
+    const b = await this.repo.findOne({ where: { id }, relations: ['client'] });
     if (!b) throw new NotFoundException('Bénéficiaire effectif introuvable');
+    const clientId = b.client.id;
     await this.repo.remove(b);
+
+    await this.syncUboSaisi(clientId);
+    await this.scoringService.recalculateForClient(clientId, userId);
   }
 }

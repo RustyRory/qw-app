@@ -71,6 +71,7 @@ Aujourd'hui, le Cabinet QW gère ces obligations via des fichiers Excel, emails 
 |--------|:-------------:|:-----------:|:----------------:|:--------------:|
 | Créer un prospect | ✅ | ✅ | ✅ | ✅ |
 | Gérer le pipeline Kanban | ✅ | ✅ | ✅ | ✅ |
+| Assigner un prospect à un collaborateur | ✅ | ✅ | ❌ | ✅ |
 | Saisir le KYC | ✅ | ✅ | ✅ | ✅ |
 | Valider le questionnaire d'acceptation | ❌ | ✅ | ✅ | ✅ |
 | Convertir prospect → client | ❌ | ✅ | ✅ | ✅ |
@@ -87,14 +88,14 @@ Aujourd'hui, le Cabinet QW gère ces obligations via des fichiers Excel, emails 
 
 ## 3. Modules fonctionnels
 
-L'application est découpée en 12 modules métier. Le détail complet (user stories, règles métier, zonings d'écran) est conservé dans `docs/autre/cahier-des-charges.md` et `docs/autre/workflow-frontend.md` ; ce tableau en donne la vue de synthèse utilisée pour le pilotage du projet.
+L'application est découpée en 12 modules métier. Le détail complet (user stories, règles métier, zonings d'écran) est conservé dans `docs/mvp/cahier-des-charges.md` et `docs/mvp/workflow-frontend.md` ; ce tableau en donne la vue de synthèse utilisée pour le pilotage du projet.
 
 | # | Module | Description | Réf. user stories |
 |---|--------|-------------|--------------------|
 | 1 | **Prospects** (pipeline commercial) | Suivi Kanban du cycle de vie d'un contact commercial jusqu'à conversion en client | US-P01 → US-P07 |
 | 2 | **Dossier client** | Gestion complète des informations client (identification, localisation, situation économique, contacts) | US-C01 → US-C06 |
 | 3 | **KYC** (Know Your Customer) | Collecte et vérification des pièces d'identité, bénéficiaires effectifs, statut PPE, screening sanctions | US-K01 → US-K06 |
-| 4 | **Évaluation des risques** | Calcul du score de risque LCB-FT via la méthode ARPEC (4 dimensions) et cartographie du portefeuille | US-R01 → US-R05 |
+| 4 | **Évaluation des risques** | Score de risque LCB-FT calculé **automatiquement** pour les clients comme pour les prospects — 9 critères pondérés du cahier des charges, normalisés en %, /100. Aucune saisie manuelle : les clients sont scorés depuis leurs données réelles (PPE, screening, bénéficiaires effectifs, CA), les prospects depuis leur questionnaire d'acceptation. Cartographie du portefeuille. | US-R01 → US-R05 |
 | 5 | **Questionnaire d'acceptation (LAB)** | Validation formelle de l'entrée en relation — 61 questions réparties en 10 sections, contresignature si risque élevé | US-A01 → US-A07 |
 | 6 | **Missions et lettres de mission** | Gestion des lettres de mission conformes Ordre des Experts-Comptables, signature électronique | US-M01 → US-M06 |
 | 7 | **Planning et suivi** | Calendrier des diligences à réaliser sur chaque dossier | US-PL01 → US-PL05 |
@@ -144,7 +145,7 @@ Le détail technique est réparti dans les documents suivants :
 | **Gel des avoirs** | Mesure de blocage des fonds d'une personne ou entité sanctionnée |
 | **Diligences** | Mesures de vérification et de surveillance imposées par la réglementation LCB-FT |
 | **LAB** | Lettre d'Acceptation de la mission de Blanchiment — document préalable à l'entrée en relation |
-| **ARPEC** | Méthode de scoring du risque LCB-FT à 4 dimensions (caractéristiques client, activité/secteur, zone géographique, type de mission) |
+| **ARPEC** | Ancienne méthode de scoring manuelle à 4 dimensions (caractéristiques client, activité/secteur, zone géographique, type de mission) — retirée, remplacée par le calcul automatique à 9 critères (voir Module 4) |
 | **Audit trail** | Journal immuable de toutes les actions réalisées sur l'application |
 | **Soft delete** | Suppression logique — l'enregistrement est marqué supprimé mais conservé en base |
 | **Presigned URL** | URL temporaire donnant accès à un fichier S3 privé (durée limitée) |

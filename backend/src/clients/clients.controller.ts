@@ -18,6 +18,7 @@ import { Role } from '../common/enums';
 import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { ScreeningDto } from './dto/screening.dto';
 
 interface RequestWithUser {
   user: { id: string; role: Role };
@@ -54,9 +55,24 @@ export class ClientsController {
   }
 
   @Patch(':id/validate')
-  @Roles(Role.RESPONSABLE, Role.ADMIN)
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   validate(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.clientsService.validate(id, req.user);
+  }
+
+  @Patch(':id/screening')
+  @Roles(
+    Role.COLLABORATEUR,
+    Role.RESPONSABLE,
+    Role.EXPERT_COMPTABLE,
+    Role.ADMIN,
+  )
+  updateScreening(
+    @Param('id') id: string,
+    @Body() dto: ScreeningDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.clientsService.updateScreening(id, dto, req.user);
   }
 
   @Delete(':id')

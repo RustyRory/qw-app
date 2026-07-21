@@ -53,8 +53,12 @@ export class QuestionnairesController {
     Role.EXPERT_COMPTABLE,
     Role.ADMIN,
   )
-  updateReponses(@Param('id') id: string, @Body() dto: UpdateQuestionnaireDto) {
-    return this.svc.updateReponses(id, dto);
+  updateReponses(
+    @Param('id') id: string,
+    @Body() dto: UpdateQuestionnaireDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.svc.updateReponses(id, dto, req.user.id);
   }
 
   @Patch(':id/valider')

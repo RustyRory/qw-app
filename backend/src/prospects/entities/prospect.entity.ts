@@ -8,11 +8,13 @@ import {
   DeleteDateColumn,
   ManyToOne,
   OneToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
 import { QuestionnaireAcceptation } from '../../questionnaires/entities/questionnaire-acceptation.entity';
+import { ScoreRisque } from '../../scoring/entities/score-risque.entity';
 import { TypeEntite, StatutKanban } from '../../common/enums';
 
 @Entity('prospects')
@@ -107,6 +109,9 @@ export class Prospect {
   @OneToOne(() => Client, (client) => client.prospect, { nullable: true })
   @JoinColumn({ name: 'id_client' })
   client: Client | null;
+
+  @OneToMany(() => ScoreRisque, (score) => score.prospect)
+  scores: ScoreRisque[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
