@@ -14,6 +14,7 @@ import {
   IconMap,
   IconMenu2,
   IconSettings,
+  IconSignature,
   IconUserSearch,
   IconUsers,
   IconX,
@@ -78,6 +79,13 @@ const CONFORMITE_NAV: NavItem[] = [
     iconClass: "text-teal-400",
   },
 ];
+
+const PROFIL_NAV_ITEM: NavItem = {
+  href: "/dashboard/profil",
+  label: "Ma signature",
+  icon: IconSignature,
+  iconClass: "text-indigo-300",
+};
 
 const ADMIN_NAV: NavItem[] = [
   {
@@ -176,6 +184,7 @@ function MobileNav({
     CONFORMITE_NAV[0],
     CONFORMITE_NAV[1],
     CONFORMITE_NAV[2],
+    PROFIL_NAV_ITEM,
     ...(role === "ADMIN" ? ADMIN_NAV : []),
   ];
 
@@ -427,6 +436,14 @@ export function AppSidebar({
                   <p className="text-xs text-slate-400">Connecté</p>
                 </div>
               </div>
+
+              <Link
+                href="/dashboard/profil"
+                title="Ma signature électronique"
+                className="flex size-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white/10 hover:text-white"
+              >
+                <IconSignature className="size-4.5" />
+              </Link>
 
               <button
                 type="button"

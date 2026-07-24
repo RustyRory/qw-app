@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -14,6 +15,18 @@ import { Role } from '../common/enums';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateSignatureDto } from './dto/update-signature.dto';
+
+interface RequestWithUser {
+  user: { id: string; role: Role };
+}
+
+const TOUS_LES_ROLES = [
+  Role.COLLABORATEUR,
+  Role.RESPONSABLE,
+  Role.EXPERT_COMPTABLE,
+  Role.ADMIN,
+];
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -26,6 +39,22 @@ export class UsersController {
   @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
   findAll() {
     return this.usersService.findAll();
+  }
+
+  // Auto-gestion : tout utilisateur authentifié gère son propre profil/signature.
+  @Get('me')
+  @Roles(...TOUS_LES_ROLES)
+  getMe(@Req() req: RequestWithUser) {
+    return this.usersService.findMe(req.user.id);
+  }
+
+  @Patch('me/signature')
+  @Roles(...TOUS_LES_ROLES)
+  updateMySignature(
+    @Req() req: RequestWithUser,
+    @Body() dto: UpdateSignatureDto,
+  ) {
+    return this.usersService.updateMySignature(req.user.id, dto);
   }
 
   @Get(':id')

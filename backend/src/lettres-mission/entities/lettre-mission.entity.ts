@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Mission } from '../../missions/entities/mission.entity';
+import { DocusignStatutEnvelope } from '../../common/enums';
 
 @Entity('lettre_mission')
 export class LettreMission {
@@ -27,7 +28,29 @@ export class LettreMission {
   signeeAt: Date | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  s3Key: string | null;
+  cheminStockage: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  signeeParClientAt: Date | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  docusignEnvelopeId: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: DocusignStatutEnvelope,
+    nullable: true,
+  })
+  docusignStatut: DocusignStatutEnvelope | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  docusignDestinataireEmail: string | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  docusignDestinataireNom: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  docusignEnvoyeAt: Date | null;
 
   @ManyToOne(() => Mission, (mission) => mission.lettresMission, {
     nullable: false,

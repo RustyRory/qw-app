@@ -10,6 +10,7 @@ import { User } from './entities/user.entity';
 import { Role } from '../common/enums';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateSignatureDto } from './dto/update-signature.dto';
 
 @Injectable()
 export class UsersService {
@@ -32,6 +33,30 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable');
     return user;
+  }
+
+  async findMe(
+    id: string,
+  ): Promise<
+    Pick<User, 'id' | 'email' | 'prenom' | 'nom' | 'role' | 'signatureDataUri'>
+  > {
+    const user = await this.repo.findOne({
+      where: { id },
+      select: ['id', 'email', 'prenom', 'nom', 'role', 'signatureDataUri'],
+    });
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+    return user;
+  }
+
+  async updateMySignature(
+    id: string,
+    dto: UpdateSignatureDto,
+  ): Promise<{ signatureDataUri: string | null }> {
+    const user = await this.repo.findOneBy({ id });
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+    user.signatureDataUri = dto.signatureDataUri ?? null;
+    await this.repo.save(user);
+    return { signatureDataUri: user.signatureDataUri };
   }
 
   async create(dto: CreateUserDto): Promise<Omit<User, 'passwordHash'>> {

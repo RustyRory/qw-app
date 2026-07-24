@@ -24,7 +24,7 @@ import {
   IconChevronRight,
   IconX,
 } from "@tabler/icons-react";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/lib/status";
@@ -52,6 +52,8 @@ import type {
   TypeOperationSensible,
   TypeContact,
   User,
+  AssignationTache,
+  RepartitionTravauxCategorie,
 } from "@/types";
 
 const TABS = [
@@ -80,11 +82,13 @@ function Modal({
   description,
   children,
   onClose,
+  wide,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   onClose: () => void;
+  wide?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -95,7 +99,9 @@ function Modal({
         className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
       />
 
-      <div className="relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-white/20 bg-white shadow-2xl sm:max-w-xl sm:rounded-3xl">
+      <div
+        className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-white/20 bg-white shadow-2xl sm:rounded-3xl ${wide ? "sm:max-w-3xl" : "sm:max-w-xl"}`}
+      >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur">
           <div>
             <h2 className="font-semibold text-slate-900">{title}</h2>
@@ -1512,6 +1518,7 @@ const MISSION_LABELS: Record<TypeMission, string> = {
 };
 
 function TabMissions({ clientId }: { clientId: string }) {
+  const { can } = useRole();
   const [items, setItems] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -1519,6 +1526,23 @@ function TabMissions({ clientId }: { clientId: string }) {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const [previewLettre, setPreviewLettre] = useState<{
+    id: string;
+    url: string;
+  } | null>(null);
+  const [catalogue, setCatalogue] = useState<RepartitionTravauxCategorie[]>([]);
+  const [selectedType, setSelectedType] = useState<TypeMission>("COMPTABILITE");
+  const [repartition, setRepartition] = useState<
+    Record<string, AssignationTache>
+  >({});
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [docusignBusy, setDocusignBusy] = useState<string | null>(null);
+  const [docusignModalLettre, setDocusignModalLettre] = useState<string | null>(
+    null,
+  );
+  const [docusignEmail, setDocusignEmail] = useState("");
+  const [docusignNom, setDocusignNom] = useState("");
 
   const load = useCallback(() => {
     apiFetch<Mission[]>(`/missions/client/${clientId}`)
@@ -1534,15 +1558,31 @@ function TabMissions({ clientId }: { clientId: string }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    apiFetch<RepartitionTravauxCategorie[]>("/missions/repartition-catalogue")
+      .then(setCatalogue)
+      .catch(() => setCatalogue([]));
+  }, []);
+
+  useEffect(() => {
+    apiFetch<Contact[]>(`/contacts/client/${clientId}`)
+      .then(setContacts)
+      .catch(() => setContacts([]));
+  }, [clientId]);
+
   function openCreate() {
     setEditing(null);
     setError(null);
+    setSelectedType("COMPTABILITE");
+    setRepartition({});
     setFormOpen(true);
   }
 
   function openEdit(item: Mission) {
     setEditing(item);
     setError(null);
+    setSelectedType(item.type);
+    setRepartition({});
     setFormOpen(true);
   }
 
@@ -1553,6 +1593,21 @@ function TabMissions({ clientId }: { clientId: string }) {
 
     const form = new FormData(event.currentTarget);
 
+    const missionType = editing ? editing.type : selectedType;
+    const repartitionTravaux =
+      catalogue.length > 0 && missionType === "COMPTABILITE"
+        ? catalogue.flatMap((cat) =>
+            cat.lignes.map((ligne) => ({
+              id: ligne.id,
+              assignation:
+                repartition[ligne.id] ??
+                editing?.repartitionTravaux?.find((a) => a.id === ligne.id)
+                  ?.assignation ??
+                ligne.defaut,
+            })),
+          )
+        : undefined;
+
     const payload = editing
       ? {
           description:
@@ -1562,6 +1617,7 @@ function TabMissions({ clientId }: { clientId: string }) {
             String(form.get("honoraires") ?? "").trim() !== ""
               ? Number(form.get("honoraires"))
               : undefined,
+          repartitionTravaux,
         }
       : {
           clientId,
@@ -1574,6 +1630,7 @@ function TabMissions({ clientId }: { clientId: string }) {
             String(form.get("honoraires") ?? "").trim() !== ""
               ? Number(form.get("honoraires"))
               : undefined,
+          repartitionTravaux,
         };
 
     try {
@@ -1629,6 +1686,106 @@ function TabMissions({ clientId }: { clientId: string }) {
       load();
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function handleDownloadLettre(lettreId: string) {
+    try {
+      await downloadFile(
+        `/lettres-mission/${lettreId}/download`,
+        `lettre-mission-${lettreId}.pdf`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de télécharger la lettre de mission.",
+      );
+    }
+  }
+
+  async function handlePreviewLettre(lettreId: string) {
+    setPreviewLoading(lettreId);
+    setError(null);
+    try {
+      const url = await fetchBlobUrl(`/lettres-mission/${lettreId}/download`);
+      setPreviewLettre({ id: lettreId, url });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'afficher l'aperçu de la lettre de mission.",
+      );
+    } finally {
+      setPreviewLoading(null);
+    }
+  }
+
+  function closePreviewLettre() {
+    if (previewLettre) URL.revokeObjectURL(previewLettre.url);
+    setPreviewLettre(null);
+  }
+
+  async function handleSignerLettre(lettreId: string) {
+    setBusy(lettreId);
+    try {
+      await apiFetch(`/lettres-mission/${lettreId}/signer`, {
+        method: "PATCH",
+      });
+      setLoading(true);
+      load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de signer la lettre de mission.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleEnvoyerDocusign(
+    lettreId: string,
+    email: string,
+    nom: string,
+  ) {
+    setDocusignBusy(lettreId);
+    setError(null);
+    try {
+      await apiFetch(`/lettres-mission/${lettreId}/docusign/envoyer`, {
+        method: "POST",
+        body: JSON.stringify({ email, nom }),
+      });
+      setDocusignModalLettre(null);
+      setLoading(true);
+      load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'envoyer la lettre de mission via DocuSign.",
+      );
+    } finally {
+      setDocusignBusy(null);
+    }
+  }
+
+  async function handleRafraichirStatutDocusign(lettreId: string) {
+    setDocusignBusy(lettreId);
+    setError(null);
+    try {
+      await apiFetch(`/lettres-mission/${lettreId}/docusign/statut`);
+      setLoading(true);
+      load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de vérifier le statut DocuSign.",
+      );
+    } finally {
+      setDocusignBusy(null);
     }
   }
 
@@ -1772,6 +1929,139 @@ function TabMissions({ clientId }: { clientId: string }) {
                       Supprimer
                     </button>
                   </div>
+
+                  {item.lettresMission &&
+                    item.lettresMission.length > 0 &&
+                    (() => {
+                      const lettre = item.lettresMission![0];
+                      return (
+                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Lettre de mission
+                          </span>
+                          <button
+                            disabled={previewLoading === lettre.id}
+                            onClick={() => handlePreviewLettre(lettre.id)}
+                            className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                          >
+                            <IconEye className="size-4" />
+                            {previewLoading === lettre.id
+                              ? "Chargement…"
+                              : "Aperçu"}
+                          </button>
+                          <button
+                            onClick={() => handleDownloadLettre(lettre.id)}
+                            className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                          >
+                            Télécharger le PDF
+                          </button>
+                          {lettre.signeeParExpert ? (
+                            <span className="text-xs text-emerald-600">
+                              Signée le{" "}
+                              {lettre.signeeAt
+                                ? new Date(lettre.signeeAt).toLocaleDateString(
+                                    "fr-FR",
+                                  )
+                                : ""}
+                              {lettre.signataire
+                                ? ` par ${lettre.signataire.prenom} ${lettre.signataire.nom}`
+                                : ""}
+                            </span>
+                          ) : can.signerLettre ? (
+                            <button
+                              disabled={busy === lettre.id}
+                              onClick={() => handleSignerLettre(lettre.id)}
+                              className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
+                            >
+                              Signer
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              Non signée
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                  {item.lettresMission &&
+                    item.lettresMission.length > 0 &&
+                    item.lettresMission[0].signeeParExpert &&
+                    (() => {
+                      const lettre = item.lettresMission![0];
+                      const statut = lettre.docusignStatut;
+                      return (
+                        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Signature client (DocuSign)
+                          </span>
+
+                          {(!statut ||
+                            statut === "REFUSE" ||
+                            statut === "ANNULE") &&
+                            can.signerLettre && (
+                              <>
+                                {statut === "REFUSE" && (
+                                  <span className="text-xs text-red-600">
+                                    Refusée par le client —
+                                  </span>
+                                )}
+                                {statut === "ANNULE" && (
+                                  <span className="text-xs text-slate-400">
+                                    Annulée —
+                                  </span>
+                                )}
+                                <button
+                                  disabled={docusignBusy === lettre.id}
+                                  onClick={() => {
+                                    setDocusignModalLettre(lettre.id);
+                                    setDocusignEmail("");
+                                    setDocusignNom("");
+                                  }}
+                                  className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 disabled:opacity-50"
+                                >
+                                  Envoyer au client (DocuSign)
+                                </button>
+                              </>
+                            )}
+
+                          {(statut === "ENVOYE" || statut === "LIVRE") && (
+                            <>
+                              <span className="text-xs text-amber-600">
+                                {statut === "ENVOYE"
+                                  ? "Envoyée"
+                                  : "Reçue par le client"}
+                                {lettre.docusignDestinataireEmail
+                                  ? ` à ${lettre.docusignDestinataireEmail}`
+                                  : ""}
+                              </span>
+                              <button
+                                disabled={docusignBusy === lettre.id}
+                                onClick={() =>
+                                  handleRafraichirStatutDocusign(lettre.id)
+                                }
+                                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                              >
+                                {docusignBusy === lettre.id
+                                  ? "Vérification…"
+                                  : "Vérifier le statut"}
+                              </button>
+                            </>
+                          )}
+
+                          {statut === "SIGNE" && (
+                            <span className="text-xs text-emerald-600">
+                              Signée par le client
+                              {lettre.signeeParClientAt
+                                ? ` le ${new Date(
+                                    lettre.signeeParClientAt,
+                                  ).toLocaleDateString("fr-FR")}`
+                                : ""}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                 </article>
               );
             })}
@@ -1781,10 +2071,11 @@ function TabMissions({ clientId }: { clientId: string }) {
 
       {formOpen && (
         <Modal
+          wide
           title={editing ? "Modifier la mission" : "Créer une mission"}
           description={
             editing
-              ? "Les champs autorisés par le backend sont la description, la date de fin et les honoraires."
+              ? "Les champs autorisés par le backend sont la description, la date de fin, les honoraires et, pour une mission de comptabilité, la répartition des travaux."
               : "Renseignez les informations principales de la nouvelle mission."
           }
           onClose={() => {
@@ -1807,7 +2098,10 @@ function TabMissions({ clientId }: { clientId: string }) {
                     <select
                       id="mission-type"
                       name="type"
-                      defaultValue="COMPTABILITE"
+                      value={selectedType}
+                      onChange={(e) =>
+                        setSelectedType(e.target.value as TypeMission)
+                      }
                       className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
                       required
                     >
@@ -1875,6 +2169,84 @@ function TabMissions({ clientId }: { clientId: string }) {
                   />
                 </Field>
               </div>
+
+              {(editing ? editing.type : selectedType) === "COMPTABILITE" &&
+                catalogue.length > 0 && (
+                  <Field>
+                    <FieldLabel>Répartition des travaux</FieldLabel>
+                    <div className="space-y-4">
+                      {catalogue.map((cat) => (
+                        <div key={cat.titre}>
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            {cat.titre}
+                          </p>
+                          <div className="overflow-x-auto rounded-xl border border-slate-200">
+                            <table className="w-full min-w-[420px] text-xs">
+                              <thead className="bg-slate-50 text-slate-500">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-semibold">
+                                    Tâche
+                                  </th>
+                                  <th className="px-2 py-2 text-center font-semibold">
+                                    Cabinet
+                                  </th>
+                                  <th className="px-2 py-2 text-center font-semibold">
+                                    Client
+                                  </th>
+                                  <th className="px-2 py-2 text-center font-semibold">
+                                    N.A.
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {cat.lignes.map((ligne) => {
+                                  const value =
+                                    repartition[ligne.id] ??
+                                    editing?.repartitionTravaux?.find(
+                                      (a) => a.id === ligne.id,
+                                    )?.assignation ??
+                                    ligne.defaut;
+
+                                  return (
+                                    <tr key={ligne.id}>
+                                      <td className="px-3 py-2 text-slate-700">
+                                        {ligne.tache}
+                                      </td>
+                                      {(
+                                        [
+                                          "CABINET",
+                                          "CLIENT",
+                                          "NA",
+                                        ] as AssignationTache[]
+                                      ).map((option) => (
+                                        <td
+                                          key={option}
+                                          className="px-2 py-2 text-center"
+                                        >
+                                          <input
+                                            type="radio"
+                                            name={`repartition-${ligne.id}`}
+                                            checked={value === option}
+                                            onChange={() =>
+                                              setRepartition((prev) => ({
+                                                ...prev,
+                                                [ligne.id]: option,
+                                              }))
+                                            }
+                                          />
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Field>
+                )}
             </FieldGroup>
 
             <FormActions
@@ -1884,6 +2256,144 @@ function TabMissions({ clientId }: { clientId: string }) {
                 setFormOpen(false);
                 setEditing(null);
               }}
+            />
+          </form>
+        </Modal>
+      )}
+
+      {previewLettre && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">
+          <button
+            type="button"
+            aria-label="Fermer"
+            onClick={closePreviewLettre}
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+          />
+
+          <div className="relative flex h-full w-full flex-col overflow-hidden border border-white/20 bg-white shadow-2xl sm:h-[92vh] sm:max-w-4xl sm:rounded-3xl">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <h2 className="font-semibold text-slate-900">
+                Aperçu de la lettre de mission
+              </h2>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadLettre(previewLettre.id)}
+                  className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                >
+                  Télécharger
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreviewLettre}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+                >
+                  <IconX className="size-5" />
+                </button>
+              </div>
+            </div>
+
+            <iframe
+              src={previewLettre.url}
+              title="Aperçu de la lettre de mission"
+              className="flex-1 bg-slate-100"
+            />
+          </div>
+        </div>
+      )}
+
+      {docusignModalLettre && (
+        <Modal
+          title="Envoyer la lettre au client pour signature"
+          description="Le client recevra un email DocuSign pour signer électroniquement la lettre de mission."
+          onClose={() => setDocusignModalLettre(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!docusignEmail.trim() || !docusignNom.trim()) return;
+              handleEnvoyerDocusign(
+                docusignModalLettre,
+                docusignEmail.trim(),
+                docusignNom.trim(),
+              );
+            }}
+          >
+            {error && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <FieldGroup>
+              {contacts.some((c) => c.email) && (
+                <Field>
+                  <FieldLabel htmlFor="docusign-contact">
+                    Contact du client
+                  </FieldLabel>
+                  <select
+                    id="docusign-contact"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const contact = contacts.find(
+                        (c) => c.id === e.target.value,
+                      );
+                      if (!contact) return;
+                      setDocusignEmail(contact.email ?? "");
+                      setDocusignNom(
+                        `${contact.prenom ?? ""} ${contact.nom}`.trim(),
+                      );
+                    }}
+                    className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">— Sélectionner un contact —</option>
+                    {[...contacts]
+                      .filter((c) => c.email)
+                      .sort((a) => (a.type === "INTERVENANT" ? -1 : 0))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.prenom ? `${c.prenom} ` : ""}
+                          {c.nom} ({c.email})
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              )}
+
+              <Field>
+                <FieldLabel htmlFor="docusign-email">
+                  Email du signataire *
+                </FieldLabel>
+                <Input
+                  id="docusign-email"
+                  type="email"
+                  required
+                  value={docusignEmail}
+                  onChange={(e) => setDocusignEmail(e.target.value)}
+                  className="h-11 rounded-xl"
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="docusign-nom">
+                  Nom du signataire *
+                </FieldLabel>
+                <Input
+                  id="docusign-nom"
+                  type="text"
+                  required
+                  value={docusignNom}
+                  onChange={(e) => setDocusignNom(e.target.value)}
+                  className="h-11 rounded-xl"
+                />
+              </Field>
+            </FieldGroup>
+
+            <FormActions
+              saving={docusignBusy === docusignModalLettre}
+              submitLabel="Envoyer"
+              onCancel={() => setDocusignModalLettre(null)}
             />
           </form>
         </Modal>

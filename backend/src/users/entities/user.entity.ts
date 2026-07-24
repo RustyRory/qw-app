@@ -31,6 +31,9 @@ export class User {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ type: 'text', nullable: true })
+  signatureDataUri: string | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   lastLoginAt: Date | null;
 
