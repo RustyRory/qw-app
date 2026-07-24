@@ -1,12 +1,16 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  ValidateNested,
 } from 'class-validator';
 import { TypeMission } from '../../common/enums';
+import { RepartitionTravauxLigneDto } from './repartition-travaux-ligne.dto';
 
 export class CreateMissionDto {
   @IsUUID()
@@ -29,4 +33,10 @@ export class CreateMissionDto {
   @IsOptional()
   @IsNumber()
   honoraires?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RepartitionTravauxLigneDto)
+  repartitionTravaux?: RepartitionTravauxLigneDto[];
 }

@@ -1,6 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 COPY package*.json ./
 RUN npm install --no-audit --no-fund --loglevel=error
 COPY . .
@@ -8,8 +9,11 @@ RUN npm run build
 
 FROM node:20-alpine
 WORKDIR /app
+RUN apk add --no-cache chromium
 ENV NODE_ENV=production \
-    NPM_CONFIG_UPDATE_NOTIFIER=false
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund --loglevel=error
 COPY --from=builder /app/dist ./dist

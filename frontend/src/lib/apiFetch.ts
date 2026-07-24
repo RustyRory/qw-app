@@ -41,3 +41,38 @@ export async function apiFetch<T = unknown>(
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
+
+export async function fetchBlobUrl(path: string): Promise<string> {
+  const token = getCookie("qw_token");
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(apiUrl(path), { headers });
+
+  if (res.status === 401) {
+    document.cookie = "qw_token=; path=/; max-age=0";
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+export async function downloadFile(
+  path: string,
+  filename: string,
+): Promise<void> {
+  const url = await fetchBlobUrl(path);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

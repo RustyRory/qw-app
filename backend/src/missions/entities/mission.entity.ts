@@ -12,6 +12,7 @@ import { User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
 import { LettreMission } from '../../lettres-mission/entities/lettre-mission.entity';
 import { TypeMission, StatutMission } from '../../common/enums';
+import { RepartitionTravauxAssignation } from '../../common/repartition-travaux';
 
 @Entity('missions')
 export class Mission {
@@ -39,6 +40,9 @@ export class Mission {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   honoraires: number | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  repartitionTravaux: RepartitionTravauxAssignation[] | null;
 
   @ManyToOne(() => Client, (client) => client.missions, { nullable: false })
   @JoinColumn({ name: 'id_client' })

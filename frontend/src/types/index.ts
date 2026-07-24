@@ -79,6 +79,15 @@ export interface User {
   createdAt: string;
 }
 
+export interface MonProfil {
+  id: string;
+  email: string;
+  prenom: string;
+  nom: string;
+  role: Role;
+  signatureDataUri: string | null;
+}
+
 export interface Prospect {
   id: string;
   ref: string;
@@ -214,6 +223,24 @@ export interface ScoreRisque {
   createdAt: string;
 }
 
+export type AssignationTache = "CABINET" | "CLIENT" | "NA";
+
+export interface RepartitionTravauxAssignation {
+  id: string;
+  assignation: AssignationTache;
+}
+
+export interface RepartitionTravauxLigneCatalogue {
+  id: string;
+  tache: string;
+  defaut: AssignationTache;
+}
+
+export interface RepartitionTravauxCategorie {
+  titre: string;
+  lignes: RepartitionTravauxLigneCatalogue[];
+}
+
 export interface Mission {
   id: string;
   type: TypeMission;
@@ -222,11 +249,19 @@ export interface Mission {
   dateDebut: string;
   dateFin?: string | null;
   honoraires?: number | null;
+  repartitionTravaux?: RepartitionTravauxAssignation[] | null;
   createdBy?: User;
   lettresMission?: LettreMission[];
   createdAt: string;
   updatedAt: string;
 }
+
+export type DocusignStatutEnvelope =
+  | "ENVOYE"
+  | "LIVRE"
+  | "SIGNE"
+  | "REFUSE"
+  | "ANNULE";
 
 export interface LettreMission {
   id: string;
@@ -235,7 +270,13 @@ export interface LettreMission {
   signeeParExpert: boolean;
   signeeAt?: string | null;
   signataire?: User | null;
-  s3Key?: string | null;
+  cheminStockage?: string | null;
+  signeeParClientAt?: string | null;
+  docusignEnvelopeId?: string | null;
+  docusignStatut?: DocusignStatutEnvelope | null;
+  docusignDestinataireEmail?: string | null;
+  docusignDestinataireNom?: string | null;
+  docusignEnvoyeAt?: string | null;
   createdAt: string;
 }
 
