@@ -19,6 +19,7 @@ import { MissionsService } from './missions.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
 import { UpdateStatutMissionDto } from './dto/update-statut-mission.dto';
+import { REPARTITION_TRAVAUX_CATALOGUE } from '../common/repartition-travaux';
 
 interface RequestWithUser {
   user: { id: string; role: Role };
@@ -43,6 +44,11 @@ export class MissionsController {
   @Get('client/:clientId')
   findByClient(@Param('clientId') clientId: string) {
     return this.svc.findByClient(clientId);
+  }
+
+  @Get('repartition-catalogue')
+  getRepartitionCatalogue() {
+    return REPARTITION_TRAVAUX_CATALOGUE;
   }
 
   @Get(':id')

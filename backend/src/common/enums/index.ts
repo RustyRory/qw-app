@@ -125,3 +125,11 @@ export enum StatutPlanningEtape {
   FAIT = 'FAIT',
   ANNULEE = 'ANNULEE',
 }
+
+export enum DocusignStatutEnvelope {
+  ENVOYE = 'ENVOYE',
+  LIVRE = 'LIVRE',
+  SIGNE = 'SIGNE',
+  REFUSE = 'REFUSE',
+  ANNULE = 'ANNULE',
+}

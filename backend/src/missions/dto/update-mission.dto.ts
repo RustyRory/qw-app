@@ -1,4 +1,13 @@
-import { IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+import { RepartitionTravauxLigneDto } from './repartition-travaux-ligne.dto';
 
 export class UpdateMissionDto {
   @IsOptional()
@@ -12,4 +21,10 @@ export class UpdateMissionDto {
   @IsOptional()
   @IsNumber()
   honoraires?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RepartitionTravauxLigneDto)
+  repartitionTravaux?: RepartitionTravauxLigneDto[];
 }

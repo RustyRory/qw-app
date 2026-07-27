@@ -14,6 +14,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums';
 import { LettresMissionService } from './lettres-mission.service';
 import { CreateLettreMissionDto } from './dto/create-lettre.dto';
+import { EnvoyerDocusignDto } from './dto/envoyer-docusign.dto';
 
 interface RequestWithUser {
   user: { id: string; role: Role };
@@ -45,9 +46,29 @@ export class LettresMissionController {
     return this.svc.findOne(id);
   }
 
+  @Get(':id/download')
+  download(@Param('id') id: string) {
+    return this.svc.streamFile(id);
+  }
+
   @Patch(':id/signer')
   @Roles(Role.EXPERT_COMPTABLE, Role.ADMIN)
   signer(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.svc.signer(id, req.user.id);
+  }
+
+  @Post(':id/docusign/envoyer')
+  @Roles(Role.EXPERT_COMPTABLE, Role.ADMIN)
+  envoyerDocusign(
+    @Param('id') id: string,
+    @Body() dto: EnvoyerDocusignDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.svc.envoyerPourSignatureClient(id, dto, req.user.id);
+  }
+
+  @Get(':id/docusign/statut')
+  rafraichirStatutDocusign(@Param('id') id: string) {
+    return this.svc.rafraichirStatutDocusign(id);
   }
 }
