@@ -19,18 +19,18 @@ const AUCUN_RISQUE: RiskFlags = {
 };
 
 describe('computeNiveauAuto (pure)', () => {
-  it('retourne FAIBLE pour un score <= 33', () => {
+  it('retourne FAIBLE pour un score < 30', () => {
     expect(computeNiveauAuto(0)).toBe(NiveauRisque.FAIBLE);
-    expect(computeNiveauAuto(33)).toBe(NiveauRisque.FAIBLE);
+    expect(computeNiveauAuto(29)).toBe(NiveauRisque.FAIBLE);
   });
 
-  it('retourne MOYEN pour un score entre 34 et 66', () => {
-    expect(computeNiveauAuto(34)).toBe(NiveauRisque.MOYEN);
-    expect(computeNiveauAuto(66)).toBe(NiveauRisque.MOYEN);
+  it('retourne MOYEN pour un score entre 30 et 59', () => {
+    expect(computeNiveauAuto(30)).toBe(NiveauRisque.MOYEN);
+    expect(computeNiveauAuto(59)).toBe(NiveauRisque.MOYEN);
   });
 
-  it('retourne ELEVE pour un score > 66', () => {
-    expect(computeNiveauAuto(67)).toBe(NiveauRisque.ELEVE);
+  it('retourne ELEVE pour un score >= 60', () => {
+    expect(computeNiveauAuto(60)).toBe(NiveauRisque.ELEVE);
     expect(computeNiveauAuto(100)).toBe(NiveauRisque.ELEVE);
   });
 });
@@ -112,6 +112,58 @@ describe('flagsFromQuestionnaire (pure)', () => {
         TypeEntite.PERSONNE_PHYSIQUE,
       ).secteurSensible,
     ).toBe(false);
+  });
+
+  it('déclenche le secteur sensible pour les négociants en biens de grande valeur (bijoutier, objets de luxe) en risque élevé', () => {
+    expect(
+      flagsFromQuestionnaire(
+        { D2_14: 'risque_eleve' },
+        TypeEntite.PERSONNE_PHYSIQUE,
+      ).secteurSensible,
+    ).toBe(true);
+    expect(
+      flagsFromQuestionnaire(
+        { D2_15: 'risque_eleve' },
+        TypeEntite.PERSONNE_PHYSIQUE,
+      ).secteurSensible,
+    ).toBe(true);
+  });
+
+  it('déclenche le secteur sensible pour le commerce de véhicules/bateaux de luxe et les néo-banques', () => {
+    expect(
+      flagsFromQuestionnaire({ D2_16: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .secteurSensible,
+    ).toBe(true);
+    expect(
+      flagsFromQuestionnaire({ D2_28: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .secteurSensible,
+    ).toBe(true);
+  });
+
+  it('déclenche le secteur sensible pour les opérations sur cryptoactifs du module 5 (D5_5/6/7)', () => {
+    expect(
+      flagsFromQuestionnaire({ D5_5: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .secteurSensible,
+    ).toBe(true);
+    expect(
+      flagsFromQuestionnaire({ D5_6: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .secteurSensible,
+    ).toBe(true);
+    expect(
+      flagsFromQuestionnaire({ D5_7: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .secteurSensible,
+    ).toBe(true);
+  });
+
+  it('déclenche pays tiers pour une société hors UE sans justification (D5_3) ou une transmission de patrimoine transnationale (D4_4)', () => {
+    expect(
+      flagsFromQuestionnaire({ D5_3: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .paysTiers,
+    ).toBe(true);
+    expect(
+      flagsFromQuestionnaire({ D4_4: 'oui' }, TypeEntite.PERSONNE_PHYSIQUE)
+        .paysTiers,
+    ).toBe(true);
   });
 
   it("ne déclenche l'UBO étranger que pour une personne morale", () => {

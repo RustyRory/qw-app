@@ -3,7 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconPlus } from "@tabler/icons-react";
+import {
+  IconPlus,
+  IconLayoutKanban,
+  IconTable,
+  IconChevronUp,
+  IconChevronDown,
+  IconSelector,
+} from "@tabler/icons-react";
 import {
   DndContext,
   DragOverlay,
@@ -41,34 +48,253 @@ const COLUMNS: {
     countBg: "bg-slate-100 text-slate-600",
   },
   {
-    id: "DECOUVERTE",
-    label: "Découverte",
+    id: "PREPARATION_LAB",
+    label: "Préparation LAB",
     dot: "bg-blue-500",
     border: "border-t-blue-500",
     countBg: "bg-blue-100 text-blue-700",
   },
   {
-    id: "OPPORTUNITE",
-    label: "Opportunité",
-    dot: "bg-indigo-500",
-    border: "border-t-indigo-500",
-    countBg: "bg-indigo-100 text-indigo-700",
-  },
-  {
-    id: "LAB",
-    label: "LAB à effectuer",
+    id: "VALIDATION_LAB",
+    label: "Validation LAB",
     dot: "bg-amber-500",
     border: "border-t-amber-500",
     countBg: "bg-amber-100 text-amber-700",
   },
   {
-    id: "PREPARATION",
-    label: "Préparation client",
+    id: "REFUSE",
+    label: "Prospects refusés",
+    dot: "bg-red-500",
+    border: "border-t-red-500",
+    countBg: "bg-red-100 text-red-700",
+  },
+  {
+    id: "LM_A_FAIRE",
+    label: "Prospects LM à faire",
     dot: "bg-violet-500",
     border: "border-t-violet-500",
     countBg: "bg-violet-100 text-violet-700",
   },
+  {
+    id: "LM_ENVOYEE",
+    label: "Prospects LM envoyées",
+    dot: "bg-indigo-500",
+    border: "border-t-indigo-500",
+    countBg: "bg-indigo-100 text-indigo-700",
+  },
+  // Pas de colonne CONVERTI : un prospect converti n'est plus renvoyé par
+  // GET /prospects (voir ProspectsService.findAll) et devient uniquement
+  // accessible depuis la fiche du client généré.
 ];
+
+const STATUT_BADGES: Record<StatutKanban, { label: string; cls: string }> = {
+  PRISE_CONTACT: {
+    label: "Prise de contact",
+    cls: "bg-slate-100 text-slate-600",
+  },
+  PREPARATION_LAB: {
+    label: "Préparation LAB",
+    cls: "bg-blue-100 text-blue-700",
+  },
+  VALIDATION_LAB: {
+    label: "Validation LAB",
+    cls: "bg-amber-100 text-amber-700",
+  },
+  LM_A_FAIRE: {
+    label: "Prospects LM à faire",
+    cls: "bg-violet-100 text-violet-700",
+  },
+  LM_ENVOYEE: {
+    label: "Prospects LM envoyées",
+    cls: "bg-indigo-100 text-indigo-700",
+  },
+  CONVERTI: {
+    label: "Clients LM validées",
+    cls: "bg-emerald-100 text-emerald-700",
+  },
+  REFUSE: { label: "Prospects refusés", cls: "bg-red-100 text-red-700" },
+};
+
+type SortKey =
+  | "nom"
+  | "statutKanban"
+  | "ville"
+  | "chiffreAffaires"
+  | "createdAt";
+
+function formatCurrency(value?: number | null) {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDate(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(date));
+}
+
+// "CONVERTI" est un statut kanban comme les autres, librement sélectionnable
+// — il ne déclenche pas la vraie conversion (voir prospects/[id]/page.tsx).
+const STATUT_OPTIONS = COLUMNS;
+
+function ProspectsTable({
+  prospects,
+  onStatutChange,
+}: {
+  prospects: Prospect[];
+  onStatutChange: (id: string, statut: StatutKanban) => void;
+}) {
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = [...prospects].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case "chiffreAffaires":
+        cmp = (a.chiffreAffaires ?? -1) - (b.chiffreAffaires ?? -1);
+        break;
+      case "createdAt":
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        break;
+      case "ville":
+        cmp = (a.ville ?? "").localeCompare(b.ville ?? "");
+        break;
+      case "statutKanban":
+        cmp = STATUT_BADGES[a.statutKanban].label.localeCompare(
+          STATUT_BADGES[b.statutKanban].label,
+        );
+        break;
+      default:
+        cmp = a.nom.localeCompare(b.nom);
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const columns: { key: SortKey; label: string; align?: "right" }[] = [
+    { key: "nom", label: "Nom" },
+    { key: "statutKanban", label: "Statut" },
+    { key: "ville", label: "Ville" },
+    { key: "chiffreAffaires", label: "Chiffre d'affaires", align: "right" },
+    { key: "createdAt", label: "Créé le" },
+  ];
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50">
+            {columns.map((col) => {
+              const active = sortKey === col.key;
+              return (
+                <th
+                  key={col.key}
+                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
+                    col.align === "right" ? "text-right" : "text-left"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(col.key)}
+                    className={`inline-flex items-center gap-1 hover:text-slate-900 ${
+                      col.align === "right" ? "flex-row-reverse" : ""
+                    } ${active ? "text-indigo-700" : ""}`}
+                  >
+                    {col.label}
+                    {active ? (
+                      sortDir === "asc" ? (
+                        <IconChevronUp className="size-3.5" />
+                      ) : (
+                        <IconChevronDown className="size-3.5" />
+                      )
+                    ) : (
+                      <IconSelector className="size-3.5 text-slate-300" />
+                    )}
+                  </button>
+                </th>
+              );
+            })}
+            <th className="px-4 py-3" />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.length === 0 ? (
+            <tr>
+              <td
+                colSpan={6}
+                className="px-4 py-10 text-center text-sm text-slate-400 italic"
+              >
+                Aucun prospect
+              </td>
+            </tr>
+          ) : (
+            sorted.map((p) => {
+              const badge = STATUT_BADGES[p.statutKanban];
+              return (
+                <tr
+                  key={p.id}
+                  className="border-b border-slate-50 last:border-0 hover:bg-slate-50/80"
+                >
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-slate-800">{p.nom}</p>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      {p.ref}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={p.statutKanban}
+                      onChange={(e) =>
+                        onStatutChange(p.id, e.target.value as StatutKanban)
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                      className={`rounded-full border-0 px-2 py-0.5 text-[11px] font-semibold outline-none focus:ring-2 focus:ring-indigo-200 ${badge.cls}`}
+                    >
+                      {STATUT_OPTIONS.map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {STATUT_BADGES[col.id].label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{p.ville || "—"}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">
+                    {formatCurrency(p.chiffreAffaires)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {formatDate(p.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/dashboard/prospects/${p.id}`}
+                      className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 rounded-full px-2 py-0.5"
+                    >
+                      + info
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -169,7 +395,10 @@ function KanbanColumn({
     >
       <div className="flex items-center gap-2 px-3 py-2.5">
         <div className={`size-2 rounded-full ${column.dot}`} />
-        <span className="text-sm font-semibold text-slate-700 truncate">
+        <span
+          title={column.label}
+          className="text-sm font-semibold text-slate-700 truncate"
+        >
           {column.label}
         </span>
         <span
@@ -202,7 +431,7 @@ export default function ProspectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeProspect, setActiveProspect] = useState<Prospect | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
+  const [view, setView] = useState<"kanban" | "tableau">("kanban");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -230,6 +459,29 @@ export default function ProspectsPage() {
     setActiveProspect(prospects.find((p) => p.id === event.active.id) ?? null);
   }
 
+  async function changeStatut(prospectId: string, targetCol: StatutKanban) {
+    const prospect = prospects.find((p) => p.id === prospectId);
+    if (!prospect || prospect.statutKanban === targetCol) return;
+    const prevStatut = prospect.statutKanban;
+    setProspects((prev) =>
+      prev.map((p) =>
+        p.id === prospectId ? { ...p, statutKanban: targetCol } : p,
+      ),
+    );
+    try {
+      await apiFetch(`/prospects/${prospectId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ statutKanban: targetCol }),
+      });
+    } catch {
+      setProspects((prev) =>
+        prev.map((p) =>
+          p.id === prospectId ? { ...p, statutKanban: prevStatut } : p,
+        ),
+      );
+    }
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveProspect(null);
@@ -238,34 +490,11 @@ export default function ProspectsPage() {
       ? (over.id as StatutKanban)
       : prospects.find((p) => p.id === over.id)?.statutKanban;
     if (!targetCol) return;
-    const prospect = prospects.find((p) => p.id === active.id);
-    if (!prospect || prospect.statutKanban === targetCol) return;
-    setProspects((prev) =>
-      prev.map((p) =>
-        p.id === active.id ? { ...p, statutKanban: targetCol } : p,
-      ),
-    );
-    try {
-      await apiFetch(`/prospects/${active.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ statutKanban: targetCol }),
-      });
-    } catch {
-      setProspects((prev) =>
-        prev.map((p) =>
-          p.id === active.id
-            ? { ...p, statutKanban: prospect.statutKanban }
-            : p,
-        ),
-      );
-    }
+    changeStatut(active.id as string, targetCol);
   }
 
   const activeProspects = prospects.filter(
-    (p) => p.statutKanban !== "CONVERTI" && p.statutKanban !== "REFUSE",
-  );
-  const archived = prospects.filter(
-    (p) => p.statutKanban === "CONVERTI" || p.statutKanban === "REFUSE",
+    (p) => !p.client && p.statutKanban !== "REFUSE",
   );
 
   return (
@@ -307,12 +536,44 @@ export default function ProspectsPage() {
         </div>
       )}
 
+      {/* Onglets d'affichage */}
+      <div className="-mt-4 px-4 md:px-6">
+        <div className="inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setView("kanban")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              view === "kanban"
+                ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <IconLayoutKanban className="size-4" />
+            Kanban
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("tableau")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              view === "tableau"
+                ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <IconTable className="size-4" />
+            Tableau
+          </button>
+        </div>
+      </div>
+
       {/* Board Kanban — scroll horizontal mobile, grille desktop */}
-      <div className="-mt-4 px-4 pb-4 md:px-6 flex-1">
+      <div className="mt-4 px-4 pb-4 md:px-6 flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="size-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
           </div>
+        ) : view === "tableau" ? (
+          <ProspectsTable prospects={prospects} onStatutChange={changeStatut} />
         ) : (
           <DndContext
             sensors={sensors}
@@ -330,9 +591,7 @@ export default function ProspectsPage() {
                 <KanbanColumn
                   key={col.id}
                   column={col}
-                  prospects={activeProspects.filter(
-                    (p) => p.statutKanban === col.id,
-                  )}
+                  prospects={prospects.filter((p) => p.statutKanban === col.id)}
                 />
               ))}
             </div>
@@ -344,67 +603,6 @@ export default function ProspectsPage() {
               )}
             </DragOverlay>
           </DndContext>
-        )}
-
-        {/* Archivés */}
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={() => setShowArchived((v) => !v)}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
-          >
-            {showArchived
-              ? "Masquer archivés"
-              : `Voir archivés (${archived.length})`}
-          </button>
-        </div>
-
-        {showArchived && archived.length > 0 && (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            {[
-              {
-                id: "CONVERTI",
-                label: "Converti ✓",
-                cls: "border-emerald-200 bg-emerald-50",
-              },
-              {
-                id: "REFUSE",
-                label: "Refusé ✗",
-                cls: "border-red-200 bg-red-50",
-              },
-            ].map((col) => {
-              const items = archived.filter((p) => p.statutKanban === col.id);
-              return (
-                <div
-                  key={col.id}
-                  className={`rounded-2xl border p-4 ${col.cls}`}
-                >
-                  <p className="text-xs font-bold uppercase tracking-widest mb-3 text-slate-500">
-                    {col.label} ({items.length})
-                  </p>
-                  {items.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">Aucun</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {items.map((p) => (
-                        <Link
-                          key={p.id}
-                          href={`/dashboard/prospects/${p.id}`}
-                          className="flex items-center justify-between py-1.5 hover:opacity-70 transition-opacity"
-                        >
-                          <span className="text-sm font-medium text-slate-700">
-                            {p.nom}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {p.ref}
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         )}
       </div>
     </div>

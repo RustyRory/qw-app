@@ -69,11 +69,14 @@ export default function NewClientPage() {
       codeNaf: (form.get("codeNaf") as string) || undefined,
       formeJuridique: (form.get("formeJuridique") as string) || undefined,
       representantLegal: (form.get("representantLegal") as string) || undefined,
+      email: (form.get("email") as string) || undefined,
+      telephone: (form.get("telephone") as string) || undefined,
       activitePrincipale: (form.get("activite") as string) || undefined,
       adresseSiege: (form.get("adresse") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
       codePostal: (form.get("codePostal") as string) || undefined,
       pays: (form.get("pays") as string) || "France",
+      notes: (form.get("notes") as string) || undefined,
     };
     try {
       const client = await apiFetch<Client>("/clients", {
@@ -236,6 +239,34 @@ export default function NewClientPage() {
             </FieldGroup>
           </Section>
 
+          {/* Contact */}
+          <Section title="Contact">
+            <FieldGroup>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="contact@example.com"
+                    className="rounded-lg"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
+                  <Input
+                    id="telephone"
+                    name="telephone"
+                    type="tel"
+                    placeholder="+33 6 00 00 00 00"
+                    className="rounded-lg"
+                  />
+                </Field>
+              </div>
+            </FieldGroup>
+          </Section>
+
           {/* Activité */}
           <Section title="Activité">
             <FieldGroup>
@@ -315,6 +346,17 @@ export default function NewClientPage() {
                 </select>
               </Field>
             </FieldGroup>
+          </Section>
+
+          {/* Notes internes */}
+          <Section title="Notes internes">
+            <textarea
+              id="notes"
+              name="notes"
+              rows={4}
+              placeholder="Zone de texte libre…"
+              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
           </Section>
 
           {/* Actions */}

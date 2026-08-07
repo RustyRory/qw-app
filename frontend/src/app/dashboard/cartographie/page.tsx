@@ -5,22 +5,52 @@ import Link from "next/link";
 import {
   IconAlertTriangle,
   IconChartDots,
+  IconChevronDown,
   IconChevronRight,
+  IconChevronUp,
   IconDownload,
   IconMapPin,
   IconSearch,
+  IconSelector,
   IconShieldCheck,
 } from "@tabler/icons-react";
 
 import { apiFetch } from "@/lib/apiFetch";
 import { RiskBadge } from "@/lib/status";
 
-import type { Client, NiveauRisque, ScoreRisque } from "@/types";
+import type { Client, NiveauRisque, Prospect, ScoreRisque } from "@/types";
 
-interface ClientWithScore {
-  client: Client;
+type EntityKind = "client" | "prospect";
+
+interface RiskRow {
+  kind: EntityKind;
+  id: string;
+  ref: string;
+  nom: string;
+  secteur: string | null;
+  ville: string | null;
   score: ScoreRisque | null;
 }
+
+type SortKey = "ref" | "nom" | "type" | "secteur" | "score" | "niveau" | "date";
+
+type SortDir = "asc" | "desc";
+
+const NIVEAU_ORDER: Record<NiveauRisque, number> = {
+  FAIBLE: 0,
+  MOYEN: 1,
+  ELEVE: 2,
+};
+
+const ENTITY_LABELS: Record<EntityKind, string> = {
+  client: "Client",
+  prospect: "Prospect",
+};
+
+const ENTITY_BADGE_CLASS: Record<EntityKind, string> = {
+  client: "bg-blue-100 text-blue-700",
+  prospect: "bg-violet-100 text-violet-700",
+};
 
 const RISK_LEVELS: NiveauRisque[] = ["FAIBLE", "MOYEN", "ELEVE"];
 
@@ -70,7 +100,7 @@ const CARD_STYLES: Record<
 };
 
 export default function CartographiePage() {
-  const [rows, setRows] = useState<ClientWithScore[]>([]);
+  const [rows, setRows] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,30 +108,81 @@ export default function CartographiePage() {
     "TOUS" | NiveauRisque | "SANS_SCORE"
   >("TOUS");
 
+  const [typeFilter, setTypeFilter] = useState<"TOUS" | EntityKind>("TOUS");
   const [sectorFilter, setSectorFilter] = useState("TOUS");
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("score");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDir(key === "score" || key === "date" ? "desc" : "asc");
+  }
+
+  function renderSortIcon(key: SortKey) {
+    if (sortKey !== key) {
+      return <IconSelector className="size-3.5 text-slate-300" />;
+    }
+
+    return sortDir === "asc" ? (
+      <IconChevronUp className="size-3.5 text-blue-600" />
+    ) : (
+      <IconChevronDown className="size-3.5 text-blue-600" />
+    );
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
 
-    apiFetch<Client[]>("/clients")
-      .then(async (clients) => {
-        const withScores = await Promise.all(
-          clients.map(async (client) => {
+    Promise.all([
+      apiFetch<Client[]>("/clients"),
+      apiFetch<Prospect[]>("/prospects"),
+    ])
+      .then(async ([clients, prospects]) => {
+        const clientRows = await Promise.all(
+          clients.map(async (client): Promise<RiskRow> => {
             const score = await apiFetch<ScoreRisque | null>(
               `/scoring/client/${client.id}/courant`,
             ).catch(() => null);
 
             return {
-              client,
+              kind: "client",
+              id: client.id,
+              ref: client.ref,
+              nom: client.raisonSociale,
+              secteur: client.activitePrincipale ?? null,
+              ville: client.ville ?? null,
               score,
             };
           }),
         );
 
-        setRows(withScores);
+        const prospectRows = await Promise.all(
+          prospects.map(async (prospect): Promise<RiskRow> => {
+            const score = await apiFetch<ScoreRisque | null>(
+              `/scoring/prospect/${prospect.id}/courant`,
+            ).catch(() => null);
+
+            return {
+              kind: "prospect",
+              id: prospect.id,
+              ref: prospect.ref,
+              nom: prospect.nom,
+              secteur: prospect.activite ?? null,
+              ville: prospect.ville ?? null,
+              score,
+            };
+          }),
+        );
+
+        setRows([...clientRows, ...prospectRows]);
       })
       .catch((err: Error) => {
         setError(err.message);
@@ -127,7 +208,7 @@ export default function CartographiePage() {
 
   const sectors = useMemo(() => {
     const values = rows
-      .map(({ client }) => client.activitePrincipale?.trim())
+      .map(({ secteur }) => secteur?.trim())
       .filter((value): value is string => Boolean(value));
 
     return [...new Set(values)].sort((a, b) => a.localeCompare(b, "fr"));
@@ -146,23 +227,65 @@ export default function CartographiePage() {
 
         return score?.niveau === riskFilter;
       })
-      .filter(({ client }) => {
+      .filter(({ kind }) => {
+        if (typeFilter === "TOUS") return true;
+
+        return kind === typeFilter;
+      })
+      .filter(({ secteur }) => {
         if (sectorFilter === "TOUS") return true;
 
-        return client.activitePrincipale === sectorFilter;
+        return secteur === sectorFilter;
       })
-      .filter(({ client }) => {
+      .filter((row) => {
         if (!normalizedSearch) return true;
 
         return (
-          client.ref.toLowerCase().includes(normalizedSearch) ||
-          client.raisonSociale.toLowerCase().includes(normalizedSearch) ||
-          client.activitePrincipale?.toLowerCase().includes(normalizedSearch) ||
-          client.ville?.toLowerCase().includes(normalizedSearch)
+          row.ref.toLowerCase().includes(normalizedSearch) ||
+          row.nom.toLowerCase().includes(normalizedSearch) ||
+          row.secteur?.toLowerCase().includes(normalizedSearch) ||
+          row.ville?.toLowerCase().includes(normalizedSearch)
         );
       })
-      .sort((a, b) => (b.score?.score ?? -1) - (a.score?.score ?? -1));
-  }, [rows, riskFilter, sectorFilter, search]);
+      .sort((a, b) => {
+        const dir = sortDir === "asc" ? 1 : -1;
+
+        switch (sortKey) {
+          case "ref":
+            return dir * a.ref.localeCompare(b.ref, "fr");
+
+          case "nom":
+            return dir * a.nom.localeCompare(b.nom, "fr");
+
+          case "type":
+            return (
+              dir *
+              ENTITY_LABELS[a.kind].localeCompare(ENTITY_LABELS[b.kind], "fr")
+            );
+
+          case "secteur":
+            return dir * (a.secteur ?? "").localeCompare(b.secteur ?? "", "fr");
+
+          case "niveau":
+            return (
+              dir *
+              ((a.score ? NIVEAU_ORDER[a.score.niveau] : -1) -
+                (b.score ? NIVEAU_ORDER[b.score.niveau] : -1))
+            );
+
+          case "date":
+            return (
+              dir *
+              (new Date(a.score?.createdAt ?? 0).getTime() -
+                new Date(b.score?.createdAt ?? 0).getTime())
+            );
+
+          case "score":
+          default:
+            return dir * ((a.score?.score ?? -1) - (b.score?.score ?? -1));
+        }
+      });
+  }, [rows, riskFilter, typeFilter, sectorFilter, search, sortKey, sortDir]);
 
   function getPercentage(niveau: NiveauRisque) {
     if (totalScoredClients === 0) return 0;
@@ -200,7 +323,7 @@ export default function CartographiePage() {
 
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
                     Visualisez la répartition du portefeuille selon le niveau de
-                    risque de chaque client.
+                    risque de chaque client et prospect.
                   </p>
                 </div>
               </div>
@@ -218,7 +341,7 @@ export default function CartographiePage() {
             <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5 lg:grid-cols-4">
               <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                 <p className="text-xs font-semibold uppercase text-blue-100">
-                  Clients évalués
+                  Dossiers évalués
                 </p>
 
                 <p className="mt-1 text-3xl font-bold text-white">
@@ -297,7 +420,7 @@ export default function CartographiePage() {
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500">
-                      {percentage}% des clients évalués
+                      {percentage}% des dossiers évalués
                     </p>
                   </div>
 
@@ -329,7 +452,7 @@ export default function CartographiePage() {
 
         {/* Filtres */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[220px_250px_1fr]">
+          <div className="grid gap-3 md:grid-cols-3">
             <select
               value={riskFilter}
               onChange={(event) =>
@@ -347,6 +470,18 @@ export default function CartographiePage() {
             </select>
 
             <select
+              value={typeFilter}
+              onChange={(event) =>
+                setTypeFilter(event.target.value as "TOUS" | EntityKind)
+              }
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="TOUS">Clients et prospects</option>
+              <option value="client">Clients uniquement</option>
+              <option value="prospect">Prospects uniquement</option>
+            </select>
+
+            <select
               value={sectorFilter}
               onChange={(event) => setSectorFilter(event.target.value)}
               className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
@@ -360,14 +495,14 @@ export default function CartographiePage() {
               ))}
             </select>
 
-            <div className="relative">
+            <div className="relative md:col-span-3">
               <IconSearch className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
 
               <input
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Rechercher un client, une référence, un secteur..."
+                placeholder="Rechercher un client, un prospect, une référence, un secteur..."
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
               />
             </div>
@@ -390,7 +525,7 @@ export default function CartographiePage() {
                 <p className="text-xs text-slate-500">
                   {loading
                     ? "Chargement..."
-                    : `${filteredRows.length} client${
+                    : `${filteredRows.length} dossier${
                         filteredRows.length > 1 ? "s" : ""
                       } affiché${filteredRows.length > 1 ? "s" : ""}`}
                 </p>
@@ -404,27 +539,80 @@ export default function CartographiePage() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    Réf.
+                    <button
+                      type="button"
+                      onClick={() => handleSort("ref")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Réf.
+                      {renderSortIcon("ref")}
+                    </button>
                   </th>
 
                   <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    Raison sociale
+                    <button
+                      type="button"
+                      onClick={() => handleSort("nom")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Nom / Raison sociale
+                      {renderSortIcon("nom")}
+                    </button>
                   </th>
 
                   <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    Secteur
+                    <button
+                      type="button"
+                      onClick={() => handleSort("type")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Type
+                      {renderSortIcon("type")}
+                    </button>
                   </th>
 
                   <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    Score
+                    <button
+                      type="button"
+                      onClick={() => handleSort("secteur")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Secteur
+                      {renderSortIcon("secteur")}
+                    </button>
                   </th>
 
                   <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    Niveau
+                    <button
+                      type="button"
+                      onClick={() => handleSort("score")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Score
+                      {renderSortIcon("score")}
+                    </button>
                   </th>
 
                   <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    Dernière évaluation
+                    <button
+                      type="button"
+                      onClick={() => handleSort("niveau")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Niveau
+                      {renderSortIcon("niveau")}
+                    </button>
+                  </th>
+
+                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("date")}
+                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                    >
+                      Dernière évaluation
+                      {renderSortIcon("date")}
+                    </button>
                   </th>
 
                   <th className="w-16 px-5 py-4" />
@@ -435,7 +623,7 @@ export default function CartographiePage() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-5 py-12 text-center text-slate-400"
                     >
                       Chargement…
@@ -444,45 +632,53 @@ export default function CartographiePage() {
                 ) : filteredRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-5 py-12 text-center text-slate-400"
                     >
-                      Aucun client trouvé
+                      Aucun client ou prospect trouvé
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map(({ client, score }) => (
+                  filteredRows.map((row) => (
                     <tr
-                      key={client.id}
+                      key={`${row.kind}-${row.id}`}
                       className="transition hover:bg-blue-50/30"
                     >
                       <td className="px-5 py-4 font-mono text-xs text-slate-500">
-                        {client.ref}
+                        {row.ref}
                       </td>
 
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-900">
-                          {client.raisonSociale}
+                          {row.nom}
                         </p>
 
-                        {client.ville && (
+                        {row.ville && (
                           <p className="mt-1 text-xs text-slate-400">
-                            {client.ville}
+                            {row.ville}
                           </p>
                         )}
                       </td>
 
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ENTITY_BADGE_CLASS[row.kind]}`}
+                        >
+                          {ENTITY_LABELS[row.kind]}
+                        </span>
+                      </td>
+
                       <td className="px-5 py-4 text-slate-500">
-                        {client.activitePrincipale ?? "—"}
+                        {row.secteur ?? "—"}
                       </td>
 
                       <td className="px-5 py-4 font-mono font-medium text-slate-700">
-                        {score ? `${score.score}/100` : "—"}
+                        {row.score ? `${row.score.score}/100` : "—"}
                       </td>
 
                       <td className="px-5 py-4">
-                        {score ? (
-                          <RiskBadge level={score.niveau} />
+                        {row.score ? (
+                          <RiskBadge level={row.score.niveau} />
                         ) : (
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
                             Non évalué
@@ -491,8 +687,8 @@ export default function CartographiePage() {
                       </td>
 
                       <td className="px-5 py-4 text-slate-500">
-                        {score
-                          ? new Date(score.createdAt).toLocaleDateString(
+                        {row.score
+                          ? new Date(row.score.createdAt).toLocaleDateString(
                               "fr-FR",
                             )
                           : "—"}
@@ -500,7 +696,11 @@ export default function CartographiePage() {
 
                       <td className="px-5 py-4 text-right">
                         <Link
-                          href={`/dashboard/clients/${client.id}`}
+                          href={
+                            row.kind === "client"
+                              ? `/dashboard/clients/${row.id}`
+                              : `/dashboard/prospects/${row.id}`
+                          }
                           title="Voir le dossier"
                           className="inline-flex size-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-100 hover:text-blue-700"
                         >
@@ -522,23 +722,27 @@ export default function CartographiePage() {
               </div>
             ) : filteredRows.length === 0 ? (
               <div className="p-10 text-center text-sm text-slate-400">
-                Aucun client trouvé
+                Aucun client ou prospect trouvé
               </div>
             ) : (
-              filteredRows.map(({ client, score }) => (
+              filteredRows.map((row) => (
                 <Link
-                  key={client.id}
-                  href={`/dashboard/clients/${client.id}`}
+                  key={`${row.kind}-${row.id}`}
+                  href={
+                    row.kind === "client"
+                      ? `/dashboard/clients/${row.id}`
+                      : `/dashboard/prospects/${row.id}`
+                  }
                   className="block p-4 transition hover:bg-blue-50/30"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-900">
-                        {client.raisonSociale}
+                        {row.nom}
                       </p>
 
                       <p className="mt-1 font-mono text-xs text-slate-400">
-                        {client.ref}
+                        {row.ref}
                       </p>
                     </div>
 
@@ -546,8 +750,14 @@ export default function CartographiePage() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {score ? (
-                      <RiskBadge level={score.niveau} />
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ENTITY_BADGE_CLASS[row.kind]}`}
+                    >
+                      {ENTITY_LABELS[row.kind]}
+                    </span>
+
+                    {row.score ? (
+                      <RiskBadge level={row.score.niveau} />
                     ) : (
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
                         Sans scoring
@@ -560,7 +770,7 @@ export default function CartographiePage() {
                       <p className="text-xs text-slate-400">Secteur</p>
 
                       <p className="mt-1 truncate text-slate-600">
-                        {client.activitePrincipale ?? "—"}
+                        {row.secteur ?? "—"}
                       </p>
                     </div>
 
@@ -568,7 +778,7 @@ export default function CartographiePage() {
                       <p className="text-xs text-slate-400">Score</p>
 
                       <p className="mt-1 font-mono text-slate-600">
-                        {score ? `${score.score}/100` : "—"}
+                        {row.score ? `${row.score.score}/100` : "—"}
                       </p>
                     </div>
 
@@ -578,8 +788,8 @@ export default function CartographiePage() {
                       </p>
 
                       <p className="mt-1 text-slate-600">
-                        {score
-                          ? new Date(score.createdAt).toLocaleDateString(
+                        {row.score
+                          ? new Date(row.score.createdAt).toLocaleDateString(
                               "fr-FR",
                             )
                           : "Aucune évaluation"}

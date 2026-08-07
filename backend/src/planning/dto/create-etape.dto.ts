@@ -9,8 +9,14 @@ import {
 import { TypePlanningEtape } from '../../common/enums';
 
 export class CreateEtapeDto {
+  // Exactement un des deux doit être renseigné (jamais les deux, ni aucun).
+  @IsOptional()
   @IsUUID()
-  clientId: string;
+  clientId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  prospectId?: string;
 
   @IsString()
   @IsNotEmpty()

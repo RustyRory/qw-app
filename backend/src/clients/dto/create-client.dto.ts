@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -38,6 +39,16 @@ export class CreateClientDto {
   @IsString()
   @MaxLength(255)
   representantLegal?: string;
+
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(255)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  telephone?: string;
 
   @IsOptional()
   @IsString()
@@ -83,6 +94,38 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   natureMission?: string;
+
+  @IsOptional()
+  @IsNumber()
+  capitalSocial?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  regimeFiscal?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  regimeTva?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  tvaIntracommunautaire?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  existenceSalaries?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  conventionCollective?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 
   @IsOptional()
   @IsBoolean()

@@ -6,7 +6,8 @@ import { Document } from './entities/document.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
 import { Client } from '../clients/entities/client.entity';
 import { User } from '../users/entities/user.entity';
-import { Role } from '../common/enums';
+import { Role, TypeDocument } from '../common/enums';
+import { ObligationsService } from '../obligations/obligations.service';
 
 type AuthUser = { id: string; role: Role };
 
@@ -17,6 +18,13 @@ interface UploadedFile {
   path: string;
 }
 
+export interface DocumentRelationIds {
+  contactId?: string;
+  missionId?: string;
+  planningEtapeId?: string;
+  operationSensibleId?: string;
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -24,21 +32,33 @@ export class DocumentsService {
     private readonly docRepo: Repository<Document>,
     @InjectRepository(AuditLog)
     private readonly auditRepo: Repository<AuditLog>,
+    private readonly obligationsService: ObligationsService,
   ) {}
 
   async upload(
     clientId: string,
     file: UploadedFile,
     authUser: AuthUser,
+    type?: TypeDocument,
+    relations: DocumentRelationIds = {},
   ): Promise<Document> {
     const doc = await this.docRepo.save(
       this.docRepo.create({
+        type: type ?? TypeDocument.AUTRE,
         nomFichier: file.originalname,
         cheminStockage: file.path,
         typeMime: file.mimetype,
         taille: file.size,
         client: { id: clientId } as Client,
         utilisateur: { id: authUser.id } as User,
+        contact: relations.contactId ? { id: relations.contactId } : null,
+        mission: relations.missionId ? { id: relations.missionId } : null,
+        planningEtape: relations.planningEtapeId
+          ? { id: relations.planningEtapeId }
+          : null,
+        operationSensible: relations.operationSensibleId
+          ? { id: relations.operationSensibleId }
+          : null,
       }),
     );
 
@@ -52,6 +72,8 @@ export class DocumentsService {
       }),
     );
 
+    await this.obligationsService.synchroniserPourClient(clientId);
+
     return doc;
   }
 
@@ -59,6 +81,7 @@ export class DocumentsService {
     return this.docRepo.find({
       where: { client: { id: clientId } },
       order: { createdAt: 'DESC' },
+      relations: ['contact', 'mission', 'planningEtape', 'operationSensible'],
     });
   }
 
@@ -87,14 +110,16 @@ export class DocumentsService {
   }
 
   async remove(id: string, authUser: AuthUser): Promise<void> {
-    const doc = await this.docRepo.findOneBy({ id });
+    const doc = await this.docRepo.findOne({
+      where: { id },
+      relations: ['client'],
+    });
     if (!doc) throw new NotFoundException('Document introuvable');
 
-    if (fs.existsSync(doc.cheminStockage)) {
-      fs.unlinkSync(doc.cheminStockage);
-    }
-
-    await this.docRepo.remove(doc);
+    // Soft delete : le fichier est conservé sur disque pour une éventuelle
+    // restauration ou un contrôle a posteriori.
+    const clientId = doc.client.id;
+    await this.docRepo.softRemove(doc);
 
     await this.auditRepo.save(
       this.auditRepo.create({
@@ -105,5 +130,7 @@ export class DocumentsService {
         utilisateur: { id: authUser.id } as User,
       }),
     );
+
+    await this.obligationsService.synchroniserPourClient(clientId);
   }
 }

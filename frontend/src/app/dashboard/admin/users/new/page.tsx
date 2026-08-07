@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   IconArrowLeft,
   IconEye,
+  IconEyeOff,
   IconLock,
   IconMail,
   IconShield,
@@ -26,20 +27,19 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
   RESPONSABLE: "Peut valider et gérer certaines opérations sensibles.",
   EXPERT_COMPTABLE: "Accès aux validations réservées à l’expert-comptable.",
   ADMIN: "Accès complet, y compris à la gestion des utilisateurs.",
+  MODERATEUR: "Accès exclusif à la gestion des comptes utilisateurs.",
 };
 
 export default function NewUserPage() {
-  const { ready } = useAuth(["ADMIN"]);
+  const { ready } = useAuth(["ADMIN", "MODERATEUR"]);
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] =
-    useState<Role>("COLLABORATEUR");
+  const [selectedRole, setSelectedRole] = useState<Role>("COLLABORATEUR");
 
-  async function handleSubmit(
-    event: SyntheticEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setLoading(true);
@@ -169,9 +169,7 @@ export default function NewUserPage() {
               </div>
 
               <Field>
-                <FieldLabel htmlFor="email">
-                  Adresse e-mail *
-                </FieldLabel>
+                <FieldLabel htmlFor="email">Adresse e-mail *</FieldLabel>
 
                 <div className="relative">
                   <IconMail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -203,18 +201,11 @@ export default function NewUserPage() {
                     required
                     className="flex h-10 w-full appearance-none rounded-md border border-input bg-background pl-10 pr-4 text-sm shadow-xs outline-none transition focus-visible:ring-2 focus-visible:ring-ring/30"
                   >
-                    <option value="COLLABORATEUR">
-                      Collaborateur
-                    </option>
-                    <option value="RESPONSABLE">
-                      Responsable
-                    </option>
-                    <option value="EXPERT_COMPTABLE">
-                      Expert-comptable
-                    </option>
-                    <option value="ADMIN">
-                      Administrateur
-                    </option>
+                    <option value="COLLABORATEUR">Collaborateur</option>
+                    <option value="RESPONSABLE">Responsable</option>
+                    <option value="EXPERT_COMPTABLE">Expert-comptable</option>
+                    <option value="ADMIN">Administrateur</option>
+                    <option value="MODERATEUR">Modérateur</option>
                   </select>
                 </div>
 
@@ -224,9 +215,7 @@ export default function NewUserPage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="password">
-                  Mot de passe *
-                </FieldLabel>
+                <FieldLabel htmlFor="password">Mot de passe *</FieldLabel>
 
                 <div className="relative">
                   <IconLock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -234,12 +223,29 @@ export default function NewUserPage() {
                   <Input
                     id="password"
                     name="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Minimum 6 caractères"
                     minLength={6}
-                    className="pl-10"
+                    className="pl-10 pr-10"
                     required
                   />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={
+                      showPassword
+                        ? "Masquer le mot de passe"
+                        : "Afficher le mot de passe"
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  >
+                    {showPassword ? (
+                      <IconEyeOff className="size-4" />
+                    ) : (
+                      <IconEye className="size-4" />
+                    )}
+                  </button>
                 </div>
 
                 <p className="mt-2 flex items-center gap-1 text-xs text-slate-400">

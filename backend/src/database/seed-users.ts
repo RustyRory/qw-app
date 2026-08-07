@@ -12,6 +12,7 @@ export interface SeededUsers {
   admin: User;
   responsable: User;
   collaborateur: User;
+  moderateur: User;
 }
 
 export async function seedUsers(dataSource: DataSource): Promise<SeededUsers> {
@@ -20,47 +21,67 @@ export async function seedUsers(dataSource: DataSource): Promise<SeededUsers> {
   const existingAdmin = await userRepo.findOneBy({
     email: 'admin@qwconseils.fr',
   });
+
+  let admin: User;
+  let responsable: User;
+  let collaborateur: User;
+
   if (existingAdmin) {
     console.log('✓ Utilisateurs déjà seedés, réutilisation.');
-    const [admin, responsable, collaborateur] = await Promise.all([
+    [admin, responsable, collaborateur] = await Promise.all([
       userRepo.findOneByOrFail({ email: 'admin@qwconseils.fr' }),
       userRepo.findOneByOrFail({ email: 'responsable@qwconseils.fr' }),
       userRepo.findOneByOrFail({ email: 'collab@qwconseils.fr' }),
     ]);
-    return { admin, responsable, collaborateur };
+  } else {
+    admin = userRepo.create({
+      email: 'admin@qwconseils.fr',
+      passwordHash: await hash('Admin1234!', 12),
+      role: Role.ADMIN,
+      prenom: 'Alice',
+      nom: 'Martin',
+      isActive: true,
+    });
+
+    responsable = userRepo.create({
+      email: 'responsable@qwconseils.fr',
+      passwordHash: await hash('Resp1234!', 12),
+      role: Role.RESPONSABLE,
+      prenom: 'Claire',
+      nom: 'Leroy',
+      isActive: true,
+    });
+
+    collaborateur = userRepo.create({
+      email: 'collab@qwconseils.fr',
+      passwordHash: await hash('Collab1234!', 12),
+      role: Role.COLLABORATEUR,
+      prenom: 'Bob',
+      nom: 'Dupont',
+      isActive: true,
+    });
+
+    await userRepo.save([admin, responsable, collaborateur]);
+    console.log('✓ Utilisateurs créés');
   }
 
-  const admin = userRepo.create({
-    email: 'admin@qwconseils.fr',
-    passwordHash: await hash('Admin1234!', 12),
-    role: Role.ADMIN,
-    prenom: 'Alice',
-    nom: 'Martin',
-    isActive: true,
+  let moderateur = await userRepo.findOneBy({
+    email: 'moderateur@qwconseils.fr',
   });
+  if (!moderateur) {
+    moderateur = userRepo.create({
+      email: 'moderateur@qwconseils.fr',
+      passwordHash: await hash('Moderateur1234!', 12),
+      role: Role.MODERATEUR,
+      prenom: 'Léa',
+      nom: 'Bernard',
+      isActive: true,
+    });
+    await userRepo.save(moderateur);
+    console.log('✓ Modérateur créé');
+  }
 
-  const responsable = userRepo.create({
-    email: 'responsable@qwconseils.fr',
-    passwordHash: await hash('Resp1234!', 12),
-    role: Role.RESPONSABLE,
-    prenom: 'Claire',
-    nom: 'Leroy',
-    isActive: true,
-  });
-
-  const collaborateur = userRepo.create({
-    email: 'collab@qwconseils.fr',
-    passwordHash: await hash('Collab1234!', 12),
-    role: Role.COLLABORATEUR,
-    prenom: 'Bob',
-    nom: 'Dupont',
-    isActive: true,
-  });
-
-  await userRepo.save([admin, responsable, collaborateur]);
-  console.log('✓ Utilisateurs créés');
-
-  return { admin, responsable, collaborateur };
+  return { admin, responsable, collaborateur, moderateur };
 }
 
 async function run() {
@@ -71,6 +92,7 @@ async function run() {
   console.log('  admin@qwconseils.fr        / Admin1234!');
   console.log('  responsable@qwconseils.fr  / Resp1234!');
   console.log('  collab@qwconseils.fr       / Collab1234!');
+  console.log('  moderateur@qwconseils.fr   / Moderateur1234!');
 
   await AppDataSource.destroy();
 }

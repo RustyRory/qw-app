@@ -6,38 +6,68 @@ import Link from "next/link";
 import {
   IconArrowLeft,
   IconChevronDown,
+  IconEye,
+  IconLock,
   IconPencil,
+  IconRefresh,
+  IconX,
 } from "@tabler/icons-react";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { ScoringPanel } from "@/components/scoring-panel";
-import type { Prospect, StatutKanban, TypeEntite, User } from "@/types";
+import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
+import { fetchSirene } from "@/lib/sirene";
+import type {
+  AssignationTache,
+  Mission,
+  Obligation,
+  PlanningEtape,
+  Prospect,
+  RepartitionTravauxCategorie,
+  StatutKanban,
+  TypeEntite,
+  TypeMission,
+  User,
+} from "@/types";
+
+const MISSION_TYPE_LABELS: Record<TypeMission, string> = {
+  COMPTABILITE: "Comptabilité",
+  AUDIT: "Audit",
+  CONSEIL: "Conseil",
+  JURIDIQUE: "Juridique",
+  AUTRE: "Autre",
+};
 
 const KANBAN_LABELS: Record<StatutKanban, string> = {
   PRISE_CONTACT: "Prise de contact",
-  DECOUVERTE: "Découverte",
-  OPPORTUNITE: "Opportunité",
-  LAB: "LAB à effectuer",
-  PREPARATION: "Préparation client",
-  CONVERTI: "Converti",
-  REFUSE: "Refusé",
+  PREPARATION_LAB: "Préparation LAB",
+  VALIDATION_LAB: "Validation LAB",
+  LM_A_FAIRE: "Prospects LM à faire",
+  LM_ENVOYEE: "Prospects LM envoyées",
+  CONVERTI: "Clients LM validées",
+  REFUSE: "Prospects refusés",
 };
 
+// "CONVERTI" y figure comme un statut kanban normal, librement déplaçable —
+// il ne déclenche pas la vraie conversion (création du dossier Client), qui
+// reste une action distincte via le bouton "Convertir en client". Seule
+// l'existence réelle d'un Client lié (prospect.client) verrouille la fiche.
 const KANBAN_ACTIFS: StatutKanban[] = [
   "PRISE_CONTACT",
-  "DECOUVERTE",
-  "OPPORTUNITE",
-  "LAB",
-  "PREPARATION",
+  "PREPARATION_LAB",
+  "VALIDATION_LAB",
+  "LM_A_FAIRE",
+  "LM_ENVOYEE",
+  "CONVERTI",
 ];
 
 export default function ProspectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRole();
+  const { can, role, userId } = useRole();
 
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +78,29 @@ export default function ProspectDetailPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [sireneLoading, setSireneLoading] = useState(false);
+  const [sireneError, setSireneError] = useState<string | null>(null);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [missionsLoading, setMissionsLoading] = useState(true);
+  const [missionType, setMissionType] = useState<TypeMission>("COMPTABILITE");
+  const [creatingMission, setCreatingMission] = useState(false);
+  const [missionError, setMissionError] = useState<string | null>(null);
+  const [signingLettre, setSigningLettre] = useState(false);
+  const [catalogue, setCatalogue] = useState<RepartitionTravauxCategorie[]>([]);
+  const [repartition, setRepartition] = useState<
+    Record<string, AssignationTache>
+  >({});
+  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(
+    null,
+  );
+  const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const [previewLettre, setPreviewLettre] = useState<{
+    id: string;
+    url: string;
+  } | null>(null);
+  const [obligations, setObligations] = useState<Obligation[]>([]);
+  const [etapes, setEtapes] = useState<PlanningEtape[]>([]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -67,6 +120,233 @@ export default function ProspectDetailPage() {
       .then(setUsers)
       .catch(() => setUsers([]));
   }, []);
+
+  const loadMissions = useCallback(() => {
+    setMissionsLoading(true);
+    apiFetch<Mission[]>(`/missions/prospect/${id}`)
+      .then(setMissions)
+      .catch(() => setMissions([]))
+      .finally(() => setMissionsLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadMissions();
+  }, [loadMissions]);
+
+  useEffect(() => {
+    apiFetch<RepartitionTravauxCategorie[]>("/missions/repartition-catalogue")
+      .then(setCatalogue)
+      .catch(() => setCatalogue([]));
+  }, []);
+
+  // Tâches "à faire" générées automatiquement par le pipeline LAB → lettre
+  // de mission (questionnaire à remplir/valider, LM à faire/valider/signer).
+  // Purement informatif ici : ces obligations/étapes sont ouvertes et
+  // clôturées par le backend, pas d'action manuelle depuis cette carte.
+  useEffect(() => {
+    apiFetch<Obligation[]>(`/obligations/prospect/${id}`)
+      .then(setObligations)
+      .catch(() => setObligations([]));
+    apiFetch<PlanningEtape[]>(`/planning/prospect/${id}`)
+      .then(setEtapes)
+      .catch(() => setEtapes([]));
+  }, [id, prospect?.questionnaire?.statut]);
+
+  async function handleCreateMission(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setCreatingMission(true);
+    setMissionError(null);
+    const form = new FormData(e.currentTarget);
+    // Chaque ligne non touchée par le collaborateur reste à "N/A" (pas de
+    // présomption Cabinet/Client par défaut).
+    const repartitionTravaux =
+      catalogue.length > 0
+        ? catalogue.flatMap((cat) =>
+            cat.lignes.map((ligne) => ({
+              id: ligne.id,
+              assignation: repartition[ligne.id] ?? "NA",
+            })),
+          )
+        : undefined;
+    try {
+      await apiFetch<Mission>("/missions", {
+        method: "POST",
+        body: JSON.stringify({
+          prospectId: id,
+          type: missionType,
+          dateDebut: form.get("dateDebut") as string,
+          description: (form.get("description") as string) || undefined,
+          honoraires: form.get("honoraires")
+            ? Number(form.get("honoraires"))
+            : undefined,
+          repartitionTravaux,
+        }),
+      });
+      setRepartition({});
+      loadMissions();
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de préparer la lettre de mission.",
+      );
+    } finally {
+      setCreatingMission(false);
+    }
+  }
+
+  async function handleDownloadLettre(lettreId: string) {
+    try {
+      await downloadFile(
+        `/lettres-mission/${lettreId}/download`,
+        `lettre-mission-${lettreId}.pdf`,
+      );
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de télécharger la lettre de mission.",
+      );
+    }
+  }
+
+  async function handlePreviewLettre(lettreId: string) {
+    setPreviewLoading(lettreId);
+    setMissionError(null);
+    try {
+      const url = await fetchBlobUrl(`/lettres-mission/${lettreId}/download`);
+      setPreviewLettre({ id: lettreId, url });
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'afficher l'aperçu de la lettre de mission.",
+      );
+    } finally {
+      setPreviewLoading(null);
+    }
+  }
+
+  function closePreviewLettre() {
+    if (previewLettre) URL.revokeObjectURL(previewLettre.url);
+    setPreviewLettre(null);
+  }
+
+  async function handleValiderLettre(lettreId: string) {
+    setSigningLettre(true);
+    setMissionError(null);
+    try {
+      await apiFetch(`/lettres-mission/${lettreId}/valider`, {
+        method: "PATCH",
+      });
+      loadMissions();
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de valider la lettre de mission.",
+      );
+    } finally {
+      setSigningLettre(false);
+    }
+  }
+
+  async function handleSignerLettre(lettreId: string) {
+    setSigningLettre(true);
+    setMissionError(null);
+    try {
+      await apiFetch(`/lettres-mission/${lettreId}/signer`, {
+        method: "PATCH",
+      });
+      loadMissions();
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de signer la lettre de mission.",
+      );
+    } finally {
+      setSigningLettre(false);
+    }
+  }
+
+  async function handleDeleteMission(missionId: string) {
+    if (
+      !confirm(
+        "Supprimer cette mission et son brouillon de lettre de mission ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
+    setDeletingMissionId(missionId);
+    setMissionError(null);
+    try {
+      await apiFetch(`/missions/${missionId}`, { method: "DELETE" });
+      loadMissions();
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer cette mission.",
+      );
+    } finally {
+      setDeletingMissionId(null);
+    }
+  }
+
+  function openEditMission(m: Mission) {
+    setEditingMissionId(m.id);
+    setMissionError(null);
+    setRepartition(
+      Object.fromEntries(
+        (m.repartitionTravaux ?? []).map((a) => [a.id, a.assignation]),
+      ),
+    );
+  }
+
+  async function handleUpdateMission(
+    e: React.SyntheticEvent<HTMLFormElement>,
+    m: Mission,
+  ) {
+    e.preventDefault();
+    setCreatingMission(true);
+    setMissionError(null);
+    const form = new FormData(e.currentTarget);
+    const repartitionTravaux =
+      catalogue.length > 0
+        ? catalogue.flatMap((cat) =>
+            cat.lignes.map((ligne) => ({
+              id: ligne.id,
+              assignation: repartition[ligne.id] ?? "NA",
+            })),
+          )
+        : undefined;
+    try {
+      await apiFetch<Mission>(`/missions/${m.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          description: (form.get("description") as string) || undefined,
+          dateFin: (form.get("dateFin") as string) || undefined,
+          honoraires: form.get("honoraires")
+            ? Number(form.get("honoraires"))
+            : undefined,
+          repartitionTravaux,
+        }),
+      });
+      setEditingMissionId(null);
+      setRepartition({});
+      loadMissions();
+    } catch (err) {
+      setMissionError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de modifier cette mission.",
+      );
+    } finally {
+      setCreatingMission(false);
+    }
+  }
 
   async function handleAssignChange(newAssignedToId: string | null) {
     setShowAssignDropdown(false);
@@ -117,6 +397,18 @@ export default function ProspectDetailPage() {
       ville: (form.get("ville") as string) || undefined,
       pays: (form.get("pays") as string) || undefined,
       notes: (form.get("notes") as string) || undefined,
+      capitalSocial: form.get("capitalSocial")
+        ? Number(form.get("capitalSocial"))
+        : undefined,
+      regimeFiscal: (form.get("regimeFiscal") as string) || undefined,
+      regimeTva: (form.get("regimeTva") as string) || undefined,
+      tvaIntracommunautaire:
+        (form.get("tvaIntracommunautaire") as string) || undefined,
+      existenceSalaries: form.get("existenceSalaries")
+        ? form.get("existenceSalaries") === "oui"
+        : undefined,
+      conventionCollective:
+        (form.get("conventionCollective") as string) || undefined,
     };
     try {
       await apiFetch(`/prospects/${id}`, {
@@ -129,6 +421,40 @@ export default function ProspectDetailPage() {
       setError((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRefreshSirene() {
+    if (!prospect?.siret) return;
+    setSireneLoading(true);
+    setSireneError(null);
+    try {
+      const data = await fetchSirene(prospect.siret);
+      await apiFetch(`/prospects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          nom: data.nom || undefined,
+          formeJuridique: data.formeJuridique,
+          representantLegal: data.representantLegal,
+          codeNaf: data.codeNaf,
+          activite: data.secteurActivite,
+          adresse: data.adresse,
+          ville: data.ville,
+          codePostal: data.codePostal,
+          capitalSocial: data.capitalSocial,
+          tvaIntracommunautaire: data.tvaIntracommunautaire,
+          existenceSalaries: data.existenceSalaries,
+        }),
+      });
+      load();
+    } catch (err) {
+      setSireneError(
+        err instanceof Error
+          ? err.message
+          : "SIRET introuvable ou service SIRENE indisponible",
+      );
+    } finally {
+      setSireneLoading(false);
     }
   }
 
@@ -164,10 +490,7 @@ export default function ProspectDetailPage() {
   async function handleRefuse() {
     if (!confirm("Refuser ce prospect ?")) return;
     try {
-      await apiFetch(`/prospects/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ statutKanban: "REFUSE" }),
-      });
+      await apiFetch(`/prospects/${id}/refuser`, { method: "PATCH" });
       load();
     } catch (err) {
       setError((err as Error).message);
@@ -198,9 +521,41 @@ export default function ProspectDetailPage() {
       </div>
     );
 
-  const isArchived =
-    prospect.statutKanban === "CONVERTI" || prospect.statutKanban === "REFUSE";
+  // Verrouillage réel : existence d'un Client lié, pas juste le statut
+  // kanban "CONVERTI" (librement déplaçable sans déclencher la conversion).
+  const hasClient = !!prospect.client;
+  const isArchived = hasClient || prospect.statutKanban === "REFUSE";
   const currentIdx = KANBAN_ACTIFS.indexOf(prospect.statutKanban);
+  // Miroir front de assertCollaborateurPeutTraiter (backend) : un
+  // COLLABORATEUR ne peut traiter que les prospects non assignés ou
+  // assignés à lui-même — RESPONSABLE/EXPERT_COMPTABLE/ADMIN sans contrainte.
+  const peutTraiter =
+    role !== "COLLABORATEUR" ||
+    !prospect.assignedTo ||
+    prospect.assignedTo.id === userId;
+  // Suppression : règle distincte, plus stricte — un COLLABORATEUR ne peut
+  // supprimer que ce qu'il a lui-même créé (fausse manip), indépendamment
+  // de l'assignation actuelle (cf. prospects.service.ts::remove).
+  const peutSupprimer =
+    role !== "COLLABORATEUR" || prospect.createdBy?.id === userId;
+  // Refuser un prospect est une décision métier réservée à
+  // RESPONSABLE/EXPERT_COMPTABLE/ADMIN (cf. prospects.controller.ts).
+  const peutRefuser = role !== "COLLABORATEUR";
+
+  // Champs légaux requis sur la lettre de mission — miroir front de ce que
+  // le template affiche en "À compléter" faute de donnée (cf.
+  // lettre-mission.template.ts). Convention collective non requise si le
+  // prospect n'a explicitement aucun salarié (existenceSalaries === false).
+  const champsLegauxManquants = [
+    !prospect.capitalSocial && "Capital social",
+    !prospect.regimeFiscal && "Régime fiscal",
+    !prospect.regimeTva && "Régime TVA",
+    !prospect.tvaIntracommunautaire && "N° TVA intracommunautaire",
+    prospect.existenceSalaries == null && "Existence de salariés",
+    prospect.existenceSalaries !== false &&
+      !prospect.conventionCollective &&
+      "Convention collective appliquée",
+  ].filter((v): v is string => !!v);
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -234,50 +589,58 @@ export default function ProspectDetailPage() {
           </div>
 
           <div className="flex flex-col items-end gap-2 shrink-0">
-            {!isArchived && (
-              <>
-                <button
-                  onClick={() => setEditing(!editing)}
-                  className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/30 transition-colors"
-                >
-                  <IconPencil className="size-3.5" /> Éditer
-                </button>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowDropdown(!showDropdown)}
-                    className="flex items-center gap-1.5 rounded-xl bg-white text-indigo-700 px-3 py-1.5 text-xs font-semibold hover:bg-indigo-50 transition-colors"
-                  >
-                    {KANBAN_LABELS[prospect.statutKanban]}
-                    <IconChevronDown className="size-3.5" />
-                  </button>
-                  {showDropdown && (
-                    <div className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-                      {KANBAN_ACTIFS.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => handleStatutChange(s)}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-slate-50
-                            ${prospect.statutKanban === s ? "font-semibold text-indigo-700 bg-indigo-50" : "text-slate-700"}`}
-                        >
-                          {KANBAN_LABELS[s]}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
+            {!isArchived && peutTraiter && (
+              <button
+                onClick={() => setEditing(!editing)}
+                className="flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/30 transition-colors"
+              >
+                <IconPencil className="size-3.5" /> Éditer
+              </button>
             )}
-            {isArchived && (
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  prospect.statutKanban === "CONVERTI"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-red-100 text-red-700"
+            {/* Le statut kanban reste toujours modifiable, y compris sur un
+                prospect réellement converti — c'est un outil de suivi, pas
+                un reflet strict de l'état réel (voir prospects.service.ts).
+                Reste toutefois soumis à l'assignation pour un COLLABORATEUR. */}
+            <div className="relative">
+              <button
+                onClick={() => peutTraiter && setShowDropdown(!showDropdown)}
+                disabled={!peutTraiter}
+                title={
+                  peutTraiter
+                    ? undefined
+                    : "Seul le collaborateur assigné peut modifier ce statut"
+                }
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  !peutTraiter
+                    ? "bg-white/60 text-indigo-400 cursor-not-allowed"
+                    : prospect.statutKanban === "REFUSE"
+                      ? "bg-red-100 text-red-700 hover:bg-red-200"
+                      : "bg-white text-indigo-700 hover:bg-indigo-50"
                 }`}
               >
                 {KANBAN_LABELS[prospect.statutKanban]}
-              </span>
-            )}
+                {peutTraiter && <IconChevronDown className="size-3.5" />}
+              </button>
+              {showDropdown && peutTraiter && (
+                <div className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                  {prospect.statutKanban === "REFUSE" && (
+                    <p className="px-4 py-2 text-[11px] text-slate-400 border-b border-slate-100">
+                      Revenir en arrière :
+                    </p>
+                  )}
+                  {KANBAN_ACTIFS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleStatutChange(s)}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-slate-50
+                        ${prospect.statutKanban === s ? "font-semibold text-indigo-700 bg-indigo-50" : "text-slate-700"}`}
+                    >
+                      {KANBAN_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -329,6 +692,88 @@ export default function ProspectDetailPage() {
                       </div>
                     ))}
                   </dl>
+                  {!isArchived && peutTraiter && (
+                    <div className="px-4 py-3 border-t border-slate-100 space-y-1.5">
+                      <button
+                        onClick={handleRefreshSirene}
+                        disabled={!prospect.siret || sireneLoading}
+                        className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <IconRefresh
+                          className={`size-3.5 ${sireneLoading ? "animate-spin" : ""}`}
+                        />
+                        {sireneLoading ? "Actualisation…" : "Actualiser SIRENE"}
+                      </button>
+                      {!prospect.siret && (
+                        <p className="text-xs text-slate-400">
+                          Aucun SIRET enregistré pour ce prospect.
+                        </p>
+                      )}
+                      {sireneError && (
+                        <p className="text-xs text-red-600">{sireneError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Informations légales — reprises telles quelles sur la
+                    lettre de mission (cf. bannière plus bas si incomplètes). */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                      Informations légales
+                    </p>
+                  </div>
+                  <dl className="divide-y divide-slate-50">
+                    {(
+                      [
+                        [
+                          "Capital social",
+                          prospect.capitalSocial
+                            ? `${prospect.capitalSocial.toLocaleString("fr-FR")} €`
+                            : null,
+                        ],
+                        ["Régime fiscal", prospect.regimeFiscal],
+                        ["Régime TVA", prospect.regimeTva],
+                        [
+                          "N° TVA intracommunautaire",
+                          prospect.tvaIntracommunautaire,
+                        ],
+                        [
+                          "Existence de salariés",
+                          prospect.existenceSalaries == null
+                            ? null
+                            : prospect.existenceSalaries
+                              ? "Oui"
+                              : "Non",
+                        ],
+                        [
+                          "Convention collective",
+                          prospect.existenceSalaries === false
+                            ? "Sans objet"
+                            : prospect.conventionCollective,
+                        ],
+                      ] as [string, string | null][]
+                    ).map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between px-4 py-2.5 gap-3"
+                      >
+                        <dt className="text-xs text-slate-400 shrink-0 w-32">
+                          {label}
+                        </dt>
+                        <dd
+                          className={`text-sm text-right truncate ${
+                            value
+                              ? "font-medium text-slate-800"
+                              : "font-semibold text-amber-700"
+                          }`}
+                        >
+                          {value ?? "⚠ À compléter"}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
 
                 {/* Contact */}
@@ -358,10 +803,12 @@ export default function ProspectDetailPage() {
                   </dl>
                 </div>
 
-                {/* Notes */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                {/* Notes internes — mises en évidence : jamais visibles du
+                    client, donc distinguées visuellement des autres blocs. */}
+                <div className="bg-violet-50 rounded-2xl border border-violet-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-violet-200 flex items-center gap-1.5">
+                    <IconLock className="size-3.5 text-violet-500" />
+                    <p className="text-xs font-bold uppercase tracking-widest text-violet-700">
                       Notes internes
                     </p>
                   </div>
@@ -371,7 +818,7 @@ export default function ProspectDetailPage() {
                         {prospect.notes}
                       </p>
                     ) : (
-                      <p className="text-sm text-slate-300 italic">
+                      <p className="text-sm text-violet-300 italic">
                         Aucune note
                       </p>
                     )}
@@ -379,7 +826,7 @@ export default function ProspectDetailPage() {
                 </div>
               </>
             ) : (
-              <form onSubmit={handleSave}>
+              <form onSubmit={handleSave} className="space-y-3">
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
                   <FieldGroup>
                     <Field>
@@ -473,17 +920,122 @@ export default function ProspectDetailPage() {
                         className="rounded-xl"
                       />
                     </Field>
-                    <Field>
-                      <FieldLabel htmlFor="notes">Notes</FieldLabel>
-                      <textarea
-                        id="notes"
-                        name="notes"
-                        rows={3}
-                        defaultValue={prospect.notes ?? ""}
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none"
-                      />
-                    </Field>
                   </FieldGroup>
+                </div>
+
+                {/* Informations légales — nécessaires à la génération de la
+                    lettre de mission (elles y apparaissent en "À compléter"
+                    tant qu'elles ne sont pas renseignées ici). */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    Informations légales (lettre de mission)
+                  </p>
+                  <FieldGroup>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="capitalSocial">
+                          Capital social (€)
+                        </FieldLabel>
+                        <Input
+                          id="capitalSocial"
+                          name="capitalSocial"
+                          type="number"
+                          step="0.01"
+                          defaultValue={prospect.capitalSocial ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="regimeFiscal">
+                          Régime fiscal
+                        </FieldLabel>
+                        <Input
+                          id="regimeFiscal"
+                          name="regimeFiscal"
+                          placeholder="IS, IR…"
+                          defaultValue={prospect.regimeFiscal ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="regimeTva">Régime TVA</FieldLabel>
+                        <Input
+                          id="regimeTva"
+                          name="regimeTva"
+                          placeholder="Réel normal, franchise en base…"
+                          defaultValue={prospect.regimeTva ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="tvaIntracommunautaire">
+                          N° TVA intracommunautaire
+                        </FieldLabel>
+                        <Input
+                          id="tvaIntracommunautaire"
+                          name="tvaIntracommunautaire"
+                          defaultValue={prospect.tvaIntracommunautaire ?? ""}
+                          className="rounded-xl font-mono"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="existenceSalaries">
+                          Existence de salariés
+                        </FieldLabel>
+                        <select
+                          id="existenceSalaries"
+                          name="existenceSalaries"
+                          defaultValue={
+                            prospect.existenceSalaries == null
+                              ? ""
+                              : prospect.existenceSalaries
+                                ? "oui"
+                                : "non"
+                          }
+                          className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                        >
+                          <option value="">Non renseigné</option>
+                          <option value="oui">Oui</option>
+                          <option value="non">Non</option>
+                        </select>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="conventionCollective">
+                          Convention collective appliquée
+                        </FieldLabel>
+                        <Input
+                          id="conventionCollective"
+                          name="conventionCollective"
+                          defaultValue={prospect.conventionCollective ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                    </div>
+                  </FieldGroup>
+                </div>
+
+                {/* Notes internes — bloc dédié, distinct du reste du
+                    formulaire (même traitement visuel qu'en lecture seule). */}
+                <div className="bg-violet-50 rounded-2xl border border-violet-200 shadow-sm p-4 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <IconLock className="size-3.5 text-violet-500" />
+                    <FieldLabel
+                      htmlFor="notes"
+                      className="text-xs font-bold uppercase tracking-widest text-violet-700"
+                    >
+                      Notes internes
+                    </FieldLabel>
+                  </div>
+                  <textarea
+                    id="notes"
+                    name="notes"
+                    rows={3}
+                    defaultValue={prospect.notes ?? ""}
+                    className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 resize-none"
+                  />
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
                   <div className="flex gap-2 pt-1">
                     <Button
                       type="submit"
@@ -522,35 +1074,509 @@ export default function ProspectDetailPage() {
                   <div className="size-2 rounded-full bg-amber-500" />
                   <p className="text-sm font-medium text-slate-700">
                     Statut :{" "}
-                    <span className="text-amber-700 font-semibold">
-                      EN COURS
-                    </span>
+                    {prospect.questionnaire ? (
+                      <StatusBadge status={prospect.questionnaire.statut} />
+                    ) : (
+                      <span className="text-slate-500 font-semibold">
+                        Non créé
+                      </span>
+                    )}
                   </p>
                 </div>
+
+                {prospect.questionnaire?.statut === "REFUSE" &&
+                  prospect.questionnaire.motifRefus && (
+                    <p className="text-xs text-red-600">
+                      Motif : {prospect.questionnaire.motifRefus}
+                    </p>
+                  )}
+
+                {/* La validation/le refus du questionnaire ne se font que
+                    depuis la sous-page dédiée — ici on n'affiche que le
+                    statut (ci-dessus) et un lien vers cette sous-page. */}
                 <div className="flex items-center gap-3 flex-wrap">
                   <Link
                     href={`/dashboard/prospects/${id}/questionnaire`}
                     className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
                   >
-                    Ouvrir le questionnaire
+                    Voir le questionnaire →
                   </Link>
                   <span className="text-xs text-slate-400">
                     (RESPONSABLE/EXPERT)
                   </span>
                 </div>
-                {can.validerQuestionnaire && (
-                  <div className="flex items-center gap-4 pt-1 border-t border-amber-200">
-                    <button className="text-sm font-semibold text-emerald-600 hover:text-emerald-800">
-                      Valider ✓
-                    </button>
-                    <span className="text-slate-300">|</span>
-                    <button className="text-sm font-semibold text-red-500 hover:text-red-700">
-                      Refuser ✗
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
+
+            {/* À faire — tâches ouvertes automatiquement par le pipeline
+                LAB → lettre de mission (lecture seule, gérées par le
+                backend au fil des validations/signatures). */}
+            {(obligations.length > 0 || etapes.length > 0) && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    À faire
+                  </p>
+                </div>
+                <ul className="divide-y divide-slate-50">
+                  {etapes.map((etape) => (
+                    <li
+                      key={`etape-${etape.id}`}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5"
+                    >
+                      <span className="text-sm text-slate-700">
+                        {etape.titre}
+                      </span>
+                      <StatusBadge status={etape.statut} />
+                    </li>
+                  ))}
+                  {obligations.map((obligation) => (
+                    <li
+                      key={`obligation-${obligation.id}`}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5"
+                    >
+                      <span className="text-sm text-slate-700">
+                        {OBLIGATION_TYPE_LABELS[obligation.type] ??
+                          obligation.type}
+                      </span>
+                      <StatusBadge status={obligation.statut} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Lettre de mission */}
+            {prospect.questionnaire?.statut === "VALIDE" && !isArchived && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    Lettre de mission
+                  </p>
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  {champsLegauxManquants.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      <p className="font-semibold">
+                        Informations manquantes sur la fiche prospect — la
+                        lettre de mission affichera « À compléter » pour :
+                      </p>
+                      <ul className="mt-1 list-disc pl-4">
+                        {champsLegauxManquants.map((champ) => (
+                          <li key={champ}>{champ}</li>
+                        ))}
+                      </ul>
+                      {!editing && peutTraiter && (
+                        <button
+                          type="button"
+                          onClick={() => setEditing(true)}
+                          className="mt-2 font-semibold text-amber-900 underline hover:text-amber-950"
+                        >
+                          Compléter la fiche →
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {missionError && (
+                    <p className="text-xs text-red-600">{missionError}</p>
+                  )}
+
+                  {missionsLoading ? (
+                    <p className="text-xs text-slate-400">Chargement…</p>
+                  ) : missions.length === 0 ? (
+                    <form
+                      onSubmit={handleCreateMission}
+                      className="space-y-2.5"
+                    >
+                      <p className="text-xs text-slate-500">
+                        Préparez la mission pour générer un brouillon de lettre
+                        de mission, prête à être envoyée une fois le prospect
+                        validé.
+                      </p>
+                      <select
+                        value={missionType}
+                        onChange={(e) =>
+                          setMissionType(e.target.value as TypeMission)
+                        }
+                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      >
+                        {Object.entries(MISSION_TYPE_LABELS).map(
+                          ([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                      <Input
+                        name="dateDebut"
+                        type="date"
+                        required
+                        defaultValue={new Date().toISOString().slice(0, 10)}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <Input
+                        name="honoraires"
+                        type="number"
+                        step="0.01"
+                        placeholder="Honoraires (€ HT)"
+                        className="h-9 rounded-lg text-sm"
+                      />
+                      <textarea
+                        name="description"
+                        rows={2}
+                        placeholder="Description (facultatif)"
+                        className="w-full resize-none rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      />
+
+                      {catalogue.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-xs font-semibold text-slate-600">
+                            Répartition des travaux
+                            <span className="ml-1 font-normal text-slate-400">
+                              — à défaut : N/A pour toutes les tâches
+                            </span>
+                          </p>
+                          {catalogue.map((cat) => (
+                            <div key={cat.titre}>
+                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                {cat.titre}
+                              </p>
+                              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                                <table className="w-full min-w-[360px] text-xs">
+                                  <thead className="bg-slate-50 text-slate-500">
+                                    <tr>
+                                      <th className="px-2 py-1.5 text-left font-semibold">
+                                        Tâche
+                                      </th>
+                                      <th className="px-2 py-1.5 text-center font-semibold">
+                                        Cabinet
+                                      </th>
+                                      <th className="px-2 py-1.5 text-center font-semibold">
+                                        Client
+                                      </th>
+                                      <th className="px-2 py-1.5 text-center font-semibold">
+                                        N/A
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {cat.lignes.map((ligne) => {
+                                      const value =
+                                        repartition[ligne.id] ?? "NA";
+                                      return (
+                                        <tr key={ligne.id}>
+                                          <td className="px-2 py-1.5 text-slate-700">
+                                            {ligne.tache}
+                                          </td>
+                                          {(
+                                            [
+                                              "CABINET",
+                                              "CLIENT",
+                                              "NA",
+                                            ] as AssignationTache[]
+                                          ).map((option) => (
+                                            <td
+                                              key={option}
+                                              className="px-2 py-1.5"
+                                            >
+                                              <div className="flex items-center justify-center">
+                                                <input
+                                                  type="checkbox"
+                                                  name={`repartition-${ligne.id}`}
+                                                  checked={value === option}
+                                                  onChange={() =>
+                                                    setRepartition((prev) => ({
+                                                      ...prev,
+                                                      [ligne.id]: option,
+                                                    }))
+                                                  }
+                                                  className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
+                                                />
+                                              </div>
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={creatingMission}
+                        className="w-full rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold"
+                      >
+                        {creatingMission
+                          ? "Préparation…"
+                          : "Préparer la lettre de mission"}
+                      </Button>
+                    </form>
+                  ) : (
+                    missions.map((m) => {
+                      const lettre = m.lettresMission?.[0];
+                      // Signée par l'expert seul reste réversible (erreur
+                      // humaine) — seul un envoi effectif en signature au
+                      // client (DocuSign) verrouille définitivement.
+                      const verrouillee = !!lettre?.docusignEnvelopeId;
+
+                      if (editingMissionId === m.id) {
+                        return (
+                          <form
+                            key={m.id}
+                            onSubmit={(e) => handleUpdateMission(e, m)}
+                            className="space-y-2.5 rounded-lg border border-indigo-100 bg-indigo-50/40 p-2.5"
+                          >
+                            <p className="text-xs font-semibold text-slate-600">
+                              Modifier — {MISSION_TYPE_LABELS[m.type]}
+                            </p>
+                            <Input
+                              name="dateFin"
+                              type="date"
+                              defaultValue={m.dateFin ?? ""}
+                              placeholder="Date de fin"
+                              className="h-9 rounded-lg text-sm"
+                            />
+                            <Input
+                              name="honoraires"
+                              type="number"
+                              step="0.01"
+                              defaultValue={m.honoraires ?? ""}
+                              placeholder="Honoraires (€ HT)"
+                              className="h-9 rounded-lg text-sm"
+                            />
+                            <textarea
+                              name="description"
+                              rows={2}
+                              defaultValue={m.description ?? ""}
+                              placeholder="Description (facultatif)"
+                              className="w-full resize-none rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                            />
+
+                            {catalogue.length > 0 && (
+                              <div className="space-y-3">
+                                <p className="text-xs font-semibold text-slate-600">
+                                  Répartition des travaux
+                                </p>
+                                {catalogue.map((cat) => (
+                                  <div key={cat.titre}>
+                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                      {cat.titre}
+                                    </p>
+                                    <div className="overflow-x-auto rounded-lg border border-slate-200">
+                                      <table className="w-full min-w-[360px] text-xs">
+                                        <thead className="bg-slate-50 text-slate-500">
+                                          <tr>
+                                            <th className="px-2 py-1.5 text-left font-semibold">
+                                              Tâche
+                                            </th>
+                                            <th className="px-2 py-1.5 text-center font-semibold">
+                                              Cabinet
+                                            </th>
+                                            <th className="px-2 py-1.5 text-center font-semibold">
+                                              Client
+                                            </th>
+                                            <th className="px-2 py-1.5 text-center font-semibold">
+                                              N/A
+                                            </th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {cat.lignes.map((ligne) => {
+                                            const value =
+                                              repartition[ligne.id] ?? "NA";
+                                            return (
+                                              <tr key={ligne.id}>
+                                                <td className="px-2 py-1.5 text-slate-700">
+                                                  {ligne.tache}
+                                                </td>
+                                                {(
+                                                  [
+                                                    "CABINET",
+                                                    "CLIENT",
+                                                    "NA",
+                                                  ] as AssignationTache[]
+                                                ).map((option) => (
+                                                  <td
+                                                    key={option}
+                                                    className="px-2 py-1.5"
+                                                  >
+                                                    <div className="flex items-center justify-center">
+                                                      <input
+                                                        type="checkbox"
+                                                        name={`repartition-edit-${ligne.id}`}
+                                                        checked={
+                                                          value === option
+                                                        }
+                                                        onChange={() =>
+                                                          setRepartition(
+                                                            (prev) => ({
+                                                              ...prev,
+                                                              [ligne.id]:
+                                                                option,
+                                                            }),
+                                                          )
+                                                        }
+                                                        className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
+                                                      />
+                                                    </div>
+                                                  </td>
+                                                ))}
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="submit"
+                                size="sm"
+                                disabled={creatingMission}
+                                className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold"
+                              >
+                                {creatingMission
+                                  ? "Enregistrement…"
+                                  : "Enregistrer"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingMissionId(null);
+                                  setRepartition({});
+                                }}
+                                className="rounded-lg"
+                              >
+                                Annuler
+                              </Button>
+                            </div>
+                          </form>
+                        );
+                      }
+
+                      return (
+                        <div key={m.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-700">
+                              {MISSION_TYPE_LABELS[m.type]}
+                            </p>
+                            {lettre && (
+                              <span
+                                className={`text-xs font-semibold ${
+                                  lettre.signeeParExpert
+                                    ? "text-emerald-600"
+                                    : lettre.valideeParResponsable
+                                      ? "text-blue-600"
+                                      : "text-amber-600"
+                                }`}
+                              >
+                                {lettre.signeeParExpert
+                                  ? "Signée (expert) ✓"
+                                  : lettre.valideeParResponsable
+                                    ? "Validée (responsable) ✓"
+                                    : "Brouillon — en attente de validation"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {lettre && (
+                              <button
+                                type="button"
+                                disabled={previewLoading === lettre.id}
+                                onClick={() => handlePreviewLettre(lettre.id)}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                              >
+                                <IconEye className="size-3.5" />
+                                {previewLoading === lettre.id
+                                  ? "Chargement…"
+                                  : "Aperçu"}
+                              </button>
+                            )}
+                            {/* Téléchargement réservé à l'expert-comptable,
+                                et seulement une fois le client signataire
+                                (DocuSign) — l'aperçu ci-dessus reste ouvert
+                                à tous pour suivre l'avancement du brouillon. */}
+                            {lettre &&
+                              (role === "EXPERT_COMPTABLE" ||
+                                role === "ADMIN") &&
+                              lettre.docusignStatut === "SIGNE" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDownloadLettre(lettre.id)
+                                  }
+                                  className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                                >
+                                  Télécharger le PDF
+                                </button>
+                              )}
+                            {lettre &&
+                              can.validerLettreMission &&
+                              !lettre.valideeParResponsable && (
+                                <button
+                                  type="button"
+                                  disabled={signingLettre}
+                                  onClick={() => handleValiderLettre(lettre.id)}
+                                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                >
+                                  Valider (responsable)
+                                </button>
+                              )}
+                            {lettre &&
+                              can.signerLettre &&
+                              lettre.valideeParResponsable &&
+                              !lettre.signeeParExpert && (
+                                <button
+                                  type="button"
+                                  disabled={signingLettre}
+                                  onClick={() => handleSignerLettre(lettre.id)}
+                                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
+                                >
+                                  Signer (expert-comptable)
+                                </button>
+                              )}
+                            {!verrouillee && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditMission(m)}
+                                  className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                                >
+                                  Modifier
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deletingMissionId === m.id}
+                                  onClick={() => handleDeleteMission(m.id)}
+                                  className="text-xs font-medium text-red-500 hover:text-red-700 disabled:opacity-50"
+                                >
+                                  {deletingMissionId === m.id
+                                    ? "Suppression…"
+                                    : "Supprimer"}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Score de risque */}
             <ScoringPanel entityType="prospect" entityId={prospect.id} />
@@ -561,13 +1587,27 @@ export default function ProspectDetailPage() {
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
                   Étapes Kanban
                 </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Cliquez sur une étape pour y déplacer le prospect (avancer ou
+                  revenir en arrière).
+                </p>
               </div>
-              <div className="px-4 py-4 space-y-2">
+              <div className="px-4 py-4 space-y-1">
                 {KANBAN_ACTIFS.map((step, i) => {
                   const isCurrent = prospect.statutKanban === step;
                   const isPast = currentIdx > i;
                   return (
-                    <div key={step} className="flex items-center gap-3">
+                    <button
+                      key={step}
+                      type="button"
+                      disabled={isCurrent || !peutTraiter}
+                      onClick={() => handleStatutChange(step)}
+                      className={`flex w-full items-center gap-3 rounded-lg px-1.5 py-1 -mx-1.5 text-left transition-colors ${
+                        isCurrent || !peutTraiter
+                          ? "cursor-default"
+                          : "cursor-pointer hover:bg-slate-50"
+                      }`}
+                    >
                       <div
                         className={`size-3 rounded-full shrink-0 ${
                           isCurrent
@@ -593,17 +1633,9 @@ export default function ProspectDetailPage() {
                           </span>
                         )}
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
-                {prospect.statutKanban === "CONVERTI" && (
-                  <div className="flex items-center gap-3">
-                    <div className="size-3 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-sm font-semibold text-emerald-600">
-                      Converti ✓
-                    </span>
-                  </div>
-                )}
                 {prospect.statutKanban === "REFUSE" && (
                   <div className="flex items-center gap-3">
                     <div className="size-3 rounded-full bg-red-500 shrink-0" />
@@ -638,15 +1670,21 @@ export default function ProspectDetailPage() {
                         : "Non assigné"}
                   </p>
                 </div>
-                <button
-                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  {showAssignDropdown ? "[Fermer]" : "[Changer]"}
-                </button>
+                {peutTraiter ? (
+                  <button
+                    onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {showAssignDropdown ? "[Fermer]" : "[Changer]"}
+                  </button>
+                ) : (
+                  <span className="text-xs text-slate-400 italic">
+                    Assigné à un autre collaborateur
+                  </span>
+                )}
               </div>
 
-              {showAssignDropdown && (
+              {showAssignDropdown && peutTraiter && (
                 <div className="border-t border-slate-100 divide-y divide-slate-50 max-h-64 overflow-y-auto">
                   <button
                     onClick={() => handleAssignChange(null)}
@@ -680,19 +1718,30 @@ export default function ProspectDetailPage() {
         {!isArchived && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-3">
             <div className="flex items-center gap-4">
-              <button
-                onClick={handleDelete}
-                className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
-              >
-                Supprimer
-              </button>
-              <span className="text-slate-300">|</span>
-              <button
-                onClick={handleRefuse}
-                className="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors"
-              >
-                Refuser le prospect
-              </button>
+              {peutSupprimer && (
+                <button
+                  onClick={handleDelete}
+                  className="text-sm font-medium text-red-500 hover:text-red-700 transition-colors"
+                >
+                  Supprimer
+                </button>
+              )}
+              {peutSupprimer && peutRefuser && (
+                <span className="text-slate-300">|</span>
+              )}
+              {peutRefuser && (
+                <button
+                  onClick={handleRefuse}
+                  className="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors"
+                >
+                  Refuser le prospect
+                </button>
+              )}
+              {!peutSupprimer && !peutRefuser && (
+                <p className="text-xs text-slate-400 italic">
+                  Aucune action disponible pour ce prospect.
+                </p>
+              )}
             </div>
             {can.convertirProspect && (
               <div className="flex items-center gap-2">
@@ -703,13 +1752,15 @@ export default function ProspectDetailPage() {
                 >
                   {converting ? "Conversion…" : "Convertir en client →"}
                 </Button>
-                <span className="text-xs text-slate-400">(RESPONSABLE)</span>
+                <span className="text-xs text-slate-400">
+                  (EXPERT_COMPTABLE)
+                </span>
               </div>
             )}
           </div>
         )}
 
-        {prospect.statutKanban === "CONVERTI" && prospect.client && (
+        {prospect.client && (
           <div className="flex justify-end">
             <Link
               href={`/dashboard/clients/${prospect.client.id}`}
@@ -720,6 +1771,60 @@ export default function ProspectDetailPage() {
           </div>
         )}
       </div>
+
+      {previewLettre &&
+        (() => {
+          const previewLettreObj = missions
+            .flatMap((m) => m.lettresMission ?? [])
+            .find((l) => l.id === previewLettre.id);
+          const peutTelechargerPreview =
+            (role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
+            previewLettreObj?.docusignStatut === "SIGNE";
+
+          return (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">
+              <button
+                type="button"
+                aria-label="Fermer"
+                onClick={closePreviewLettre}
+                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+              />
+
+              <div className="relative flex h-full w-full flex-col overflow-hidden border border-white/20 bg-white shadow-2xl sm:h-[92vh] sm:max-w-4xl sm:rounded-3xl">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">
+                    Aperçu de la lettre de mission
+                  </h2>
+
+                  <div className="flex items-center gap-2">
+                    {peutTelechargerPreview && (
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadLettre(previewLettre.id)}
+                        className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                      >
+                        Télécharger
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={closePreviewLettre}
+                      className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+                    >
+                      <IconX className="size-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <iframe
+                  src={previewLettre.url}
+                  title="Aperçu de la lettre de mission"
+                  className="flex-1 bg-slate-100"
+                />
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

@@ -22,41 +22,34 @@ const ROLE_LABELS: Record<Role, string> = {
   RESPONSABLE: "Responsable",
   EXPERT_COMPTABLE: "Expert-comptable",
   ADMIN: "Administrateur",
+  MODERATEUR: "Modérateur",
 };
 
 const ROLE_CLASSES: Record<Role, string> = {
-  COLLABORATEUR:
-    "bg-blue-50 text-blue-700 ring-blue-200",
-  RESPONSABLE:
-    "bg-amber-50 text-amber-700 ring-amber-200",
-  EXPERT_COMPTABLE:
-    "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  ADMIN:
-    "bg-violet-50 text-violet-700 ring-violet-200",
+  COLLABORATEUR: "bg-blue-50 text-blue-700 ring-blue-200",
+  RESPONSABLE: "bg-amber-50 text-amber-700 ring-amber-200",
+  EXPERT_COMPTABLE: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  ADMIN: "bg-violet-50 text-violet-700 ring-violet-200",
+  MODERATEUR: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
 const AVATAR_CLASSES: Record<Role, string> = {
-  COLLABORATEUR:
-    "from-blue-500 to-cyan-500",
-  RESPONSABLE:
-    "from-amber-500 to-orange-500",
-  EXPERT_COMPTABLE:
-    "from-emerald-500 to-teal-500",
-  ADMIN:
-    "from-violet-600 to-fuchsia-500",
+  COLLABORATEUR: "from-blue-500 to-cyan-500",
+  RESPONSABLE: "from-amber-500 to-orange-500",
+  EXPERT_COMPTABLE: "from-emerald-500 to-teal-500",
+  ADMIN: "from-violet-600 to-fuchsia-500",
+  MODERATEUR: "from-rose-500 to-pink-500",
 };
 
 export default function UsersPage() {
-  const { ready } = useAuth(["ADMIN"]);
+  const { ready } = useAuth(["ADMIN", "MODERATEUR"]);
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<
-    "TOUS" | Role
-  >("TOUS");
+  const [roleFilter, setRoleFilter] = useState<"TOUS" | Role>("TOUS");
 
   const [statusFilter, setStatusFilter] = useState<
     "TOUS" | "ACTIF" | "INACTIF"
@@ -64,9 +57,6 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (!ready) return;
-
-    setLoading(true);
-    setError(null);
 
     apiFetch<User[]>("/users")
       .then(setUsers)
@@ -98,40 +88,24 @@ export default function UsersPage() {
       .filter((user) => {
         if (!value) return true;
 
-        const fullName =
-          `${user.prenom} ${user.nom}`.toLowerCase();
+        const fullName = `${user.prenom} ${user.nom}`.toLowerCase();
 
         return (
           fullName.includes(value) ||
           user.email.toLowerCase().includes(value) ||
-          ROLE_LABELS[user.role]
-            .toLowerCase()
-            .includes(value)
+          ROLE_LABELS[user.role].toLowerCase().includes(value)
         );
       })
       .sort((a, b) =>
-        `${a.nom} ${a.prenom}`.localeCompare(
-          `${b.nom} ${b.prenom}`,
-          "fr",
-        ),
+        `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, "fr"),
       );
-  }, [
-    users,
-    search,
-    roleFilter,
-    statusFilter,
-  ]);
+  }, [users, search, roleFilter, statusFilter]);
 
-  const activeCount = users.filter(
-    (user) => user.isActive,
-  ).length;
+  const activeCount = users.filter((user) => user.isActive).length;
 
-  const inactiveCount =
-    users.length - activeCount;
+  const inactiveCount = users.length - activeCount;
 
-  const adminCount = users.filter(
-    (user) => user.role === "ADMIN",
-  ).length;
+  const adminCount = users.filter((user) => user.role === "ADMIN").length;
 
   const responsibleCount = users.filter(
     (user) => user.role === "RESPONSABLE",
@@ -170,8 +144,8 @@ export default function UsersPage() {
                   </h1>
 
                   <p className="mt-2 max-w-xl text-sm leading-6 text-violet-100">
-                    Gérez les comptes, les rôles et les accès
-                    des membres du cabinet.
+                    Gérez les comptes, les rôles et les accès des membres du
+                    cabinet.
                   </p>
                 </div>
               </div>
@@ -313,9 +287,7 @@ export default function UsersPage() {
               <input
                 type="search"
                 value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
+                onChange={(event) => setSearch(event.target.value)}
                 placeholder="Rechercher par nom, e-mail ou rôle..."
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
               />
@@ -324,58 +296,37 @@ export default function UsersPage() {
             <select
               value={roleFilter}
               onChange={(event) =>
-                setRoleFilter(
-                  event.target.value as
-                    | "TOUS"
-                    | Role,
-                )
+                setRoleFilter(event.target.value as "TOUS" | Role)
               }
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
             >
-              <option value="TOUS">
-                Tous les rôles
-              </option>
+              <option value="TOUS">Tous les rôles</option>
 
-              <option value="COLLABORATEUR">
-                Collaborateurs
-              </option>
+              <option value="COLLABORATEUR">Collaborateurs</option>
 
-              <option value="RESPONSABLE">
-                Responsables
-              </option>
+              <option value="RESPONSABLE">Responsables</option>
 
-              <option value="EXPERT_COMPTABLE">
-                Experts-comptables
-              </option>
+              <option value="EXPERT_COMPTABLE">Experts-comptables</option>
 
-              <option value="ADMIN">
-                Administrateurs
-              </option>
+              <option value="ADMIN">Administrateurs</option>
+
+              <option value="MODERATEUR">Modérateurs</option>
             </select>
 
             <select
               value={statusFilter}
               onChange={(event) =>
                 setStatusFilter(
-                  event.target.value as
-                    | "TOUS"
-                    | "ACTIF"
-                    | "INACTIF",
+                  event.target.value as "TOUS" | "ACTIF" | "INACTIF",
                 )
               }
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
             >
-              <option value="TOUS">
-                Tous les statuts
-              </option>
+              <option value="TOUS">Tous les statuts</option>
 
-              <option value="ACTIF">
-                Comptes actifs
-              </option>
+              <option value="ACTIF">Comptes actifs</option>
 
-              <option value="INACTIF">
-                Comptes inactifs
-              </option>
+              <option value="INACTIF">Comptes inactifs</option>
             </select>
           </div>
         </div>
@@ -396,14 +347,8 @@ export default function UsersPage() {
                 {loading
                   ? "Chargement..."
                   : `${filteredUsers.length} utilisateur${
-                      filteredUsers.length > 1
-                        ? "s"
-                        : ""
-                    } affiché${
-                      filteredUsers.length > 1
-                        ? "s"
-                        : ""
-                    }`}
+                      filteredUsers.length > 1 ? "s" : ""
+                    } affiché${filteredUsers.length > 1 ? "s" : ""}`}
               </p>
             </div>
           </div>
@@ -483,9 +428,7 @@ export default function UsersPage() {
                         </div>
                       </td>
 
-                      <td className="px-5 py-4 text-slate-500">
-                        {user.email}
-                      </td>
+                      <td className="px-5 py-4 text-slate-500">{user.email}</td>
 
                       <td className="px-5 py-4">
                         <span
@@ -505,22 +448,16 @@ export default function UsersPage() {
                         >
                           <span
                             className={`size-1.5 rounded-full ${
-                              user.isActive
-                                ? "bg-emerald-500"
-                                : "bg-red-500"
+                              user.isActive ? "bg-emerald-500" : "bg-red-500"
                             }`}
                           />
 
-                          {user.isActive
-                            ? "Actif"
-                            : "Inactif"}
+                          {user.isActive ? "Actif" : "Inactif"}
                         </span>
                       </td>
 
                       <td className="px-5 py-4 text-slate-500">
-                        {new Date(
-                          user.createdAt,
-                        ).toLocaleDateString("fr-FR")}
+                        {new Date(user.createdAt).toLocaleDateString("fr-FR")}
                       </td>
 
                       <td className="px-5 py-4 text-right">
@@ -585,9 +522,7 @@ export default function UsersPage() {
                                 : "bg-red-50 text-red-700"
                             }`}
                           >
-                            {user.isActive
-                              ? "Actif"
-                              : "Inactif"}
+                            {user.isActive ? "Actif" : "Inactif"}
                           </span>
                         </div>
 
@@ -600,19 +535,21 @@ export default function UsersPage() {
                         </div>
 
                         <div className="mt-4 border-t border-slate-100 pt-3">
-  <p className="text-xs text-slate-400">
-    Créé le{" "}
-    {new Date(user.createdAt).toLocaleDateString("fr-FR")}
-  </p>
+                          <p className="text-xs text-slate-400">
+                            Créé le{" "}
+                            {new Date(user.createdAt).toLocaleDateString(
+                              "fr-FR",
+                            )}
+                          </p>
 
-  <Link
-    href={`/dashboard/admin/users/${user.id}`}
-    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
-  >
-    <IconEdit className="size-4 shrink-0" />
-    Modifier
-  </Link>
-</div>
+                          <Link
+                            href={`/dashboard/admin/users/${user.id}`}
+                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
+                          >
+                            <IconEdit className="size-4 shrink-0" />
+                            Modifier
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </div>

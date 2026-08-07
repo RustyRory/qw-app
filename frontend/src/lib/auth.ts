@@ -19,7 +19,7 @@ export function decodeToken(token: string): JwtPayload | null {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function getDashboardPath(_role: string): string {
+export function getDashboardPath(role: string): string {
+  if (role === "MODERATEUR") return "/dashboard/admin/users";
   return "/dashboard";
 }

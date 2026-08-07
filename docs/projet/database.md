@@ -1,6 +1,6 @@
 # Modélisation de la base de données
 
-La base de données de QW-app est conçue selon la méthodologie **Merise** (MCD → MLD), pour un total de **14 entités**. Le SGBD retenu est **PostgreSQL 16**, accédé via **TypeORM** (ORM TypeScript). Les documents (pièces d'identité, Kbis, lettres de mission…) ne sont pas stockés en base mais chez **OVHcloud Object Storage** (S3-compatible, prestataire externe — voir [security.md](./security.md)) — seules leurs métadonnées sont persistées dans la table `document`.
+La base de données de QW-app est conçue selon la méthodologie **Merise** (MCD → MLD), pour un total de **14 entités**. Le SGBD retenu est **PostgreSQL 16**, accédé via **TypeORM** (ORM TypeScript). Les documents (pièces d'identité, Kbis, lettres de mission…) ne sont pas stockés en base — seules leurs métadonnées le sont, dans la table `document`. Le stockage cible est **OVHcloud Object Storage** (S3-compatible, prestataire externe — voir [security.md](./security.md)) ; **à ce jour le code stocke les fichiers sur le disque du serveur backend** (`UPLOADS_ROOT`), la bascule vers OVHcloud n'a pas encore été implémentée.
 
 ---
 
@@ -88,9 +88,11 @@ Aucun `UPDATE` ni `DELETE` n'est autorisé sur la table d'audit — c'est la gar
 | évalue | Client | 0,1 | 0,N | ScoreRisque | Historique des évaluations ARPEC manuelles (exclusif avec Prospect) |
 | évalue | Prospect | 0,1 | 0,N | ScoreRisque | Historique des évaluations automatiques depuis le questionnaire (exclusif avec Client) |
 | calcule | Utilisateur | 1,N | 0,N | ScoreRisque | Auteur du calcul (manuel) ou du dernier enregistrement ayant déclenché le recalcul automatique |
-| a | Client | 1,1 | 0,N | Mission | Un client peut avoir plusieurs missions |
+| a | Client | 0,1 | 0,N | Mission | Un client peut avoir plusieurs missions (exclusif avec Prospect) |
+| prépare | Prospect | 0,1 | 0,N | Mission | Une mission (et sa lettre) peut être préparée pour un prospect dès la validation LAB, avant conversion en client (exclusif avec Client, `CHECK` en base) |
 | génère | Mission | 1,1 | 0,N | LettreMission | Une mission a plusieurs versions de lettres |
-| signe | Utilisateur | 0,N | 0,1 | LettreMission | Un expert-comptable signe une lettre |
+| valide | Utilisateur | 0,N | 0,1 | LettreMission | Un responsable valide le contenu avant signature |
+| signe | Utilisateur | 0,N | 0,1 | LettreMission | Un expert-comptable signe une lettre — bloqué tant qu'elle n'est pas validée par un responsable |
 | planifie | Client | 1,1 | 0,N | PlanningEtape | Un client a des étapes planifiées |
 | complète | Utilisateur | 0,N | 0,1 | PlanningEtape | Un utilisateur complète une étape |
 | suit | Client | 1,1 | 0,N | Obligation | Suivi des obligations réglementaires |
@@ -103,8 +105,9 @@ Aucun `UPDATE` ni `DELETE` n'est autorisé sur la table d'audit — c'est la gar
 ```
 Utilisateur
     ├── crée ──────────────► Prospect ──── possède (0,1) ──► QuestionnaireAcceptation
-    │                            │
-    │                    converti_en (0,1)
+    │                            │      │
+    │                            │      └── prépare (0,N) ──► Mission ──► LettreMission
+    │                    converti_en (0,1)                        (id_client XOR id_prospect)
     │                            │
     ├── crée ──────────────► Client  ◄────── prospect_id? (UNIQUE)
     │                          │
@@ -135,9 +138,12 @@ Les clés primaires sont en **MAJUSCULES**, les clés étrangères entre `[croch
 UTILISATEUR (ID, prenom, nom, email UNIQUE, password_hash, role, actif, created_at, deleted_at?)
 
 PROSPECT (ID, ref UNIQUE, siret?, nom, email?, telephone?, type_entite, statut_kanban,
-          motif_refus?, activite?, code_naf?, adresse?, ville?, code_postal?, pays,
+          motif_refus?, refused_at?, activite?, code_naf?, adresse?, ville?, code_postal?, pays,
           chiffre_affaires?, effectif?, created_at, updated_at, deleted_at?,
           [id_createur → UTILISATEUR.id], [id_assigned → UTILISATEUR.id])
+        ← refused_at est horodaté à l'entrée en statut REFUSE (et effacé si le
+          prospect en ressort) ; sert de base au job quotidien qui archive
+          (soft delete) les prospects refusés depuis plus de 7 jours
 
 QUESTIONNAIRE_ACCEPTATION (ID, statut, reponses, motif_refus?, validated_at?, created_at,
           [id_prospect → PROSPECT.id] UNIQUE,
@@ -159,9 +165,15 @@ BENEFICIAIRE_EFFECTIF (ID, prenom?, nom, date_naissance?, nationalite?, adresse?
 CONTACT (ID, prenom?, nom, email?, telephone?, type, role_detail?, created_at,
         [id_client → CLIENT.id])
 
-DOCUMENT (ID, type, nom, mime_type, taille_octets, s3_key UNIQUE, expires_at?, relance_at?,
-        created_at,
-        [id_client → CLIENT.id], [id_mission → MISSION.id]?, [id_uploaded_by → UTILISATEUR.id])
+DOCUMENT (ID, type, nom_fichier, chemin_stockage, type_mime, taille, created_at, deleted_at?,
+        [id_client → CLIENT.id], [id_utilisateur → UTILISATEUR.id],
+        [id_contact → CONTACT.id]?, [id_mission → MISSION.id]?,
+        [id_planning_etape → PLANNING_ETAPE.id]?, [id_operation_sensible → OPERATION_SENSIBLE.id]?)
+        ← chemin_stockage pointe vers un fichier sur le disque du serveur
+          backend (`UPLOADS_ROOT`), pas de bucket S3/objet distant à ce jour
+        ← rattachements optionnels à une sous-entité précise du dossier
+          (contact, mission, étape de planning, opération sensible), en plus
+          du rattachement obligatoire au client
 
 SCORE_RISQUE (ID, score, niveau, reponses JSONB, created_at,
         [id_client → CLIENT.id]?, [id_prospect → PROSPECT.id]?,
@@ -171,11 +183,27 @@ SCORE_RISQUE (ID, score, niveau, reponses JSONB, created_at,
         ← INSERT-ONLY, score courant = MAX(created_at) par client ou par prospect
 
 MISSION (ID, type, description?, statut, date_debut, date_fin?, honoraires?,
-        created_at, updated_at,
-        [id_client → CLIENT.id], [id_createur → UTILISATEUR.id])
+        repartition_travaux JSONB?, created_at, updated_at,
+        [id_client → CLIENT.id]?, [id_prospect → PROSPECT.id]?, [id_createur → UTILISATEUR.id])
+        ← CHECK(id_client XOR id_prospect renseigné) — mission d'un client
+          déjà converti, ou brouillon préparé dès la validation LAB d'un
+          prospect
+        ← repartition_travaux : tableau Cabinet/Client/N.A. par tâche du
+          catalogue (`common/repartition-travaux.ts`), affiché dans la lettre
+          de mission pour tous les types de mission
 
-LETTRE_MISSION (ID, version, contenu JSONB, signee_par_expert, signee_at?, s3_key?, created_at,
-        [id_mission → MISSION.id], [id_signataire → UTILISATEUR.id]?)
+LETTRE_MISSION (ID, version, contenu JSONB, chemin_stockage?, created_at,
+        validee_par_responsable, validee_at?, signee_par_expert, signee_at?,
+        signee_par_client_at?, docusign_envelope_id?, docusign_statut?,
+        docusign_destinataire_email?, docusign_destinataire_nom?, docusign_envoye_at?,
+        [id_mission → MISSION.id], [id_valide_par → UTILISATEUR.id]?, [id_signataire → UTILISATEUR.id]?)
+        ← circuit à 3 étapes : collaborateur prépare → responsable valide
+          (validee_par_responsable) → expert-comptable signe (signee_par_expert,
+          bloqué tant que non validée ; fait avancer le prospect en LM_ENVOYEE)
+          → envoi en signature au client via DocuSign (docusign_*). La
+          suppression de la mission/lettre reste possible après signature
+          (erreur humaine récupérable), bloquée seulement une fois envoyée
+          via DocuSign (docusign_envelope_id renseigné)
 
 PLANNING_ETAPE (ID, titre, description?, type, statut, date_echeance?, completed_at?,
         created_at,
@@ -199,9 +227,9 @@ AUDIT_LOG (ID, action, ressource, ressource_id, details JSONB?, ip_address?, cre
 
 | Enum | Valeurs |
 |---|---|
-| `Role` | `COLLABORATEUR`, `RESPONSABLE`, `EXPERT_COMPTABLE`, `ADMIN` |
+| `Role` | `COLLABORATEUR`, `RESPONSABLE`, `EXPERT_COMPTABLE`, `ADMIN`, `MODERATEUR` |
 | `TypeEntite` | `PERSONNE_PHYSIQUE`, `PERSONNE_MORALE` |
-| `StatutKanban` | `PRISE_CONTACT`, `DECOUVERTE`, `OPPORTUNITE`, `LAB`, `PREPARATION`, `CONVERTI`, `REFUSE` |
+| `StatutKanban` | `PRISE_CONTACT`, `PREPARATION_LAB`, `VALIDATION_LAB`, `REFUSE`, `LM_A_FAIRE`, `LM_ENVOYEE`, `CONVERTI` |
 | `StatutQuestionnaire` | `EN_COURS`, `VALIDE`, `REFUSE` |
 | `StatutClient` | `ACTIF`, `INACTIF`, `RESILIE` |
 | `StatutKyc` | `INCOMPLET`, `COMPLET`, `VALIDE`, `EXPIRE` |
@@ -215,6 +243,9 @@ AUDIT_LOG (ID, action, ressource, ressource_id, details JSONB?, ip_address?, cre
 | `TypeOperationSensible` | `SANS_JUSTIFICATION`, `COMPLEXE`, `SANS_OBJET_LICITE`, `INHABITUELLE`, `ECONOMIE_VIRTUELLE`, `ESPECES`, `AUTRE` |
 | `StatutOperationSensible` | `SIGNALEE`, `EN_ANALYSE`, `CLASSEE`, `TRACFIN_DECLARE` |
 | `TypeContact` | `INTERVENANT`, `AVOCAT`, `COMMISSAIRE_COMPTES`, `NOTAIRE`, `AUTRE` |
+| `TypePlanningEtape` | `REGLEMENTAIRE`, `MANUELLE` |
+| `StatutPlanningEtape` | `A_FAIRE`, `EN_COURS`, `FAIT`, `ANNULEE` |
+| `DocusignStatutEnvelope` | `ENVOYE`, `LIVRE`, `SIGNE`, `REFUSE`, `ANNULE` |
 | `AuditAction` | `CREATE`, `UPDATE`, `DELETE`, `READ`, `VALIDATE`, `LOGIN` |
 
 ---
@@ -279,9 +310,25 @@ CREATE INDEX idx_operation_statut ON operation_sensible(client_id, statut)
 Migrations post-MVP (schéma déjà en place, évolutions ponctuelles) :
 
 ```
-15. AddFormeJuridiqueRepresentantLegal  ← ajoute formeJuridique/representantLegal (prospect + client)
-16. AddProspectScoring                  ← id_client devient nullable, ajoute id_prospect +
-                                           CHECK(XOR) + index idx_score_prospect_date sur score_risque
+15. AddFormeJuridiqueRepresentantLegal        ← ajoute formeJuridique/representantLegal (prospect + client)
+16. AddProspectScoring                        ← id_client devient nullable, ajoute id_prospect +
+                                                 CHECK(XOR) + index idx_score_prospect_date sur score_risque
+17. RenameLettreMissionS3KeyToCheminStockage  ← s3Key → cheminStockage (stockage local, pas de bucket S3)
+18. AddRepartitionTravauxToMission            ← ajoute repartitionTravaux (JSONB) sur mission
+19. AddSignatureDataUriToUser                 ← signature électronique de l'expert-comptable (image encodée)
+20. AddDocusignToLettreMission                ← champs d'envoi/suivi DocuSign sur lettre_mission
+21. AddTypeToDocument                         ← type de document (enum TypeDocument)
+22. AddMissionToPlanningEtape                 ← lie une étape de planning à une mission
+23. AddDeletedAtToDocument                    ← soft delete sur document
+24. AddEntityRelationsToDocument              ← rattachements optionnels document ↔ contact/mission/
+                                                 planning/opération sensible
+25. AddModerateurRole                         ← ajoute le rôle MODERATEUR
+26. RestructureProspectKanban                 ← renomme les étapes du kanban (DECOUVERTE→PREPARATION_LAB,
+                                                 LAB→VALIDATION_LAB, PREPARATION→LM_A_FAIRE, + LM_ENVOYEE)
+27. AddRefusedAtToProspect                    ← horodatage d'entrée en REFUSE (archivage auto après 7 j)
+28. AddProspectToMission                      ← id_client devient nullable sur mission, ajoute id_prospect
+                                                 + CHECK(XOR) — lettre de mission préparable dès le prospect
+29. AddValidationResponsableToLettreMission   ← étape de validation responsable avant signature expert
 ```
 
 > **Note TypeORM :** les entités TypeScript (`@Entity`, `@Column`, `@OneToOne`, `@OneToMany`, `@ManyToOne`) génèrent ce schéma via les migrations. Le champ `deletedAt` est géré par `@DeleteDateColumn()` (soft delete natif). Voir `docs/mvp/workflow-backend.md` pour le code complet des entités (schéma d'origine) et `docs/mvp/modelisation-bdd.md` pour le détail champ par champ.

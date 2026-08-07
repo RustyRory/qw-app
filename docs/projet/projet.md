@@ -75,6 +75,7 @@ Aujourd'hui, le Cabinet QW gère ces obligations via des fichiers Excel, emails 
 | Saisir le KYC | ✅ | ✅ | ✅ | ✅ |
 | Valider le questionnaire d'acceptation | ❌ | ✅ | ✅ | ✅ |
 | Convertir prospect → client | ❌ | ✅ | ✅ | ✅ |
+| Valider une lettre de mission (avant signature) | ❌ | ✅ | ❌ | ✅ |
 | Signer une lettre de mission | ❌ | ❌ | ✅ | ✅ |
 | Exporter un rapport | ❌ | ✅ | ✅ | ✅ |
 | Déclarer une opération sensible | ✅ | ✅ | ✅ | ✅ |
@@ -82,7 +83,7 @@ Aujourd'hui, le Cabinet QW gère ces obligations via des fichiers Excel, emails 
 | Gérer les utilisateurs | ❌ | ❌ | ❌ | ✅ |
 | Supprimer un dossier (soft delete) | ❌ | ❌ | ❌ | ✅ |
 
-> Les 4 rôles sont implémentés en base sous forme d'enum `Role` (`COLLABORATEUR`, `RESPONSABLE`, `EXPERT_COMPTABLE`, `ADMIN`). Voir [security.md](./security.md) pour le détail de l'application de ces droits côté backend/frontend.
+> Les rôles sont implémentés en base sous forme d'enum `Role` (`COLLABORATEUR`, `RESPONSABLE`, `EXPERT_COMPTABLE`, `ADMIN`, `MODERATEUR`). Le rôle `MODERATEUR` est réservé à la gestion des comptes utilisateurs (même périmètre que l'administrateur sur ce point précis, sans accès aux dossiers). Voir [security.md](./security.md) pour le détail de l'application de ces droits côté backend/frontend.
 
 ---
 
@@ -96,8 +97,8 @@ L'application est découpée en 12 modules métier. Le détail complet (user sto
 | 2 | **Dossier client** | Gestion complète des informations client (identification, localisation, situation économique, contacts) | US-C01 → US-C06 |
 | 3 | **KYC** (Know Your Customer) | Collecte et vérification des pièces d'identité, bénéficiaires effectifs, statut PPE, screening sanctions | US-K01 → US-K06 |
 | 4 | **Évaluation des risques** | Score de risque LCB-FT calculé **automatiquement** pour les clients comme pour les prospects — 9 critères pondérés du cahier des charges, normalisés en %, /100. Aucune saisie manuelle : les clients sont scorés depuis leurs données réelles (PPE, screening, bénéficiaires effectifs, CA), les prospects depuis leur questionnaire d'acceptation. Cartographie du portefeuille. | US-R01 → US-R05 |
-| 5 | **Questionnaire d'acceptation (LAB)** | Validation formelle de l'entrée en relation — 61 questions réparties en 10 sections, contresignature si risque élevé | US-A01 → US-A07 |
-| 6 | **Missions et lettres de mission** | Gestion des lettres de mission conformes Ordre des Experts-Comptables, signature électronique | US-M01 → US-M06 |
+| 5 | **Questionnaire d'acceptation (LAB)** | Validation formelle de l'entrée en relation. Version implémentée : 5 modules (D1-D5, ~70 questions), boutons de saisie rapide par module (tout cocher/décocher), réouverture pour la reprise annuelle. La validation ou le refus par le responsable fait avancer automatiquement le prospect dans le pipeline Kanban. | US-A01 → US-A07 |
+| 6 | **Missions et lettres de mission** | Peut être préparée dès la validation LAB (rattachée au prospect, avant conversion en client) ou sur un client existant. Circuit à trois étapes : collaborateur prépare (dont le tableau de répartition des travaux Cabinet/Client/N.A.), responsable valide, expert-comptable signe puis envoie en signature au client (DocuSign). | US-M01 → US-M06 |
 | 7 | **Planning et suivi** | Calendrier des diligences à réaliser sur chaque dossier | US-PL01 → US-PL05 |
 | 8 | **Tableau des obligations** | Vue synthétique de l'état de conformité réglementaire par client | US-O01 → US-O03 |
 | 9 | **Opérations sensibles** | Identification et suivi des opérations atypiques (potentiellement déclarables à Tracfin) | US-OS01 → US-OS03 |

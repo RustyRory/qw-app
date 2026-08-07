@@ -12,19 +12,33 @@ Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Radix UI, Zod, Re
 
 ```
 src/
+├── proxy.ts                    # Logique du proxy interne vers le backend
 ├── app/
-│   ├── api/[...path]/   # Proxy interne vers le backend (route handler, pas un rewrite next.config.ts)
+│   ├── api/[...path]/          # Route handler proxy (utilise proxy.ts)
 │   ├── login/
 │   └── dashboard/
+│       ├── prospects/          # Pipeline Kanban + vue tableau, fiche prospect, questionnaire LAB
+│       │   └── [id]/
+│       │       └── questionnaire/
+│       ├── clients/            # Liste, création, fiche à onglets (infos, kyc, missions…)
+│       ├── admin/users/        # Gestion des utilisateurs
+│       ├── cartographie/       # Cartographie globale des risques
+│       ├── obligations/        # Tableau global des obligations
+│       ├── operations-sensibles/
+│       ├── planning/
+│       └── profil/
 ├── components/
-│   ├── ui/                # Composants shadcn/ui
-│   └── layout/              # AppSidebar, SiteHeader…
-├── hooks/                     # useAuth…
-├── lib/                         # Helpers (appels API…)
-└── types/                         # Types TypeScript partagés
+│   ├── ui/                     # Composants shadcn/ui
+│   ├── layout/                 # AppSidebar…
+│   └── scoring-panel.tsx       # Panneau de score de risque (client + prospect)
+├── hooks/
+│   ├── useAuth.ts               # Session (cookie JWT), redirection, logout
+│   └── useRole.ts                # Droits RBAC (`can.validerQuestionnaire`, `can.signerLettre`…)
+├── lib/                             # Helpers (apiFetch, status, sirene…)
+└── types/                             # Types TypeScript partagés
 ```
 
-> Arborescence cible des routes (pipeline prospect Kanban, fiche client à 9 onglets, cartographie des risques…) : [docs/projet/workflow.md §5](../docs/projet/workflow.md), zonings d'écran détaillés dans `docs/autre/workflow-frontend.md`.
+> Détail des écrans et du modèle de données : [docs/projet/workflow.md](../docs/projet/workflow.md) et [docs/projet/database.md](../docs/projet/database.md).
 
 ## Installation et configuration
 

@@ -3,11 +3,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Prospect } from './entities/prospect.entity';
 import { AuditLog } from '../audit/entities/audit-log.entity';
 import { ScoringModule } from '../scoring/scoring.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ProspectsService } from './prospects.service';
 import { ProspectsController } from './prospects.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Prospect, AuditLog]), ScoringModule],
+  imports: [
+    TypeOrmModule.forFeature([Prospect, AuditLog]),
+    ScoringModule,
+    NotificationsModule,
+  ],
   controllers: [ProspectsController],
   providers: [ProspectsService],
 })

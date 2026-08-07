@@ -56,6 +56,12 @@ export class Client {
   @Column({ type: 'varchar', length: 255, nullable: true })
   representantLegal: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  telephone: string | null;
+
   @Column({ type: 'varchar', length: 10, nullable: true })
   codeNaf: string | null;
 
@@ -85,6 +91,29 @@ export class Client {
 
   @Column({ type: 'text', nullable: true })
   natureMission: string | null;
+
+  // ── Champs requis sur la lettre de mission ─────────────────────────────
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  capitalSocial: number | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  regimeFiscal: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  regimeTva: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  tvaIntracommunautaire: string | null;
+
+  // null = pas encore renseigné (distinct de false = « pas de salarié »).
+  @Column({ type: 'boolean', nullable: true })
+  existenceSalaries: boolean | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  conventionCollective: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
 
   @Column({ type: 'enum', enum: StatutClient, default: StatutClient.ACTIF })
   statut: StatutClient;

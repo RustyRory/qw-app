@@ -713,6 +713,7 @@ function ModulePanel({
   module,
   reponses,
   onChange,
+  onBulkAction,
   isOpen,
   onToggle,
   disabled,
@@ -721,6 +722,7 @@ function ModulePanel({
   module: QModule;
   reponses: Reponses;
   onChange: (id: string, val: string) => void;
+  onBulkAction: (module: QModule, mode: "oui" | "non" | "clear") => void;
   isOpen: boolean;
   onToggle: () => void;
   disabled?: boolean;
@@ -760,6 +762,37 @@ function ModulePanel({
 
       {isOpen && (
         <div className="border-t border-slate-100 px-5 py-4 space-y-6">
+          {!disabled && (
+            <div className="flex flex-wrap items-center gap-2 -mb-1">
+              <button
+                type="button"
+                onClick={() => onBulkAction(module, "non")}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                title="Répond « Non » aux questions de ce module pas encore renseignées"
+              >
+                Tout cocher (Non)
+              </button>
+              <button
+                type="button"
+                onClick={() => onBulkAction(module, "oui")}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                title="Répond « Oui » (risque élevé) aux questions de ce module pas encore renseignées"
+              >
+                Tout cocher (Oui)
+              </button>
+              {answered > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onBulkAction(module, "clear")}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                  title="Efface les réponses déjà saisies dans ce module"
+                >
+                  Tout décocher
+                </button>
+              )}
+            </div>
+          )}
+
           {module.groups.map((group, gi) => (
             <div key={gi} className="space-y-5">
               {group.label && (
@@ -859,6 +892,39 @@ export default function QuestionnairePage() {
     setReponses((prev) => ({ ...prev, [qid]: val }));
   }
 
+  // Actions groupées à l'échelle d'un module (onglet) : remplit rapidement les
+  // questions pas encore renseignées de ce module, ou les remet à zéro.
+  function handleModuleAction(module: QModule, mode: "oui" | "non" | "clear") {
+    const moduleQuestions = module.groups.flatMap((g) => g.questions);
+    if (
+      mode === "clear" &&
+      !confirm(`Effacer les réponses déjà saisies dans « ${module.title} » ?`)
+    ) {
+      return;
+    }
+    setReponses((prev) => {
+      const next = { ...prev };
+      for (const q of moduleQuestions) {
+        if (mode === "clear") {
+          delete next[q.id];
+          continue;
+        }
+        if (next[q.id]) continue;
+        if (mode === "non") {
+          next[q.id] = q.kind === "pct" ? "0" : "non";
+        } else {
+          next[q.id] =
+            q.kind === "pct"
+              ? "gt20"
+              : q.kind === "seuil"
+                ? "risque_eleve"
+                : "oui";
+        }
+      }
+      return next;
+    });
+  }
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -888,6 +954,23 @@ export default function QuestionnairePage() {
       setError((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleMarquerComplete() {
+    if (!questionnaire) return;
+    setDeciding(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<QuestionnaireAcceptation>(
+        `/questionnaires/${questionnaire.id}/completer`,
+        { method: "PATCH" },
+      );
+      setQuestionnaire(updated);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeciding(false);
     }
   }
 
@@ -930,6 +1013,33 @@ export default function QuestionnairePage() {
         },
       );
       setQuestionnaire(updated);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeciding(false);
+    }
+  }
+
+  async function handleReopen() {
+    if (!questionnaire) return;
+    if (
+      !confirm(
+        "Rouvrir ce questionnaire pour reprise annuelle ? La décision précédente sera archivée dans l'historique et devra être revalidée.",
+      )
+    ) {
+      return;
+    }
+    setDeciding(true);
+    setError(null);
+    try {
+      const updated = await apiFetch<QuestionnaireAcceptation>(
+        `/questionnaires/${questionnaire.id}/rouvrir`,
+        {
+          method: "PATCH",
+        },
+      );
+      setQuestionnaire(updated);
+      setReponses((updated.reponses as Reponses | undefined) ?? {});
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1020,9 +1130,22 @@ export default function QuestionnairePage() {
         </div>
       )}
       {!editable && (
-        <div className="mx-4 mt-4 md:mx-8 rounded-xl bg-slate-100 border border-slate-200 p-3 text-sm text-slate-600">
-          Ce questionnaire est {statutInfo.label.toLowerCase()} et n&apos;est
-          plus modifiable.
+        <div className="mx-4 mt-4 md:mx-8 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-100 border border-slate-200 p-3 text-sm text-slate-600">
+          <span>
+            Ce questionnaire est {statutInfo.label.toLowerCase()} et n&apos;est
+            plus modifiable.
+          </span>
+          {can.validerQuestionnaire && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReopen}
+              disabled={deciding}
+              className="rounded-lg border-slate-300"
+            >
+              Rouvrir pour reprise annuelle
+            </Button>
+          )}
         </div>
       )}
 
@@ -1039,6 +1162,7 @@ export default function QuestionnairePage() {
                 module={module}
                 reponses={reponses}
                 onChange={handleChange}
+                onBulkAction={handleModuleAction}
                 isOpen={openModule === module.id}
                 onToggle={() =>
                   setOpenModule((prev) =>
@@ -1136,6 +1260,26 @@ export default function QuestionnairePage() {
                 >
                   Annuler
                 </Button>
+
+                {/* Le collab signale qu'il a fini de renseigner le
+                    questionnaire : fait avancer le prospect en
+                    VALIDATION_LAB et notifie RESPONSABLE/EXPERT_COMPTABLE.
+                    Inutile pour ceux qui peuvent déjà valider directement. */}
+                {!can.validerQuestionnaire && questionnaire && editable && (
+                  <>
+                    <span className="text-slate-300">|</span>
+                    <Button
+                      type="button"
+                      onClick={handleMarquerComplete}
+                      disabled={deciding}
+                      className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                    >
+                      {deciding
+                        ? "Envoi…"
+                        : "Marquer comme complété → notifier le responsable"}
+                    </Button>
+                  </>
+                )}
 
                 {can.validerQuestionnaire && questionnaire && editable && (
                   <>

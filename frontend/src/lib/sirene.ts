@@ -11,6 +11,9 @@ export interface SireneData {
   representantLegal?: string;
   dateCreation?: string;
   estDrom?: boolean;
+  capitalSocial?: number;
+  tvaIntracommunautaire?: string;
+  existenceSalaries?: boolean;
 }
 
 interface RechercheEntreprisesEtablissement {
@@ -38,6 +41,11 @@ interface RechercheEntreprisesResult {
   section_activite_principale?: string;
   nature_juridique?: string;
   date_creation?: string;
+  capital_social?: string | number;
+  // Code INSEE par tranche ("00" = aucun salarié, sinon "01".."52") — pas de
+  // valeur exacte disponible via cette API publique, mais suffisant pour un
+  // Oui/Non fiable (cf. existenceSalaries plus bas).
+  tranche_effectif_salarie?: string | null;
   dirigeants?: RechercheEntreprisesDirigeant[];
   siege?: RechercheEntreprisesEtablissement;
   matching_etablissements?: RechercheEntreprisesEtablissement[];
@@ -74,6 +82,17 @@ export const PREFIXES_DROM = ["971", "972", "973", "974", "976"];
 
 export function isCodePostalDrom(codePostal?: string | null): boolean {
   return !!codePostal && PREFIXES_DROM.some((p) => codePostal.startsWith(p));
+}
+
+// Formule officielle (clé de contrôle sur le SIREN) — le numéro de TVA
+// intracommunautaire français n'est pas exposé par l'API, mais se déduit
+// entièrement du SIREN, sans appel réseau supplémentaire.
+export function computeTvaIntracommunautaire(
+  siren: string,
+): string | undefined {
+  if (!/^\d{9}$/.test(siren)) return undefined;
+  const cle = (12 + 3 * (Number(siren) % 97)) % 97;
+  return `FR${String(cle).padStart(2, "0")}${siren}`;
 }
 
 // API publique gratuite du gouvernement (recherche-entreprises.api.gouv.fr),
@@ -163,5 +182,17 @@ export async function fetchSirene(siretRaw: string): Promise<SireneData> {
     // valeur exacte. Pas d'auto-remplissage possible pour ces deux champs.
     dateCreation: entreprise.date_creation ?? undefined,
     estDrom: isCodePostalDrom(codePostal),
+    capitalSocial:
+      entreprise.capital_social != null
+        ? Number(entreprise.capital_social)
+        : undefined,
+    tvaIntracommunautaire: computeTvaIntracommunautaire(entreprise.siren),
+    // "00" = aucun salarié → Non ; toute autre tranche renseignée → Oui.
+    // La tranche exacte n'est pas fiable pour un effectif précis (cf.
+    // ci-dessus), mais suffit à trancher un booléen.
+    existenceSalaries:
+      entreprise.tranche_effectif_salarie == null
+        ? undefined
+        : entreprise.tranche_effectif_salarie !== "00",
   };
 }

@@ -10,6 +10,7 @@ import { UpdateClientDto } from './dto/update-client.dto';
 import { ScreeningDto } from './dto/screening.dto';
 import { generateNextRef } from '../common/generate-ref';
 import { ScoringService } from '../scoring/scoring.service';
+import { ObligationsService } from '../obligations/obligations.service';
 
 type AuthUser = { id: string; role: Role };
 
@@ -22,6 +23,7 @@ export class ClientsService {
     private readonly auditRepo: Repository<AuditLog>,
     private readonly dataSource: DataSource,
     private readonly scoringService: ScoringService,
+    private readonly obligationsService: ObligationsService,
   ) {}
 
   async create(dto: CreateClientDto, authUser: AuthUser): Promise<Client> {
@@ -50,6 +52,7 @@ export class ClientsService {
     });
 
     await this.scoringService.recalculateForClient(saved.id, authUser.id);
+    await this.obligationsService.synchroniserPourClient(saved.id);
 
     return saved;
   }
@@ -101,6 +104,7 @@ export class ClientsService {
     );
 
     await this.scoringService.recalculateForClient(id, authUser.id);
+    await this.obligationsService.synchroniserPourClient(id);
 
     return saved;
   }
@@ -124,6 +128,8 @@ export class ClientsService {
         utilisateur: { id: authUser.id } as User,
       }),
     );
+
+    await this.obligationsService.synchroniserPourClient(id);
 
     return saved;
   }
@@ -153,6 +159,7 @@ export class ClientsService {
     );
 
     await this.scoringService.recalculateForClient(id, authUser.id);
+    await this.obligationsService.synchroniserPourClient(id);
 
     return saved;
   }

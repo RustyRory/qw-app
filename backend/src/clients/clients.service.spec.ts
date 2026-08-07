@@ -13,6 +13,7 @@ import {
   TypeEntite,
 } from '../common/enums';
 import { ScoringService } from '../scoring/scoring.service';
+import { ObligationsService } from '../obligations/obligations.service';
 
 const COLLAB: { id: string; role: Role } = {
   id: 'user-1',
@@ -75,6 +76,10 @@ describe('ClientsService', () => {
     recalculateForClient: jest.fn(),
   };
 
+  const obligationsServiceMock = {
+    synchroniserPourClient: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -85,6 +90,7 @@ describe('ClientsService', () => {
         { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
         { provide: DataSource, useValue: dataSourceMock },
         { provide: ScoringService, useValue: scoringServiceMock },
+        { provide: ObligationsService, useValue: obligationsServiceMock },
       ],
     }).compile();
 

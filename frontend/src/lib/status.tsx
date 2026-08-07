@@ -1,12 +1,12 @@
 export const STATUS_LABEL: Record<string, string> = {
   // Prospect — pipeline Kanban
   PRISE_CONTACT: "Prise de contact",
-  DECOUVERTE: "Découverte",
-  OPPORTUNITE: "Opportunité",
-  LAB: "LAB à effectuer",
-  PREPARATION: "Préparation client",
-  CONVERTI: "Converti",
-  REFUSE: "Refusé",
+  PREPARATION_LAB: "Préparation LAB",
+  VALIDATION_LAB: "Validation LAB",
+  LM_A_FAIRE: "Prospects LM à faire",
+  LM_ENVOYEE: "Prospects LM envoyées",
+  CONVERTI: "Clients LM validées",
+  REFUSE: "Prospects refusés",
   // Client
   ACTIF: "Actif",
   INACTIF: "Inactif",
@@ -38,11 +38,11 @@ export const STATUS_LABEL: Record<string, string> = {
 };
 
 export const STATUS_CLASS: Record<string, string> = {
-  PRISE_CONTACT: "bg-blue-100 text-blue-800",
-  DECOUVERTE: "bg-blue-100 text-blue-800",
-  OPPORTUNITE: "bg-indigo-100 text-indigo-800",
-  LAB: "bg-purple-100 text-purple-800",
-  PREPARATION: "bg-purple-100 text-purple-800",
+  PRISE_CONTACT: "bg-slate-100 text-slate-800",
+  PREPARATION_LAB: "bg-blue-100 text-blue-800",
+  VALIDATION_LAB: "bg-amber-100 text-amber-800",
+  LM_A_FAIRE: "bg-violet-100 text-violet-800",
+  LM_ENVOYEE: "bg-indigo-100 text-indigo-800",
   CONVERTI: "bg-green-100 text-green-800",
   REFUSE: "bg-red-100 text-red-800",
   ACTIF: "bg-green-100 text-green-800",
@@ -67,6 +67,19 @@ export const STATUS_CLASS: Record<string, string> = {
   EN_ANALYSE: "bg-orange-100 text-orange-800",
   CLASSEE: "bg-green-100 text-green-800",
   TRACFIN_DECLARE: "bg-red-100 text-red-800",
+};
+
+// Libellés du type d'obligation (TypeObligation) — partagés entre la page
+// globale des obligations, l'onglet obligations d'un client et la carte
+// "À faire" d'un prospect, pour rester cohérents entre les trois.
+export const OBLIGATION_TYPE_LABELS: Record<string, string> = {
+  KYC_VERIFICATION: "Vérification KYC",
+  EVALUATION_RISQUE: "Évaluation du risque",
+  MISE_A_JOUR_DOCS: "Mise à jour des documents",
+  VALIDATION_RELATION: "Questionnaire à valider",
+  LETTRE_MISSION: "Lettre de mission à faire",
+  VALIDATION_LETTRE_MISSION: "Lettre de mission à valider",
+  SIGNATURE_LETTRE_MISSION: "Lettre de mission à signer",
 };
 
 export const RISK_LABEL: Record<string, string> = {

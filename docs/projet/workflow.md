@@ -383,14 +383,14 @@ L'ordre suit les dépendances de clé étrangère (cf. [database.md §6](./datab
 |---|--------|------------------------|-------|
 | 1 | **Auth** | `POST /api/auth/login` | JWT en cookie HttpOnly, `RolesGuard` + `@Roles()`, message d'erreur uniforme, vérifie `isActive` |
 | 2 | **Users** | `GET/POST/PATCH/DELETE /api/users` | Admin uniquement, `DELETE` = désactivation (`isActive=false`) |
-| 3 | **Prospects** | `GET/POST/PATCH/DELETE /api/prospects`, `POST /:id/convertir` | Filtré par rôle (collaborateur = ses prospects). `PATCH` interdit si `statutKanban = CONVERTI` |
-| 4 | **Questionnaires** | `POST /api/questionnaires`, `GET /prospect/:id`, `PATCH /:id/valider`, `/refuser` | 1-1 avec `Prospect` ; section 10 débloquée seulement si sections 1-9 complètes |
+| 3 | **Prospects** | `GET/POST/PATCH/DELETE /api/prospects`, `POST /:id/convert` | Filtré par rôle (collaborateur = ses prospects). Le `statutKanban` reste toujours librement modifiable via `PATCH` (y compris `CONVERTI`, qui ne déclenche pas la conversion et ne dépend pas d'elle) ; seuls les autres champs sont verrouillés une fois un `Client` réellement lié (`prospect.client`). `DELETE` toujours interdit dans ce cas. Job quotidien : archivage (soft delete) des prospects `REFUSE` depuis plus de 7 jours |
+| 4 | **Questionnaires** | `POST /api/questionnaires`, `GET /prospect/:id`, `PATCH /:id/valider`, `/refuser`, `/rouvrir` | 1-1 avec `Prospect` ; `valider`/`refuser` font avancer automatiquement le `statutKanban` du prospect (`LM_A_FAIRE` / `REFUSE`) ; `rouvrir` (reprise annuelle) archive l'ancien état dans `AuditLog` |
 | 5 | **Clients** | `GET/POST/PATCH/DELETE /api/clients` | KYC fusionné dans l'entité ; `DELETE` = soft delete (admin) ; conversion prospect → client crée le `Client` avec `prospectId` |
 | 6 | **Beneficiaires** | `POST /api/beneficiaires`, `GET /client/:id`, `DELETE /:id` | UBO, % détention 0-100 |
 | 7 | **Contacts** | `POST /api/contacts`, `GET /client/:id`, `DELETE /:id` | Tiers (avocat, CAC, notaire…) |
-| 8 | **Missions** | `POST/GET/PATCH/DELETE /api/missions`, `PATCH /:id/statut` | Type, statut, honoraires |
-| 9 | **Documents** | `POST /api/documents` (upload vers OVHcloud Object Storage), `GET /:id/download` (URL pré-signée 15 min), `DELETE /:id` | Audit `CREATE`/`READ` à chaque opération |
-| 10 | **Lettres de mission** | `POST /api/lettres-mission`, `GET ?missionId=`, `PATCH /:id/signer` | Versionnée, signature réservée à EXPERT_COMPTABLE/ADMIN |
+| 8 | **Missions** | `POST/GET/PATCH/DELETE /api/missions`, `PATCH /:id/statut`, `GET /repartition-catalogue` | Rattachée à un `Client` **ou** un `Prospect` (`clientId`/`prospectId` exclusifs) ; `repartitionTravaux` (tableau Cabinet/Client/N.A.) ; `DELETE` supprime d'abord la/les lettre(s) de mission associée(s) — possible même après signature de l'expert-comptable, refusé uniquement si déjà envoyée en signature au client (DocuSign) |
+| 9 | **Documents** | `POST /api/documents` (upload, stocké sur disque serveur — voir [database.md](./database.md)), `GET /:id/download` (`StreamableFile`), `DELETE /:id` | Audit `CREATE`/`READ` à chaque opération |
+| 10 | **Lettres de mission** | `POST /api/lettres-mission`, `GET ?missionId=`, `GET /:id/download`, `PATCH /:id/valider`, `/signer`, `POST /:id/docusign/envoyer`, `GET /:id/docusign/statut` | Versionnée ; `valider` réservé RESPONSABLE/ADMIN ; `signer` réservé EXPERT_COMPTABLE/ADMIN, **bloqué tant que non validée**, et fait avancer le prospect en `LM_ENVOYEE` ; envoi DocuSign après signature expert (seule étape qui verrouille définitivement — la signature expert seule reste réversible via suppression) |
 | 11 | **Scoring** | `GET /client/:id`, `GET /client/:id/courant`, `GET /prospect/:id`, `GET /prospect/:id/courant` (lecture uniquement) | Voir 4.4 — calcul entièrement automatique, aucune route `POST`, INSERT-ONLY |
 | 12 | **Planning** | `POST/GET/DELETE /api/planning`, `PATCH /:id/completer` | Diligences réglementaires ou manuelles |
 | 13 | **Obligations** | `POST/GET /api/obligations`, `PATCH /:id/fait` | Suivi de conformité par client |
@@ -405,21 +405,23 @@ Un seul algorithme (`backend/src/scoring/auto-score.util.ts`) note **9 critères
 |---|:---:|---|---|
 | PPE | 30 | `D1_11` | `client.ppe` |
 | Pays à risque (GAFI/UE) | 25 | `D3_1_1` / `D3_1_2` / `D3_1_3` | *(via le questionnaire du prospect d'origine, si connu)* |
-| Secteur sensible (crypto, jeux, immobilier) | 20 | `D2_13`, `D2_26`, `D2_27`, ou seuil « risque élevé » sur `D2_2`/`D2_3`/`D2_5` | *(idem)* |
+| Secteur sensible (crypto, jeux, immobilier, biens de grande valeur) | 20 | `D2_13`/`D2_16`/`D2_26`/`D2_27`/`D2_28`, `D5_5`/`D5_6`/`D5_7` (crypto), ou seuil « risque élevé » sur `D2_2`/`D2_3`/`D2_5`/`D2_14`/`D2_15` | *(idem)* |
 | CA annuel > 500 k€ | 10 | `prospect.chiffreAffaires` | `client.chiffreAffaires` |
 | Espèces (change, transmission de fonds) | 15 | `D2_20` / `D2_21` | *(idem)* |
 | Structure de propriété complexe/opaque | 15 | `D1_4` à `D1_8` | *(idem)* |
-| Pays tiers à risque (fiscal ou sanctions) | 10 | `D3_2_1..3`, `D3_3_1..6` | *(idem)* |
+| Pays tiers à risque (fiscal, sanctions ou transnational sans justification) | 10 | `D3_2_1..3`, `D3_3_1..6`, `D5_3`, `D4_4` | *(idem)* |
 | Personne morale + bénéficiaire/établissement lié à l'étranger | 10 | `typeEntite = PERSONNE_MORALE` et (`D3_1_2` ou `D3_2_2`) | `typeEntite = PERSONNE_MORALE` et un bénéficiaire effectif de nationalité non française |
 | Alertes sources nationales (LIMPI) | 20 | jamais déclenché (pas de screening sur un prospect) | `client.screeningStatut = ALERTE` |
 
 Les critères marqués *(idem)* n'ont pas d'équivalent direct dans les données client : ils sont comblés par le questionnaire d'acceptation du **prospect d'origine** (`client.prospect`) s'il existe, sinon restent à `false`. Un client créé directement (jamais passé par le pipeline prospect) ne peut donc déclencher que PPE / CA / screening / UBO étranger — le score maximal atteignable dans ce cas est mathématiquement plafonné (~45/100), ce qui est cohérent : sans questionnaire de risque rempli, on ne peut pas conclure à un risque géographique/sectoriel élevé.
 
+> Les questions D4/D5 (Nature de la mission, Opérations particulières) du questionnaire n'alimentent que les deux critères ci-dessus (secteur sensible, pays tiers) — les autres questions de ces deux modules (financements à conditions anormales, crowdfunding, cession de vignes…) n'ont pas d'équivalent parmi les 9 critères officiels et n'ont donc aucun effet sur le score, volontairement (pas de rattachement approximatif forcé).
+
 **Point d'attention** : ces 9 poids totalisent 155 pts, pas 100 (incohérence de la grille source elle-même). Le score persisté est donc **normalisé** : `score = round(Σ(poids déclenchés) / 155 × 100)`, ce qui garantit un score toujours compris entre 0 et 100.
 
 ```
-niveau = FAIBLE  si score ≤ 33
-         MOYEN   si score ≤ 66
+niveau = FAIBLE  si score < 30
+         MOYEN   si score < 60
          ELEVE   sinon
 ```
 
