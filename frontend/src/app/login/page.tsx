@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/login-form";
 import { IconShieldLock } from "@tabler/icons-react";
+import { assetUrl } from "@/lib/asset-url";
 
 export default function LoginPage() {
   return (
@@ -13,7 +14,7 @@ export default function LoginPage() {
         <div className="hidden bg-gradient-to-br from-violet-700 via-indigo-700 to-blue-700 p-12 text-white lg:flex lg:flex-col lg:justify-center">
           <div className="mb-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white/15 backdrop-blur">
             <img
-              src="/logo-qw-conseils.jpg"
+              src={assetUrl("/logo-qw-conseils.jpg")}
               alt="QW Conseils"
               className="h-full w-full object-cover"
             />
@@ -34,7 +35,7 @@ export default function LoginPage() {
               <div className="mb-4 flex items-center justify-center gap-2 lg:hidden">
                 <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-violet-100">
                   <img
-                    src="/logo-qw-conseils.jpg"
+                    src={assetUrl("/logo-qw-conseils.jpg")}
                     alt="QW Conseils"
                     className="h-full w-full object-cover"
                   />
