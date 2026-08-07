@@ -20,6 +20,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
+import { assetUrl } from "@/lib/asset-url";
 import { cn } from "@/lib/utils";
 import type { Role, Notification } from "@/types";
 import { NotificationBell } from "@/components/layout/NotificationBell";
@@ -412,7 +413,7 @@ export function AppSidebar({
             >
               <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-violet-950/40">
                 <img
-                  src="/logo-qw-conseils.jpg"
+                  src={assetUrl("/logo-qw-conseils.jpg")}
                   alt="QW Conseils"
                   className="h-full w-full object-cover"
                 />
