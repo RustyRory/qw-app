@@ -6,7 +6,7 @@ QW-App traite des données personnelles et financières sensibles (KYC, pièces 
 
 ## 1. RBAC — matrice des droits
 
-4 rôles, stockés en base sous forme d'enum `Role` (`COLLABORATEUR`, `RESPONSABLE`, `EXPERT_COMPTABLE`, `ADMIN`).
+5 rôles, stockés en base sous forme d'enum `Role` (`COLLABORATEUR`, `RESPONSABLE`, `EXPERT_COMPTABLE`, `ADMIN`, `MODERATEUR`). `MODERATEUR` n'apparaît pas dans la matrice ci-dessous : son seul droit est la gestion des utilisateurs, au même titre qu'`ADMIN` sur ce point précis.
 
 | Action | Collaborateur | Responsable | Expert-comptable | Administrateur |
 |--------|:-------------:|:-----------:|:----------------:|:--------------:|
@@ -15,11 +15,13 @@ QW-App traite des données personnelles et financières sensibles (KYC, pièces 
 | Saisir le KYC | ✅ | ✅ | ✅ | ✅ |
 | Valider le questionnaire d'acceptation | ❌ | ✅ | ✅ | ✅ |
 | Convertir prospect → client | ❌ | ✅ | ✅ | ✅ |
+| Préparer/modifier une mission et sa lettre de mission | ✅ | ✅ | ✅ | ✅ |
+| Valider une lettre de mission (avant signature) | ❌ | ✅ | ❌ | ✅ |
 | Signer une lettre de mission | ❌ | ❌ | ✅ | ✅ |
 | Exporter un rapport | ❌ | ✅ | ✅ | ✅ |
 | Déclarer une opération sensible | ✅ | ✅ | ✅ | ✅ |
 | Valider la relation d'affaire | ❌ | ❌ | ✅ | ✅ |
-| Gérer les utilisateurs | ❌ | ❌ | ❌ | ✅ |
+| Gérer les utilisateurs | ❌ | ❌ | ❌ | ✅ (+ `MODERATEUR`) |
 | Supprimer un dossier (soft delete) | ❌ | ❌ | ❌ | ✅ |
 
 Implémentation backend : `JwtAuthGuard` (authentification) + `RolesGuard` couplé au décorateur `@Roles(...roles: Role[])` sur chaque route protégée. Implémentation frontend : hook `useRole()` + composant `<Guard roles={[...]}>` pour masquer les actions non autorisées (voir [workflow.md](./workflow.md)).
@@ -57,6 +59,8 @@ Implémentation backend : `JwtAuthGuard` (authentification) + `RolesGuard` coupl
 ---
 
 ## 4. Documents (KYC, lettres de mission)
+
+> **État actuel du code** : les documents (y compris les PDF de lettres de mission générés) sont stockés sur le disque du serveur backend (`UPLOADS_ROOT`), pas encore chez le prestataire externe décrit ci-dessous — voir [database.md](./database.md). Le tableau qui suit décrit la **cible**.
 
 Les documents traités (pièces d'identité, Kbis, justificatifs, lettres de mission signées) sont parmi les données les plus sensibles de l'application. Un stockage auto-hébergé sur le VPS applicatif (ex. Minio en conteneur Docker à côté du backend) a été écarté : il ferait porter au cabinet seul la responsabilité de la disponibilité, de la sauvegarde et de la sécurité physique/logique de ces fichiers, sans les certifications qu'apporte un prestataire spécialisé. Le stockage est donc délégué à un **prestataire externe managé**.
 

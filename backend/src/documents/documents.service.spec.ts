@@ -5,7 +5,8 @@ import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
 import { Document } from './entities/document.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
-import { Role } from '../common/enums';
+import { Role, TypeDocument } from '../common/enums';
+import { ObligationsService } from '../obligations/obligations.service';
 
 jest.mock('fs');
 
@@ -38,12 +39,16 @@ describe('DocumentsService', () => {
     find: jest.fn(),
     save: jest.fn(),
     create: jest.fn((data) => data),
-    remove: jest.fn(),
+    softRemove: jest.fn(),
   };
 
   const auditRepoMock = {
     save: jest.fn(),
     create: jest.fn((data) => data),
+  };
+
+  const obligationsServiceMock = {
+    synchroniserPourClient: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -56,6 +61,7 @@ describe('DocumentsService', () => {
         DocumentsService,
         { provide: getRepositoryToken(Document), useValue: docRepoMock },
         { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
+        { provide: ObligationsService, useValue: obligationsServiceMock },
       ],
     }).compile();
 
@@ -101,6 +107,27 @@ describe('DocumentsService', () => {
         }),
       );
     });
+
+    it('rattache le document à la sous-entité fournie (ex: contact)', async () => {
+      docRepoMock.save.mockResolvedValue({ id: 'doc-new', ...file });
+
+      await service.upload(
+        'client-1',
+        file,
+        COLLAB,
+        TypeDocument.PIECE_IDENTITE,
+        { contactId: 'contact-1' },
+      );
+
+      expect(docRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contact: { id: 'contact-1' },
+          mission: null,
+          planningEtape: null,
+          operationSensible: null,
+        }),
+      );
+    });
   });
 
   // ------------------------------------------------------------ findByClient
@@ -115,6 +142,7 @@ describe('DocumentsService', () => {
       expect(docRepoMock.find).toHaveBeenCalledWith({
         where: { client: { id: 'client-1' } },
         order: { createdAt: 'DESC' },
+        relations: ['contact', 'mission', 'planningEtape', 'operationSensible'],
       });
     });
   });
@@ -158,15 +186,15 @@ describe('DocumentsService', () => {
 
   // ------------------------------------------------------------------ remove
   describe('remove', () => {
-    it('supprime le fichier du disque, la ligne en base et enregistre un audit DELETE', async () => {
+    it('softRemove la ligne en base, conserve le fichier et enregistre un audit DELETE', async () => {
       const doc = makeDoc();
-      docRepoMock.findOneBy.mockResolvedValue(doc);
-      docRepoMock.remove.mockResolvedValue(doc);
+      docRepoMock.findOne.mockResolvedValue(doc);
+      docRepoMock.softRemove.mockResolvedValue(doc);
 
       await service.remove('doc-1', ADMIN);
 
-      expect(fs.unlinkSync).toHaveBeenCalledWith(doc.cheminStockage);
-      expect(docRepoMock.remove).toHaveBeenCalledWith(doc);
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+      expect(docRepoMock.softRemove).toHaveBeenCalledWith(doc);
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.DELETE,
@@ -175,21 +203,13 @@ describe('DocumentsService', () => {
           details: { nomFichier: doc.nomFichier },
         }),
       );
-    });
-
-    it("ne tente pas d'unlink si le fichier est absent du disque", async () => {
-      docRepoMock.findOneBy.mockResolvedValue(makeDoc());
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
-      docRepoMock.remove.mockResolvedValue({});
-
-      await service.remove('doc-1', ADMIN);
-
-      expect(fs.unlinkSync).not.toHaveBeenCalled();
-      expect(docRepoMock.remove).toHaveBeenCalled();
+      expect(
+        obligationsServiceMock.synchroniserPourClient,
+      ).toHaveBeenCalledWith('client-1');
     });
 
     it('lève NotFoundException si le document est introuvable', async () => {
-      docRepoMock.findOneBy.mockResolvedValue(null);
+      docRepoMock.findOne.mockResolvedValue(null);
 
       await expect(service.remove('inexistant', ADMIN)).rejects.toThrow(
         NotFoundException,

@@ -15,6 +15,9 @@ import { User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
 import { QuestionnaireAcceptation } from '../../questionnaires/entities/questionnaire-acceptation.entity';
 import { ScoreRisque } from '../../scoring/entities/score-risque.entity';
+import { Mission } from '../../missions/entities/mission.entity';
+import { Obligation } from '../../obligations/entities/obligation.entity';
+import { PlanningEtape } from '../../planning/entities/planning-etape.entity';
 import { TypeEntite, StatutKanban } from '../../common/enums';
 
 @Entity('prospects')
@@ -64,6 +67,11 @@ export class Prospect {
   @Column({ type: 'text', nullable: true })
   motifRefus: string | null;
 
+  // Date d'entrée dans le statut REFUSE : sert de base au job d'archivage
+  // automatique (7 jours de délai de rattrapage avant suppression douce).
+  @Column({ type: 'timestamptz', nullable: true })
+  refusedAt: Date | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   activite: string | null;
 
@@ -91,6 +99,27 @@ export class Prospect {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  // ── Champs requis sur la lettre de mission (mêmes que Client, cf. celui-ci
+  // pour que la LM puisse être préparée avant conversion) ─────────────────
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  capitalSocial: number | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  regimeFiscal: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  regimeTva: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  tvaIntracommunautaire: string | null;
+
+  // null = pas encore renseigné (distinct de false = « pas de salarié »).
+  @Column({ type: 'boolean', nullable: true })
+  existenceSalaries: boolean | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  conventionCollective: string | null;
+
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_createur' })
   createdBy: User;
@@ -112,6 +141,15 @@ export class Prospect {
 
   @OneToMany(() => ScoreRisque, (score) => score.prospect)
   scores: ScoreRisque[];
+
+  @OneToMany(() => Mission, (mission) => mission.prospect)
+  missions: Mission[];
+
+  @OneToMany(() => Obligation, (obligation) => obligation.prospect)
+  obligations: Obligation[];
+
+  @OneToMany(() => PlanningEtape, (etape) => etape.prospect)
+  planningEtapes: PlanningEtape[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

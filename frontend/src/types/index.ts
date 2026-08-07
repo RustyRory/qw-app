@@ -4,16 +4,17 @@ export type Role =
   | "COLLABORATEUR"
   | "RESPONSABLE"
   | "EXPERT_COMPTABLE"
-  | "ADMIN";
+  | "ADMIN"
+  | "MODERATEUR";
 export type TypeEntite = "PERSONNE_PHYSIQUE" | "PERSONNE_MORALE";
 export type StatutKanban =
   | "PRISE_CONTACT"
-  | "DECOUVERTE"
-  | "OPPORTUNITE"
-  | "LAB"
-  | "PREPARATION"
-  | "CONVERTI"
-  | "REFUSE";
+  | "PREPARATION_LAB"
+  | "VALIDATION_LAB"
+  | "REFUSE"
+  | "LM_A_FAIRE"
+  | "LM_ENVOYEE"
+  | "CONVERTI";
 export type StatutClient = "ACTIF" | "INACTIF" | "RESILIE";
 export type StatutKyc = "INCOMPLET" | "COMPLET" | "VALIDE" | "EXPIRE";
 export type ScreeningStatut = "NON_EFFECTUE" | "OK" | "ALERTE";
@@ -42,7 +43,9 @@ export type TypeObligation =
   | "EVALUATION_RISQUE"
   | "MISE_A_JOUR_DOCS"
   | "VALIDATION_RELATION"
-  | "LETTRE_MISSION";
+  | "LETTRE_MISSION"
+  | "VALIDATION_LETTRE_MISSION"
+  | "SIGNATURE_LETTRE_MISSION";
 export type StatutObligation = "A_FAIRE" | "FAIT" | "EN_RETARD" | "EXPIRE";
 export type TypeOperationSensible =
   | "SANS_JUSTIFICATION"
@@ -109,6 +112,12 @@ export interface Prospect {
   chiffreAffaires?: number | null;
   effectif?: number | null;
   notes?: string | null;
+  capitalSocial?: number | null;
+  regimeFiscal?: string | null;
+  regimeTva?: string | null;
+  tvaIntracommunautaire?: string | null;
+  existenceSalaries?: boolean | null;
+  conventionCollective?: string | null;
   createdBy?: User;
   assignedTo?: User | null;
   questionnaire?: QuestionnaireAcceptation | null;
@@ -138,6 +147,8 @@ export interface Client {
   typeEntite: TypeEntite;
   formeJuridique?: string | null;
   representantLegal?: string | null;
+  email?: string | null;
+  telephone?: string | null;
   codeNaf?: string | null;
   activitePrincipale?: string | null;
   dateCreationEntreprise?: string | null;
@@ -149,6 +160,13 @@ export interface Client {
   chiffreAffaires?: number | null;
   effectif?: number | null;
   natureMission?: string | null;
+  notes?: string | null;
+  capitalSocial?: number | null;
+  regimeFiscal?: string | null;
+  regimeTva?: string | null;
+  tvaIntracommunautaire?: string | null;
+  existenceSalaries?: boolean | null;
+  conventionCollective?: string | null;
   statut: StatutClient;
   // KYC fusionné
   kycStatut: StatutKyc;
@@ -190,15 +208,18 @@ export interface Contact {
   createdAt: string;
 }
 
-// NB: le backend n'a pas (encore) les champs `type`/`s3Key`/`expiresAt`
-// envisagés dans workflow-frontend.md — ce type reflète l'entité réelle.
 export interface Document {
   id: string;
+  type: TypeDocument;
   nomFichier: string;
   cheminStockage: string;
   typeMime: string;
   taille: number;
   createdAt: string;
+  contact?: { id: string } | null;
+  mission?: { id: string } | null;
+  planningEtape?: { id: string } | null;
+  operationSensible?: { id: string } | null;
 }
 
 export interface AutoScoreCritere {
@@ -267,6 +288,9 @@ export interface LettreMission {
   id: string;
   version: number;
   contenu: Record<string, unknown>;
+  valideeParResponsable: boolean;
+  valideeAt?: string | null;
+  valideePar?: User | null;
   signeeParExpert: boolean;
   signeeAt?: string | null;
   signataire?: User | null;
@@ -291,6 +315,8 @@ export interface PlanningEtape {
   completedBy?: User | null;
   assignedTo?: User | null;
   createdAt: string;
+  client?: Pick<Client, "id" | "ref" | "raisonSociale"> | null;
+  prospect?: Pick<Prospect, "id" | "ref" | "nom"> | null;
 }
 
 export interface Obligation {
@@ -300,6 +326,29 @@ export interface Obligation {
   dateEcheance?: string | null;
   completedAt?: string | null;
   createdAt: string;
+  client?: Pick<Client, "id" | "ref" | "raisonSociale"> | null;
+  prospect?: Pick<Prospect, "id" | "ref" | "nom"> | null;
+}
+
+export type SourceEcheance = "OBLIGATION" | "PLANNING" | "MISSION";
+
+export interface EcheanceCalendrier {
+  id: string;
+  source: SourceEcheance;
+  titre: string;
+  type: string;
+  statut: string;
+  dateEcheance: string | null;
+  client?: {
+    id: string;
+    ref: string;
+    raisonSociale: string;
+  };
+  prospect?: {
+    id: string;
+    ref: string;
+    nom: string;
+  };
 }
 
 export interface OperationSensible {
@@ -324,5 +373,15 @@ export interface AuditLog {
   utilisateur?: User;
   details?: Record<string, unknown> | null;
   ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  titre: string;
+  message?: string | null;
+  lien?: string | null;
+  lu: boolean;
+  luAt?: string | null;
   createdAt: string;
 }

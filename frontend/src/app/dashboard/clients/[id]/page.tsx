@@ -23,11 +23,13 @@ import {
   IconAlertTriangle,
   IconChevronRight,
   IconX,
+  IconPaperclip,
+  IconArrowRight,
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/lib/status";
+import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
 import { ScoringPanel } from "@/components/scoring-panel";
 import { Input } from "@/components/ui/input";
@@ -51,6 +53,8 @@ import type {
   TypeObligation,
   TypeOperationSensible,
   TypeContact,
+  TypeDocument,
+  TypeEntite,
   User,
   AssignationTache,
   RepartitionTravauxCategorie,
@@ -196,6 +200,9 @@ function TabInfos({
           ville: data.ville,
           codePostal: data.codePostal,
           sireneUpdatedAt: new Date().toISOString(),
+          capitalSocial: data.capitalSocial,
+          tvaIntracommunautaire: data.tvaIntracommunautaire,
+          existenceSalaries: data.existenceSalaries,
         }),
       });
       onRefresh();
@@ -221,8 +228,24 @@ function TabInfos({
         : undefined,
       effectif: form.get("effectif") ? Number(form.get("effectif")) : undefined,
       natureMission: (form.get("natureMission") as string) || undefined,
+      representantLegal: (form.get("representantLegal") as string) || undefined,
+      email: (form.get("email") as string) || undefined,
+      telephone: (form.get("telephone") as string) || undefined,
       adresseSiege: (form.get("adresseSiege") as string) || undefined,
       ville: (form.get("ville") as string) || undefined,
+      notes: (form.get("notes") as string) || undefined,
+      capitalSocial: form.get("capitalSocial")
+        ? Number(form.get("capitalSocial"))
+        : undefined,
+      regimeFiscal: (form.get("regimeFiscal") as string) || undefined,
+      regimeTva: (form.get("regimeTva") as string) || undefined,
+      tvaIntracommunautaire:
+        (form.get("tvaIntracommunautaire") as string) || undefined,
+      existenceSalaries: form.get("existenceSalaries")
+        ? form.get("existenceSalaries") === "oui"
+        : undefined,
+      conventionCollective:
+        (form.get("conventionCollective") as string) || undefined,
     };
     try {
       await apiFetch(`/clients/${client.id}`, {
@@ -286,12 +309,136 @@ function TabInfos({
               />
             </Field>
             <Field>
+              <FieldLabel htmlFor="representantLegal">
+                Représentant légal
+              </FieldLabel>
+              <Input
+                id="representantLegal"
+                name="representantLegal"
+                defaultValue={client.representantLegal ?? ""}
+                className="rounded-xl"
+              />
+            </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  defaultValue={client.email ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="telephone">Téléphone</FieldLabel>
+                <Input
+                  id="telephone"
+                  name="telephone"
+                  type="tel"
+                  defaultValue={client.telephone ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+            </div>
+            <Field>
               <FieldLabel htmlFor="adresseSiege">Adresse</FieldLabel>
               <Input
                 id="adresseSiege"
                 name="adresseSiege"
                 defaultValue={client.adresseSiege ?? ""}
                 className="rounded-xl"
+              />
+            </Field>
+            <p className="pt-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              Informations légales (lettre de mission)
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="capitalSocial">
+                  Capital social (€)
+                </FieldLabel>
+                <Input
+                  id="capitalSocial"
+                  name="capitalSocial"
+                  type="number"
+                  step="0.01"
+                  defaultValue={client.capitalSocial ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="regimeFiscal">Régime fiscal</FieldLabel>
+                <Input
+                  id="regimeFiscal"
+                  name="regimeFiscal"
+                  placeholder="IS, IR…"
+                  defaultValue={client.regimeFiscal ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="regimeTva">Régime TVA</FieldLabel>
+                <Input
+                  id="regimeTva"
+                  name="regimeTva"
+                  placeholder="Réel normal, franchise en base…"
+                  defaultValue={client.regimeTva ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="tvaIntracommunautaire">
+                  N° TVA intracommunautaire
+                </FieldLabel>
+                <Input
+                  id="tvaIntracommunautaire"
+                  name="tvaIntracommunautaire"
+                  defaultValue={client.tvaIntracommunautaire ?? ""}
+                  className="rounded-xl font-mono"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="existenceSalaries">
+                  Existence de salariés
+                </FieldLabel>
+                <select
+                  id="existenceSalaries"
+                  name="existenceSalaries"
+                  defaultValue={
+                    client.existenceSalaries == null
+                      ? ""
+                      : client.existenceSalaries
+                        ? "oui"
+                        : "non"
+                  }
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Non renseigné</option>
+                  <option value="oui">Oui</option>
+                  <option value="non">Non</option>
+                </select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="conventionCollective">
+                  Convention collective appliquée
+                </FieldLabel>
+                <Input
+                  id="conventionCollective"
+                  name="conventionCollective"
+                  defaultValue={client.conventionCollective ?? ""}
+                  className="rounded-xl"
+                />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="notes">Notes internes</FieldLabel>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                defaultValue={client.notes ?? ""}
+                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               />
             </Field>
           </FieldGroup>
@@ -346,6 +493,9 @@ function TabInfos({
               ["SIRET", client.siret ?? "—"],
               ["SIREN", client.siren ?? "—"],
               ["Forme juridique", client.formeJuridique ?? "—"],
+              ["Représentant légal", client.representantLegal ?? "—"],
+              ["Email", client.email ?? "—"],
+              ["Téléphone", client.telephone ?? "—"],
               ["Code NAF", client.codeNaf ?? "—"],
               [
                 "Créée le",
@@ -367,19 +517,34 @@ function TabInfos({
               </div>
             ))}
             {client.prospect && (
-              <div className="flex items-center justify-between px-4 py-2.5">
-                <dt className="text-xs text-slate-400">
-                  Questionnaire d&apos;acceptation
-                </dt>
-                <dd>
-                  <Link
-                    href={`/dashboard/prospects/${client.prospect.id}/questionnaire`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    Voir le questionnaire →
-                  </Link>
-                </dd>
-              </div>
+              <>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <dt className="text-xs text-slate-400">
+                    Prospect d&apos;origine
+                  </dt>
+                  <dd>
+                    <Link
+                      href={`/dashboard/prospects/${client.prospect.id}`}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Voir le prospect d&apos;origine →
+                    </Link>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <dt className="text-xs text-slate-400">
+                    Questionnaire d&apos;acceptation
+                  </dt>
+                  <dd>
+                    <Link
+                      href={`/dashboard/prospects/${client.prospect.id}/questionnaire`}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Voir le questionnaire →
+                    </Link>
+                  </dd>
+                </div>
+              </>
             )}
           </dl>
         </div>
@@ -447,6 +612,63 @@ function TabInfos({
               </p>
             </div>
           </div>
+
+          {/* Informations légales — reprises telles quelles sur la lettre
+              de mission (affichées "À compléter" là-bas si absentes ici). */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                Informations légales
+              </p>
+            </div>
+            <dl className="divide-y divide-slate-50">
+              {(
+                [
+                  [
+                    "Capital social",
+                    client.capitalSocial
+                      ? `${client.capitalSocial.toLocaleString("fr-FR")} €`
+                      : null,
+                  ],
+                  ["Régime fiscal", client.regimeFiscal],
+                  ["Régime TVA", client.regimeTva],
+                  ["N° TVA intracommunautaire", client.tvaIntracommunautaire],
+                  [
+                    "Existence de salariés",
+                    client.existenceSalaries == null
+                      ? null
+                      : client.existenceSalaries
+                        ? "Oui"
+                        : "Non",
+                  ],
+                  [
+                    "Convention collective",
+                    client.existenceSalaries === false
+                      ? "Sans objet"
+                      : client.conventionCollective,
+                  ],
+                ] as [string, string | null][]
+              ).map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between px-4 py-2.5 gap-3"
+                >
+                  <dt className="w-32 shrink-0 text-xs text-slate-400">
+                    {label}
+                  </dt>
+                  <dd
+                    className={`text-sm text-right truncate ${
+                      value
+                        ? "font-medium text-slate-800"
+                        : "font-semibold text-amber-700"
+                    }`}
+                  >
+                    {value ?? "⚠ À compléter"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </div>
       </div>
 
@@ -463,6 +685,20 @@ function TabInfos({
             .join(" — ") || "—"}
         </p>
       </div>
+
+      {/* Notes internes */}
+      {client.notes && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              Notes internes
+            </p>
+          </div>
+          <p className="px-4 py-3 text-sm text-slate-700 whitespace-pre-line">
+            {client.notes}
+          </p>
+        </div>
+      )}
 
       {/* Audit trail */}
       {audit.length > 0 && (
@@ -502,6 +738,26 @@ function TabInfos({
 }
 
 // ─── Onglet KYC ───────────────────────────────────────────────────────────────
+const DOCUMENT_TYPE_LABELS: Record<TypeDocument, string> = {
+  PIECE_IDENTITE: "Pièce d’identité",
+  JUSTIFICATIF_DOMICILE: "Justificatif de domicile",
+  KBIS: "KBIS",
+  STATUTS: "Statuts",
+  LISTE_UBO: "Liste des bénéficiaires effectifs",
+  ATTESTATION_PPE: "Attestation PPE",
+  JUSTIFICATIF_FONDS: "Justificatif de fonds",
+  LETTRE_MISSION: "Lettre de mission",
+  RAPPORT: "Rapport",
+  ANNEXE: "Annexe",
+  AUTRE: "Autre",
+};
+
+// Miroir de backend/src/common/document-checklist.ts — tenu à jour manuellement.
+const DOCUMENTS_REQUIS: Record<TypeEntite, TypeDocument[]> = {
+  PERSONNE_MORALE: ["KBIS", "STATUTS", "LISTE_UBO"],
+  PERSONNE_PHYSIQUE: ["PIECE_IDENTITE", "JUSTIFICATIF_DOMICILE"],
+};
+
 function TabKyc({
   client,
   onRefresh,
@@ -512,6 +768,7 @@ function TabKyc({
   const { can } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadType, setUploadType] = useState<TypeDocument>("AUTRE");
   const [showScreeningPicker, setShowScreeningPicker] = useState(false);
   const [screeningSaving, setScreeningSaving] = useState(false);
   const [showPpeEditor, setShowPpeEditor] = useState(false);
@@ -562,7 +819,7 @@ function TabKyc({
     setUploading(true);
     const body = new FormData();
     body.append("file", file);
-    body.append("type", "AUTRE");
+    body.append("type", uploadType);
     try {
       await apiFetch(`/documents/client/${client.id}`, {
         method: "POST",
@@ -578,6 +835,12 @@ function TabKyc({
     }
   }
 
+  const docsExistants = docs.map((d) => d.type);
+  const typesRequis = [
+    ...DOCUMENTS_REQUIS[client.typeEntite],
+    ...(client.ppe ? (["ATTESTATION_PPE"] as TypeDocument[]) : []),
+  ];
+
   const kycItems = [
     { label: "PPE vérifié", ok: true },
     {
@@ -585,7 +848,10 @@ function TabKyc({
       ok: client.screeningStatut === "OK",
     },
     { label: "Bénéficiaires effectifs saisis", ok: client.uboSaisi },
-    { label: "Documents uploadés", ok: docs.length > 0 },
+    ...typesRequis.map((type) => ({
+      label: DOCUMENT_TYPE_LABELS[type],
+      ok: docsExistants.includes(type),
+    })),
   ];
   const okCount = kycItems.filter((i) => i.ok).length;
 
@@ -752,22 +1018,36 @@ function TabKyc({
 
       {/* Documents */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
             Documents
           </p>
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              className="sr-only"
-              onChange={handleUpload}
+          <div className="flex items-center gap-2">
+            <select
+              value={uploadType}
+              onChange={(e) => setUploadType(e.target.value as TypeDocument)}
               disabled={uploading}
-            />
-            <span className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 transition-colors">
-              <IconUpload className="size-3.5" />
-              {uploading ? "Upload…" : "Uploader"}
-            </span>
-          </label>
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700"
+            >
+              {Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                className="sr-only"
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+              <span className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 transition-colors">
+                <IconUpload className="size-3.5" />
+                {uploading ? "Upload…" : "Uploader"}
+              </span>
+            </label>
+          </div>
         </div>
         {docs.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">
@@ -793,7 +1073,7 @@ function TabKyc({
                 {docs.map((doc) => (
                   <tr key={doc.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-xs text-slate-500">
-                      {doc.typeMime}
+                      {DOCUMENT_TYPE_LABELS[doc.type] ?? doc.type}
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-800">
                       {doc.nomFichier}
@@ -832,6 +1112,7 @@ function TabKyc({
                       {doc.nomFichier}
                     </p>
                     <p className="text-xs text-slate-400">
+                      {DOCUMENT_TYPE_LABELS[doc.type] ?? doc.type} ·{" "}
                       {Math.round(doc.taille / 1024)} Ko
                     </p>
                   </div>
@@ -868,6 +1149,11 @@ function TabUbo({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [docs, setDocs] = useState<Document[]>([]);
+  const [docsLoading, setDocsLoading] = useState(true);
+  const [docUploading, setDocUploading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
+
   const load = useCallback(() => {
     apiFetch<BeneficiaireEffectif[]>(`/beneficiaires/client/${clientId}`)
       .then(setUbos)
@@ -878,9 +1164,59 @@ function TabUbo({
       .finally(() => setLoading(false));
   }, [clientId]);
 
+  const loadDocs = useCallback(() => {
+    apiFetch<Document[]>(`/documents/client/${clientId}`)
+      .then((all) => setDocs(all.filter((d) => d.type === "LISTE_UBO")))
+      .catch(() => setDocs([]))
+      .finally(() => setDocsLoading(false));
+  }, [clientId]);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadDocs();
+  }, [loadDocs]);
+
+  async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDocUploading(true);
+    setDocError(null);
+    const body = new FormData();
+    body.append("file", file);
+    body.append("type", "LISTE_UBO");
+    try {
+      await apiFetch(`/documents/client/${clientId}`, {
+        method: "POST",
+        body,
+      });
+      loadDocs();
+    } catch (err) {
+      setDocError(
+        err instanceof Error ? err.message : "Impossible d’envoyer le fichier.",
+      );
+    } finally {
+      setDocUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleDeleteDoc(id: string) {
+    if (!window.confirm("Supprimer ce document ?")) return;
+    setDocError(null);
+    try {
+      await apiFetch(`/documents/${id}`, { method: "DELETE" });
+      loadDocs();
+    } catch (err) {
+      setDocError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer le document.",
+      );
+    }
+  }
 
   const total = ubos.reduce(
     (sum, ubo) => sum + Number(ubo.pourcentageDetention),
@@ -1087,6 +1423,87 @@ function TabUbo({
         )}
       </section>
 
+      {/* Document — liste des bénéficiaires effectifs */}
+      <section className="mt-4 overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50 px-5 py-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-violet-700">
+              Document — Liste des bénéficiaires effectifs
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Justificatif officiel listant les bénéficiaires effectifs
+              (registre, extrait K-bis, etc.).
+            </p>
+          </div>
+
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              className="sr-only"
+              onChange={handleUploadDoc}
+              disabled={docUploading}
+            />
+            <span className="flex items-center gap-1.5 rounded-xl bg-violet-700 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-800 transition-colors">
+              <IconUpload className="size-3.5" />
+              {docUploading ? "Envoi…" : "Ajouter un document"}
+            </span>
+          </label>
+        </div>
+
+        {docError && (
+          <div className="m-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {docError}
+          </div>
+        )}
+
+        {docsLoading ? (
+          <div className="p-8 text-center text-sm text-slate-400">
+            Chargement des documents…
+          </div>
+        ) : docs.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-400">
+            Aucun document
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {docs.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-3 px-5 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-800">
+                    {doc.nomFichier}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {Math.round(doc.taille / 1024)} Ko ·{" "}
+                    {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadFile(
+                      `/documents/${doc.id}/download`,
+                      doc.nomFichier,
+                    )
+                  }
+                  className="text-slate-400 hover:text-blue-600 transition-colors"
+                  title="Télécharger"
+                >
+                  <IconEye className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteDoc(doc.id)}
+                  className="text-slate-400 hover:text-red-500 transition-colors"
+                  title="Supprimer"
+                >
+                  <IconTrash className="size-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {formOpen && (
         <Modal
           title={editing ? "Modifier un UBO" : "Ajouter un UBO"}
@@ -1220,6 +1637,174 @@ const CONTACT_LABELS: Record<TypeContact, string> = {
   AUTRE: "Autre",
 };
 
+// ─── Zone documentaire réutilisable (contacts, missions, planning,
+// opérations sensibles) ────────────────────────────────────────────────────────
+type DocumentRelationKind =
+  | "contact"
+  | "mission"
+  | "planningEtape"
+  | "operationSensible";
+
+const RELATION_FIELD: Record<DocumentRelationKind, string> = {
+  contact: "contactId",
+  mission: "missionId",
+  planningEtape: "planningEtapeId",
+  operationSensible: "operationSensibleId",
+};
+
+function EntityDocumentZone({
+  clientId,
+  relationKind,
+  relationId,
+  defaultType = "AUTRE",
+}: {
+  clientId: string;
+  relationKind: DocumentRelationKind;
+  relationId: string;
+  defaultType?: TypeDocument;
+}) {
+  const [docs, setDocs] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploadType, setUploadType] = useState<TypeDocument>(defaultType);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    apiFetch<Document[]>(`/documents/client/${clientId}`)
+      .then((all) =>
+        setDocs(all.filter((d) => d[relationKind]?.id === relationId)),
+      )
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  }, [clientId, relationKind, relationId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    const body = new FormData();
+    body.append("file", file);
+    body.append("type", uploadType);
+    body.append(RELATION_FIELD[relationKind], relationId);
+    try {
+      await apiFetch(`/documents/client/${clientId}`, {
+        method: "POST",
+        body,
+      });
+      load();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Impossible d’envoyer le fichier.",
+      );
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Supprimer ce document ?")) return;
+    setError(null);
+    try {
+      await apiFetch(`/documents/${id}`, { method: "DELETE" });
+      load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer le document.",
+      );
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Documents
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={uploadType}
+            onChange={(e) => setUploadType(e.target.value as TypeDocument)}
+            disabled={uploading}
+            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700"
+          >
+            {Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              className="sr-only"
+              onChange={handleUpload}
+              disabled={uploading}
+            />
+            <span className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 transition-colors">
+              <IconUpload className="size-3.5" />
+              {uploading ? "Envoi…" : "Ajouter"}
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="mt-2 text-xs text-slate-400">Chargement…</p>
+      ) : docs.length === 0 ? (
+        <p className="mt-2 text-xs text-slate-400">Aucun document</p>
+      ) : (
+        <div className="mt-2 divide-y divide-slate-100">
+          {docs.map((doc) => (
+            <div key={doc.id} className="flex items-center gap-2 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-slate-700">
+                  {doc.nomFichier}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {DOCUMENT_TYPE_LABELS[doc.type] ?? doc.type} ·{" "}
+                  {Math.round(doc.taille / 1024)} Ko
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadFile(`/documents/${doc.id}/download`, doc.nomFichier)
+                }
+                className="text-slate-400 hover:text-blue-600 transition-colors"
+                title="Télécharger"
+              >
+                <IconEye className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(doc.id)}
+                className="text-slate-400 hover:text-red-500 transition-colors"
+                title="Supprimer"
+              >
+                <IconTrash className="size-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabContacts({ clientId }: { clientId: string }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1227,6 +1812,7 @@ function TabContacts({ clientId }: { clientId: string }) {
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiFetch<Contact[]>(`/contacts/client/${clientId}`)
@@ -1385,12 +1971,33 @@ function TabContacts({ clientId }: { clientId: string }) {
                       </button>
                       <button
                         type="button"
+                        onClick={() =>
+                          setDocsOpenId((id) =>
+                            id === contact.id ? null : contact.id,
+                          )
+                        }
+                        className="flex items-center gap-1.5 rounded-xl bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700"
+                      >
+                        <IconPaperclip className="size-3.5" />
+                        Documents
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleDelete(contact.id)}
                         className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
                       >
                         Supprimer
                       </button>
                     </div>
+
+                    {docsOpenId === contact.id && (
+                      <EntityDocumentZone
+                        clientId={clientId}
+                        relationKind="contact"
+                        relationId={contact.id}
+                        defaultType="PIECE_IDENTITE"
+                      />
+                    )}
                   </div>
                 </div>
               </article>
@@ -1518,7 +2125,7 @@ const MISSION_LABELS: Record<TypeMission, string> = {
 };
 
 function TabMissions({ clientId }: { clientId: string }) {
-  const { can } = useRole();
+  const { can, role } = useRole();
   const [items, setItems] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -1543,6 +2150,7 @@ function TabMissions({ clientId }: { clientId: string }) {
   );
   const [docusignEmail, setDocusignEmail] = useState("");
   const [docusignNom, setDocusignNom] = useState("");
+  const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiFetch<Mission[]>(`/missions/client/${clientId}`)
@@ -1593,9 +2201,8 @@ function TabMissions({ clientId }: { clientId: string }) {
 
     const form = new FormData(event.currentTarget);
 
-    const missionType = editing ? editing.type : selectedType;
     const repartitionTravaux =
-      catalogue.length > 0 && missionType === "COMPTABILITE"
+      catalogue.length > 0
         ? catalogue.flatMap((cat) =>
             cat.lignes.map((ligne) => ({
               id: ligne.id,
@@ -1724,6 +2331,25 @@ function TabMissions({ clientId }: { clientId: string }) {
   function closePreviewLettre() {
     if (previewLettre) URL.revokeObjectURL(previewLettre.url);
     setPreviewLettre(null);
+  }
+
+  async function handleValiderLettre(lettreId: string) {
+    setBusy(lettreId);
+    try {
+      await apiFetch(`/lettres-mission/${lettreId}/valider`, {
+        method: "PATCH",
+      });
+      setLoading(true);
+      load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de valider la lettre de mission.",
+      );
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function handleSignerLettre(lettreId: string) {
@@ -1922,13 +2548,33 @@ function TabMissions({ clientId }: { clientId: string }) {
                     )}
 
                     <button
+                      type="button"
+                      onClick={() =>
+                        setDocsOpenId((id) => (id === item.id ? null : item.id))
+                      }
+                      className="ml-auto flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                    >
+                      <IconPaperclip className="size-3.5" />
+                      Documents
+                    </button>
+
+                    <button
                       disabled={busy === item.id}
                       onClick={() => remove(item.id)}
-                      className="ml-auto rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"
+                      className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"
                     >
                       Supprimer
                     </button>
                   </div>
+
+                  {docsOpenId === item.id && (
+                    <EntityDocumentZone
+                      clientId={clientId}
+                      relationKind="mission"
+                      relationId={item.id}
+                      defaultType="ANNEXE"
+                    />
+                  )}
 
                   {item.lettresMission &&
                     item.lettresMission.length > 0 &&
@@ -1949,12 +2595,18 @@ function TabMissions({ clientId }: { clientId: string }) {
                               ? "Chargement…"
                               : "Aperçu"}
                           </button>
-                          <button
-                            onClick={() => handleDownloadLettre(lettre.id)}
-                            className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
-                          >
-                            Télécharger le PDF
-                          </button>
+                          {/* Réservé à l'expert-comptable, une fois le
+                              client signataire (DocuSign) — l'aperçu
+                              ci-dessus reste ouvert à tous. */}
+                          {(role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
+                            lettre.docusignStatut === "SIGNE" && (
+                              <button
+                                onClick={() => handleDownloadLettre(lettre.id)}
+                                className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                              >
+                                Télécharger le PDF
+                              </button>
+                            )}
                           {lettre.signeeParExpert ? (
                             <span className="text-xs text-emerald-600">
                               Signée le{" "}
@@ -1967,17 +2619,31 @@ function TabMissions({ clientId }: { clientId: string }) {
                                 ? ` par ${lettre.signataire.prenom} ${lettre.signataire.nom}`
                                 : ""}
                             </span>
-                          ) : can.signerLettre ? (
+                          ) : lettre.valideeParResponsable ? (
+                            can.signerLettre ? (
+                              <button
+                                disabled={busy === lettre.id}
+                                onClick={() => handleSignerLettre(lettre.id)}
+                                className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
+                              >
+                                Signer
+                              </button>
+                            ) : (
+                              <span className="text-xs text-blue-600">
+                                Validée — en attente de signature
+                              </span>
+                            )
+                          ) : can.validerLettreMission ? (
                             <button
                               disabled={busy === lettre.id}
-                              onClick={() => handleSignerLettre(lettre.id)}
-                              className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
+                              onClick={() => handleValiderLettre(lettre.id)}
+                              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50"
                             >
-                              Signer
+                              Valider (responsable)
                             </button>
                           ) : (
                             <span className="text-xs text-slate-400">
-                              Non signée
+                              Non validée
                             </span>
                           )}
                         </div>
@@ -2170,61 +2836,58 @@ function TabMissions({ clientId }: { clientId: string }) {
                 </Field>
               </div>
 
-              {(editing ? editing.type : selectedType) === "COMPTABILITE" &&
-                catalogue.length > 0 && (
-                  <Field>
-                    <FieldLabel>Répartition des travaux</FieldLabel>
-                    <div className="space-y-4">
-                      {catalogue.map((cat) => (
-                        <div key={cat.titre}>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            {cat.titre}
-                          </p>
-                          <div className="overflow-x-auto rounded-xl border border-slate-200">
-                            <table className="w-full min-w-[420px] text-xs">
-                              <thead className="bg-slate-50 text-slate-500">
-                                <tr>
-                                  <th className="px-3 py-2 text-left font-semibold">
-                                    Tâche
-                                  </th>
-                                  <th className="px-2 py-2 text-center font-semibold">
-                                    Cabinet
-                                  </th>
-                                  <th className="px-2 py-2 text-center font-semibold">
-                                    Client
-                                  </th>
-                                  <th className="px-2 py-2 text-center font-semibold">
-                                    N.A.
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {cat.lignes.map((ligne) => {
-                                  const value =
-                                    repartition[ligne.id] ??
-                                    editing?.repartitionTravaux?.find(
-                                      (a) => a.id === ligne.id,
-                                    )?.assignation ??
-                                    ligne.defaut;
+              {catalogue.length > 0 && (
+                <Field>
+                  <FieldLabel>Répartition des travaux</FieldLabel>
+                  <div className="space-y-4">
+                    {catalogue.map((cat) => (
+                      <div key={cat.titre}>
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {cat.titre}
+                        </p>
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full min-w-[420px] text-xs">
+                            <thead className="bg-slate-50 text-slate-500">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-semibold">
+                                  Tâche
+                                </th>
+                                <th className="px-2 py-2 text-center font-semibold">
+                                  Cabinet
+                                </th>
+                                <th className="px-2 py-2 text-center font-semibold">
+                                  Client
+                                </th>
+                                <th className="px-2 py-2 text-center font-semibold">
+                                  N.A.
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {cat.lignes.map((ligne) => {
+                                const value =
+                                  repartition[ligne.id] ??
+                                  editing?.repartitionTravaux?.find(
+                                    (a) => a.id === ligne.id,
+                                  )?.assignation ??
+                                  ligne.defaut;
 
-                                  return (
-                                    <tr key={ligne.id}>
-                                      <td className="px-3 py-2 text-slate-700">
-                                        {ligne.tache}
-                                      </td>
-                                      {(
-                                        [
-                                          "CABINET",
-                                          "CLIENT",
-                                          "NA",
-                                        ] as AssignationTache[]
-                                      ).map((option) => (
-                                        <td
-                                          key={option}
-                                          className="px-2 py-2 text-center"
-                                        >
+                                return (
+                                  <tr key={ligne.id}>
+                                    <td className="px-3 py-2 text-slate-700">
+                                      {ligne.tache}
+                                    </td>
+                                    {(
+                                      [
+                                        "CABINET",
+                                        "CLIENT",
+                                        "NA",
+                                      ] as AssignationTache[]
+                                    ).map((option) => (
+                                      <td key={option} className="px-2 py-2">
+                                        <div className="flex items-center justify-center">
                                           <input
-                                            type="radio"
+                                            type="checkbox"
                                             name={`repartition-${ligne.id}`}
                                             checked={value === option}
                                             onChange={() =>
@@ -2233,20 +2896,22 @@ function TabMissions({ clientId }: { clientId: string }) {
                                                 [ligne.id]: option,
                                               }))
                                             }
+                                            className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
                                           />
-                                        </td>
-                                      ))}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                                        </div>
+                                      </td>
+                                    ))}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ))}
-                    </div>
-                  </Field>
-                )}
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              )}
             </FieldGroup>
 
             <FormActions
@@ -2261,47 +2926,59 @@ function TabMissions({ clientId }: { clientId: string }) {
         </Modal>
       )}
 
-      {previewLettre && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">
-          <button
-            type="button"
-            aria-label="Fermer"
-            onClick={closePreviewLettre}
-            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-          />
+      {previewLettre &&
+        (() => {
+          const previewLettreObj = items
+            .flatMap((m) => m.lettresMission ?? [])
+            .find((l) => l.id === previewLettre.id);
+          const peutTelechargerPreview =
+            (role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
+            previewLettreObj?.docusignStatut === "SIGNE";
 
-          <div className="relative flex h-full w-full flex-col overflow-hidden border border-white/20 bg-white shadow-2xl sm:h-[92vh] sm:max-w-4xl sm:rounded-3xl">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
-              <h2 className="font-semibold text-slate-900">
-                Aperçu de la lettre de mission
-              </h2>
+          return (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">
+              <button
+                type="button"
+                aria-label="Fermer"
+                onClick={closePreviewLettre}
+                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+              />
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDownloadLettre(previewLettre.id)}
-                  className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
-                >
-                  Télécharger
-                </button>
-                <button
-                  type="button"
-                  onClick={closePreviewLettre}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
-                >
-                  <IconX className="size-5" />
-                </button>
+              <div className="relative flex h-full w-full flex-col overflow-hidden border border-white/20 bg-white shadow-2xl sm:h-[92vh] sm:max-w-4xl sm:rounded-3xl">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">
+                    Aperçu de la lettre de mission
+                  </h2>
+
+                  <div className="flex items-center gap-2">
+                    {peutTelechargerPreview && (
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadLettre(previewLettre.id)}
+                        className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
+                      >
+                        Télécharger
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={closePreviewLettre}
+                      className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+                    >
+                      <IconX className="size-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <iframe
+                  src={previewLettre.url}
+                  title="Aperçu de la lettre de mission"
+                  className="flex-1 bg-slate-100"
+                />
               </div>
             </div>
-
-            <iframe
-              src={previewLettre.url}
-              title="Aperçu de la lettre de mission"
-              className="flex-1 bg-slate-100"
-            />
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
       {docusignModalLettre && (
         <Modal
@@ -2416,6 +3093,7 @@ function TabPlanning({ clientId }: { clientId: string }) {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     Promise.all([
@@ -2600,6 +3278,19 @@ function TabPlanning({ clientId }: { clientId: string }) {
                       )}
 
                       <button
+                        type="button"
+                        onClick={() =>
+                          setDocsOpenId((id) =>
+                            id === item.id ? null : item.id,
+                          )
+                        }
+                        className="flex items-center gap-1.5 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-700"
+                      >
+                        <IconPaperclip className="size-3.5" />
+                        Documents
+                      </button>
+
+                      <button
                         disabled={busy === item.id}
                         onClick={() => remove(item.id)}
                         className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
@@ -2608,6 +3299,15 @@ function TabPlanning({ clientId }: { clientId: string }) {
                       </button>
                     </div>
                   </div>
+
+                  {docsOpenId === item.id && (
+                    <EntityDocumentZone
+                      clientId={clientId}
+                      relationKind="planningEtape"
+                      relationId={item.id}
+                      defaultType="ANNEXE"
+                    />
+                  )}
                 </article>
               );
             })}
@@ -2710,12 +3410,21 @@ function TabPlanning({ clientId }: { clientId: string }) {
 }
 
 // ─── Onglet Obligations ───────────────────────────────────────────────────────
-const OBLIGATION_LABELS: Record<TypeObligation, string> = {
-  KYC_VERIFICATION: "Vérification KYC",
-  EVALUATION_RISQUE: "Évaluation du risque",
-  MISE_A_JOUR_DOCS: "Mise à jour des documents",
-  VALIDATION_RELATION: "Validation de la relation",
-  LETTRE_MISSION: "Lettre de mission",
+
+// Onglet du dossier client où l'utilisateur peut effectivement traiter
+// l'obligation (uploader les documents manquants, valider le KYC, etc.).
+// Les types liés au pipeline LAB → lettre de mission (VALIDATION_RELATION et
+// suivants) ne concernent en pratique que des obligations rattachées à un
+// prospect (pas de tab client à cibler) — la valeur ici ne sert que si une
+// telle obligation est un jour rattachée à un client.
+const OBLIGATION_TAB: Record<TypeObligation, string> = {
+  KYC_VERIFICATION: "kyc",
+  EVALUATION_RISQUE: "scoring",
+  MISE_A_JOUR_DOCS: "kyc",
+  VALIDATION_RELATION: "kyc",
+  LETTRE_MISSION: "missions",
+  VALIDATION_LETTRE_MISSION: "missions",
+  SIGNATURE_LETTRE_MISSION: "missions",
 };
 
 function TabObligations({ clientId }: { clientId: string }) {
@@ -2862,7 +3571,7 @@ function TabObligations({ clientId }: { clientId: string }) {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold text-slate-900">
-                          {OBLIGATION_LABELS[item.type]}
+                          {OBLIGATION_TYPE_LABELS[item.type]}
                         </p>
                         <StatusBadge status={item.statut} />
                       </div>
@@ -2876,15 +3585,25 @@ function TabObligations({ clientId }: { clientId: string }) {
                       </p>
                     </div>
 
-                    {!closed && (
-                      <button
-                        disabled={busy === item.id}
-                        onClick={() => markDone(item.id)}
-                        className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
+                    <div className="flex shrink-0 gap-2">
+                      <Link
+                        href={`/dashboard/clients/${clientId}?tab=${OBLIGATION_TAB[item.type]}`}
+                        className="flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800"
                       >
-                        Marquer comme fait
-                      </button>
-                    )}
+                        Traiter
+                        <IconArrowRight className="size-3.5" />
+                      </Link>
+
+                      {!closed && (
+                        <button
+                          disabled={busy === item.id}
+                          onClick={() => markDone(item.id)}
+                          className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
+                        >
+                          Marquer comme fait
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               );
@@ -2916,11 +3635,13 @@ function TabObligations({ clientId }: { clientId: string }) {
                   className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
                   required
                 >
-                  {Object.entries(OBLIGATION_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
+                  {Object.entries(OBLIGATION_TYPE_LABELS).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                  )}
                 </select>
               </Field>
 
@@ -2967,6 +3688,7 @@ function TabOperations({ clientId }: { clientId: string }) {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiFetch<OperationSensible[]>(`/operations-sensibles/client/${clientId}`)
@@ -3154,24 +3876,46 @@ function TabOperations({ clientId }: { clientId: string }) {
                     </div>
                   </div>
 
-                  {!closed && (
-                    <div className="mt-4 flex flex-col gap-2 border-t border-red-100 pt-4 sm:flex-row">
-                      <button
-                        disabled={busy === item.id}
-                        onClick={() => classer(item.id)}
-                        className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
-                      >
-                        Classer
-                      </button>
+                  <div className="mt-4 flex flex-col gap-2 border-t border-red-100 pt-4 sm:flex-row">
+                    {!closed && (
+                      <>
+                        <button
+                          disabled={busy === item.id}
+                          onClick={() => classer(item.id)}
+                          className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
+                        >
+                          Classer
+                        </button>
 
-                      <button
-                        disabled={busy === item.id}
-                        onClick={() => declarerTracfin(item.id)}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
-                      >
-                        Déclarer TRACFIN
-                      </button>
-                    </div>
+                        <button
+                          disabled={busy === item.id}
+                          onClick={() => declarerTracfin(item.id)}
+                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
+                        >
+                          Déclarer TRACFIN
+                        </button>
+                      </>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDocsOpenId((id) => (id === item.id ? null : item.id))
+                      }
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    >
+                      <IconPaperclip className="size-3.5" />
+                      Documents
+                    </button>
+                  </div>
+
+                  {docsOpenId === item.id && (
+                    <EntityDocumentZone
+                      clientId={clientId}
+                      relationKind="operationSensible"
+                      relationId={item.id}
+                      defaultType="JUSTIFICATIF_FONDS"
+                    />
                   )}
                 </article>
               );

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -19,6 +20,7 @@ import { PlanningEtape } from './planning/entities/planning-etape.entity';
 import { Obligation } from './obligations/entities/obligation.entity';
 import { OperationSensible } from './operations-sensibles/entities/operation-sensible.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
+import { Notification } from './notifications/entities/notification.entity';
 
 // Modules
 import { AuthModule } from './auth/auth.module';
@@ -36,6 +38,7 @@ import { PlanningModule } from './planning/planning.module';
 import { ObligationsModule } from './obligations/obligations.module';
 import { OperationsModule } from './operations-sensibles/operations.module';
 import { AuditModule } from './audit/audit.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 const ALL_ENTITIES = [
   User,
@@ -52,11 +55,13 @@ const ALL_ENTITIES = [
   Obligation,
   OperationSensible,
   AuditLog,
+  Notification,
 ];
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.DATABASE_URL,
@@ -80,6 +85,7 @@ const ALL_ENTITIES = [
     ObligationsModule,
     OperationsModule,
     AuditModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

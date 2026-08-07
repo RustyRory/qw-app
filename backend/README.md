@@ -12,19 +12,28 @@ Node.js 20, NestJS 11, TypeScript, TypeORM, PostgreSQL 16, Redis, JWT (Passport)
 
 ```
 src/
-├── auth/          # Login, JWT, guards (JwtAuthGuard, RolesGuard)
-├── users/          # Comptes internes (RBAC)
-├── clients/         # Dossiers clients
-├── kyc/               # Fiche KYC (relation 1-1 avec Client)
-├── documents/           # Upload et métadonnées des documents
-├── scoring/               # Calcul du score de risque
-├── prospects/               # Gestion des prospects
-├── audit/                    # Journal d'audit
-├── migrations/                 # Migrations TypeORM
-└── database/                     # Seed
+├── common/                  # Enums partagés, guards, decorators, utils (dont l'automatisation kanban)
+├── auth/                    # Login, JWT, guards (JwtAuthGuard, RolesGuard)
+├── users/                   # Comptes internes (RBAC)
+├── prospects/               # Pipeline Kanban prospect
+├── questionnaires/          # Questionnaire d'acceptation LAB
+├── clients/                 # Dossiers clients (KYC fusionné dans l'entité)
+├── beneficiaires/           # Bénéficiaires effectifs (UBO)
+├── contacts/                # Tiers liés au client
+├── missions/                # Missions (rattachées à un client ou un prospect)
+├── lettres-mission/         # Lettres de mission (versionnées, DocuSign)
+├── docusign/                # Intégration DocuSign (envoi/statut/webhook)
+├── documents/                # Upload et métadonnées des documents
+├── scoring/                   # Calcul automatique du score de risque (client + prospect)
+├── planning/                    # Étapes de planning/diligences
+├── obligations/                   # Tableau des obligations réglementaires
+├── operations-sensibles/            # Opérations atypiques (Tracfin)
+├── audit/                             # Journal d'audit (INSERT-ONLY)
+├── migrations/                          # Migrations TypeORM
+└── database/                              # Seed
 ```
 
-> Cette structure correspond à l'état actuel du code. Une migration vers le schéma cible à 14 entités (KYC fusionné dans `Client`, pipeline Kanban, questionnaire d'acceptation, missions, planning, obligations, opérations sensibles) est documentée dans [docs/projet/database.md](../docs/projet/database.md) et `docs/autre/workflow-backend.md` — pas encore appliquée au code.
+Détail des 14 entités, du modèle de données et de l'ordre des migrations : [docs/projet/database.md](../docs/projet/database.md).
 
 ## Installation et configuration
 
@@ -49,7 +58,10 @@ npm run migration:generate -- -n NomMigration
 npm run migration:run
 npm run migration:revert
 
-npm run seed               # peuple la base (admin + données de démo)
+npm run seed               # peuple la base (comptes de test + jeu de données complet)
+npm run seed:users         # comptes de test uniquement
+npm run seed:data          # reste des données uniquement (relance seed:users si nécessaire)
+npm run seed:minimal       # 2 comptes de test seulement (admin + modérateur), base sinon vide
 ```
 
 ## Variables d'environnement

@@ -35,6 +35,11 @@ export class ObligationsController {
     return this.svc.findByClient(clientId);
   }
 
+  @Get('prospect/:prospectId')
+  findByProspect(@Param('prospectId') prospectId: string) {
+    return this.svc.findByProspect(prospectId);
+  }
+
   @Get('en-retard')
   findEnRetard() {
     return this.svc.findEnRetard();

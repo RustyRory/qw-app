@@ -32,6 +32,13 @@ export interface LettreMissionContenu {
     activitePrincipale: string;
     adresse: string;
     gerant: string;
+    email: string;
+    capitalSocial: string;
+    regimeFiscal: string;
+    regimeTva: string;
+    tvaIntracommunautaire: string;
+    existenceSalaries: string;
+    conventionCollective: string;
   };
   mission: {
     type: TypeMission;
@@ -62,30 +69,93 @@ function formatDateLong(date: Date | string | null | undefined): string {
   });
 }
 
-function formatAdresse(client: Mission['client']): string {
-  const parts = [client.adresseSiege, client.codePostal, client.ville].filter(
+function formatAdresse(
+  adresse: string | null,
+  codePostal: string | null,
+  ville: string | null,
+): string {
+  const parts = [adresse, codePostal, ville].filter(
     (p) => p && p.trim() !== '',
   );
   return parts.join(', ');
 }
 
-export function buildLettreMissionContenu(
-  mission: Mission,
-): LettreMissionContenu {
-  const client = mission.client;
-  const now = new Date();
+function formatCapitalSocial(capitalSocial: number | null): string {
+  if (capitalSocial == null) return '';
+  return `${Number(capitalSocial).toLocaleString('fr-FR')} €`;
+}
 
-  return {
-    cabinet: CABINET_INFOS,
-    client: {
+// null = jamais renseigné → laissé vide (déclenche le fallback « À
+// compléter » côté template) ; false doit rester affiché comme « Non », pas
+// confondu avec « pas encore renseigné ».
+function formatExistenceSalaries(existenceSalaries: boolean | null): string {
+  if (existenceSalaries == null) return '';
+  return existenceSalaries ? 'Oui' : 'Non';
+}
+
+// La lettre de mission peut être préparée pour un Prospect (avant conversion,
+// dès la validation LAB) ou pour un Client : les deux entités portent les
+// mêmes informations d'identité sous des noms de colonnes différents.
+function entiteFromMission(mission: Mission): LettreMissionContenu['client'] {
+  if (mission.client) {
+    const client = mission.client;
+    return {
       raisonSociale: client.raisonSociale ?? '',
       formeJuridique: client.formeJuridique ?? '',
       siret: client.siret ?? '',
       codeNaf: client.codeNaf ?? '',
       activitePrincipale: client.activitePrincipale ?? '',
-      adresse: formatAdresse(client),
+      adresse: formatAdresse(
+        client.adresseSiege,
+        client.codePostal,
+        client.ville,
+      ),
       gerant: client.representantLegal ?? '',
-    },
+      email: client.email ?? '',
+      capitalSocial: formatCapitalSocial(client.capitalSocial),
+      regimeFiscal: client.regimeFiscal ?? '',
+      regimeTva: client.regimeTva ?? '',
+      tvaIntracommunautaire: client.tvaIntracommunautaire ?? '',
+      existenceSalaries: formatExistenceSalaries(client.existenceSalaries),
+      conventionCollective: client.conventionCollective ?? '',
+    };
+  }
+
+  if (mission.prospect) {
+    const prospect = mission.prospect;
+    return {
+      raisonSociale: prospect.nom ?? '',
+      formeJuridique: prospect.formeJuridique ?? '',
+      siret: prospect.siret ?? '',
+      codeNaf: prospect.codeNaf ?? '',
+      activitePrincipale: prospect.activite ?? '',
+      adresse: formatAdresse(
+        prospect.adresse,
+        prospect.codePostal,
+        prospect.ville,
+      ),
+      gerant: prospect.representantLegal ?? '',
+      email: prospect.email ?? '',
+      capitalSocial: formatCapitalSocial(prospect.capitalSocial),
+      regimeFiscal: prospect.regimeFiscal ?? '',
+      regimeTva: prospect.regimeTva ?? '',
+      tvaIntracommunautaire: prospect.tvaIntracommunautaire ?? '',
+      existenceSalaries: formatExistenceSalaries(prospect.existenceSalaries),
+      conventionCollective: prospect.conventionCollective ?? '',
+    };
+  }
+
+  throw new Error('La mission doit être rattachée à un client ou un prospect');
+}
+
+export function buildLettreMissionContenu(
+  mission: Mission,
+): LettreMissionContenu {
+  const now = new Date();
+
+  return {
+    cabinet: CABINET_INFOS,
+    client: entiteFromMission(mission),
     mission: {
       type: mission.type,
       typeLabel: MISSION_TYPE_LABELS[mission.type],

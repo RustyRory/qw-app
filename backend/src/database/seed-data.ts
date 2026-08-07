@@ -217,7 +217,7 @@ export async function seedData(
       ref: 'PR-2024-001',
       nom: 'Nouvelle Société ABC',
       typeEntite: TypeEntite.PERSONNE_MORALE,
-      statutKanban: StatutKanban.DECOUVERTE,
+      statutKanban: StatutKanban.PREPARATION_LAB,
       activite: 'Vente en ligne',
       chiffreAffaires: 60000,
       createdBy: collaborateur,
@@ -230,7 +230,7 @@ export async function seedData(
       ref: 'PR-2024-003',
       nom: 'Techno Innov SAS',
       typeEntite: TypeEntite.PERSONNE_MORALE,
-      statutKanban: StatutKanban.OPPORTUNITE,
+      statutKanban: StatutKanban.PREPARATION_LAB,
       activite: 'Édition de logiciels',
       chiffreAffaires: 210000,
       createdBy: collaborateur,
@@ -244,7 +244,7 @@ export async function seedData(
       nom: 'Global Trade Ltd',
       typeEntite: TypeEntite.PERSONNE_MORALE,
       pays: 'Îles Caïmans',
-      statutKanban: StatutKanban.LAB,
+      statutKanban: StatutKanban.VALIDATION_LAB,
       activite: 'Négoce international',
       chiffreAffaires: 2500000,
       createdBy: responsable,
@@ -257,7 +257,7 @@ export async function seedData(
       ref: 'PR-2024-005',
       nom: 'Cabinet Fiscaliste Petit & Associés',
       typeEntite: TypeEntite.PERSONNE_MORALE,
-      statutKanban: StatutKanban.PREPARATION,
+      statutKanban: StatutKanban.LM_A_FAIRE,
       activite: 'Conseil fiscal',
       chiffreAffaires: 340000,
       createdBy: collaborateur,
@@ -291,6 +291,19 @@ export async function seedData(
       activite: 'Conseil offshore',
       createdBy: responsable,
       assignedTo: responsable,
+    }),
+  );
+
+  await prospectRepo.save(
+    prospectRepo.create({
+      ref: 'PR-2024-008',
+      nom: 'Atelier Design Rives',
+      typeEntite: TypeEntite.PERSONNE_MORALE,
+      statutKanban: StatutKanban.LM_ENVOYEE,
+      activite: 'Architecture intérieure',
+      chiffreAffaires: 180000,
+      createdBy: collaborateur,
+      assignedTo: collaborateur,
     }),
   );
 

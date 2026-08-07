@@ -14,14 +14,22 @@ import {
   IconMap,
   IconMenu2,
   IconSettings,
-  IconSignature,
+  IconUserCog,
   IconUserSearch,
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
-import type { Role } from "@/types";
+import type { Role, Notification } from "@/types";
+import { NotificationBell } from "@/components/layout/NotificationBell";
+
+type NotificationsProps = {
+  items: Notification[];
+  unreadCount: number;
+  markRead: (id: string) => void;
+  markAllRead: () => void;
+};
 
 type NavItem = {
   href: string;
@@ -82,8 +90,8 @@ const CONFORMITE_NAV: NavItem[] = [
 
 const PROFIL_NAV_ITEM: NavItem = {
   href: "/dashboard/profil",
-  label: "Ma signature",
-  icon: IconSignature,
+  label: "Paramètres",
+  icon: IconUserCog,
   iconClass: "text-indigo-300",
 };
 
@@ -96,11 +104,21 @@ const ADMIN_NAV: NavItem[] = [
   },
 ];
 
+const MODERATEUR_NAV: NavItem[] = [
+  {
+    href: "/dashboard/admin/users",
+    label: "Utilisateurs",
+    icon: IconUsers,
+    iconClass: "text-rose-400",
+  },
+];
+
 const ROLE_LABELS: Record<Role, string> = {
   COLLABORATEUR: "Collaborateur",
   RESPONSABLE: "Responsable",
   EXPERT_COMPTABLE: "Expert-comptable",
   ADMIN: "Administrateur",
+  MODERATEUR: "Modérateur",
 };
 
 function isItemActive(pathname: string, href: string, exact?: boolean) {
@@ -178,15 +196,21 @@ function MobileNav({
     setMenuOpen(false);
   }
 
-  const mainItems: NavItem[] = [NAV[0], NAV[1], NAV[2], CONFORMITE_NAV[3]];
+  const mainItems: NavItem[] =
+    role === "MODERATEUR"
+      ? [MODERATEUR_NAV[0]]
+      : [NAV[0], NAV[1], NAV[2], CONFORMITE_NAV[3]];
 
-  const secondaryItems: NavItem[] = [
-    CONFORMITE_NAV[0],
-    CONFORMITE_NAV[1],
-    CONFORMITE_NAV[2],
-    PROFIL_NAV_ITEM,
-    ...(role === "ADMIN" ? ADMIN_NAV : []),
-  ];
+  const secondaryItems: NavItem[] =
+    role === "MODERATEUR"
+      ? [PROFIL_NAV_ITEM]
+      : [
+          CONFORMITE_NAV[0],
+          CONFORMITE_NAV[1],
+          CONFORMITE_NAV[2],
+          PROFIL_NAV_ITEM,
+          ...(role === "ADMIN" ? ADMIN_NAV : []),
+        ];
 
   return (
     <>
@@ -365,9 +389,11 @@ function MobileNav({
 export function AppSidebar({
   role,
   onLogout,
+  notifications,
 }: {
   role: Role | null;
   onLogout: () => void;
+  notifications: NotificationsProps;
 }) {
   const pathname = usePathname();
 
@@ -377,44 +403,71 @@ export function AppSidebar({
         <div className="relative border-b border-white/10 px-5 py-5">
           <div className="pointer-events-none absolute -left-10 -top-14 size-36 rounded-full bg-violet-500/20 blur-3xl" />
 
-          <Link href="/dashboard" className="relative flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-black text-white shadow-lg shadow-violet-950/40">
-              QW
-            </div>
+          <div className="relative flex items-center justify-between gap-3">
+            <Link
+              href={
+                role === "MODERATEUR" ? "/dashboard/admin/users" : "/dashboard"
+              }
+              className="flex min-w-0 items-center gap-3"
+            >
+              <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-violet-950/40">
+                <img
+                  src="/logo-qw-conseils.jpg"
+                  alt="QW Conseils"
+                  className="h-full w-full object-cover"
+                />
+              </div>
 
-            <div>
-              <p className="text-base font-bold text-white">QW Conseils</p>
+              <div className="min-w-0">
+                <p className="truncate text-base font-bold text-white">
+                  QW Conseils
+                </p>
 
-              <p className="text-xs text-slate-400">Espace conformité</p>
-            </div>
-          </Link>
+                <p className="text-xs text-slate-400">Espace conformité</p>
+              </div>
+            </Link>
+
+            <NotificationBell {...notifications} />
+          </div>
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-          <section>
-            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-              Principal
-            </p>
-
-            <NavSection items={NAV} pathname={pathname} />
-          </section>
-
-          <section>
-            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-              Conformité
-            </p>
-
-            <NavSection items={CONFORMITE_NAV} pathname={pathname} />
-          </section>
-
-          {role === "ADMIN" && (
+          {role === "MODERATEUR" ? (
             <section>
               <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                 Administration
               </p>
 
-              <NavSection items={ADMIN_NAV} pathname={pathname} />
+              <NavSection items={MODERATEUR_NAV} pathname={pathname} />
             </section>
+          ) : (
+            <>
+              <section>
+                <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  Principal
+                </p>
+
+                <NavSection items={NAV} pathname={pathname} />
+              </section>
+
+              <section>
+                <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  Conformité
+                </p>
+
+                <NavSection items={CONFORMITE_NAV} pathname={pathname} />
+              </section>
+
+              {role === "ADMIN" && (
+                <section>
+                  <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                    Administration
+                  </p>
+
+                  <NavSection items={ADMIN_NAV} pathname={pathname} />
+                </section>
+              )}
+            </>
           )}
         </nav>
 
@@ -439,10 +492,10 @@ export function AppSidebar({
 
               <Link
                 href="/dashboard/profil"
-                title="Ma signature électronique"
+                title="Paramètres du compte"
                 className="flex size-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white/10 hover:text-white"
               >
-                <IconSignature className="size-4.5" />
+                <IconUserCog className="size-4.5" />
               </Link>
 
               <button

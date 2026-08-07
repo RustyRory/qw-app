@@ -33,9 +33,13 @@ export interface AutoScoreInput {
   chiffreAffaires: number | null;
 }
 
+// Seuils volontairement resserrés par rapport à un découpage linéaire en
+// tiers (0-33/34-66/67-100) : on bascule plus tôt en MOYEN (30) et en ÉLEVÉ
+// (60), pour qu'un dossier avec plusieurs critères déclenchés n'ait pas à
+// en cumuler la quasi-totalité pour être signalé à risque élevé.
 export function computeNiveauAuto(score: number): NiveauRisque {
-  if (score <= 33) return NiveauRisque.FAIBLE;
-  if (score <= 66) return NiveauRisque.MOYEN;
+  if (score < 30) return NiveauRisque.FAIBLE;
+  if (score < 60) return NiveauRisque.MOYEN;
   return NiveauRisque.ELEVE;
 }
 
@@ -68,11 +72,28 @@ export function flagsFromQuestionnaire(
   return {
     ppe: estOui(reponses['D1_11']),
     paysRisqueGafi: uneDe(reponses, ['D3_1_1', 'D3_1_2', 'D3_1_3']),
+    // Crypto (D2_13/26/27 + D5_5/6/7, opérations sur cryptoactifs), jeux
+    // (D2_5 en risque élevé), immobilier (D2_2/D2_3 en risque élevé) et
+    // négociants en biens de grande valeur — bijoutier/métaux précieux
+    // (D2_14), objets de luxe (D2_15), véhicules/bateaux de luxe (D2_16) —
+    // ainsi que les néo-banques (D2_28), tous désignés comme secteurs
+    // sensibles LCB-FT par le GAFI/les directives AMLD.
     secteurSensible:
-      uneDe(reponses, ['D2_13', 'D2_26', 'D2_27']) ||
+      uneDe(reponses, [
+        'D2_13',
+        'D2_16',
+        'D2_26',
+        'D2_27',
+        'D2_28',
+        'D5_5',
+        'D5_6',
+        'D5_7',
+      ]) ||
       estRisqueEleve(reponses['D2_2']) ||
       estRisqueEleve(reponses['D2_3']) ||
-      estRisqueEleve(reponses['D2_5']),
+      estRisqueEleve(reponses['D2_5']) ||
+      estRisqueEleve(reponses['D2_14']) ||
+      estRisqueEleve(reponses['D2_15']),
     especes: uneDe(reponses, ['D2_20', 'D2_21']),
     structureComplexe: uneDe(reponses, [
       'D1_4',
@@ -81,6 +102,11 @@ export function flagsFromQuestionnaire(
       'D1_7',
       'D1_8',
     ]),
+    // Pays non coopératifs / sanctions (D3_2_x, D3_3_x) + les deux signaux
+    // transnationaux du module Opérations (D5_3 : société hors UE sans
+    // justification économique, D4_4 : transmission de patrimoine
+    // transnationale) — sans quoi ces deux questions n'avaient aucun effet
+    // sur le score alors qu'elles portent explicitement sur des pays tiers.
     paysTiers: uneDe(reponses, [
       'D3_2_1',
       'D3_2_2',
@@ -91,6 +117,8 @@ export function flagsFromQuestionnaire(
       'D3_3_4',
       'D3_3_5',
       'D3_3_6',
+      'D5_3',
+      'D4_4',
     ]),
     uboEtranger:
       typeEntite === TypeEntite.PERSONNE_MORALE &&

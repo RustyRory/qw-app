@@ -14,7 +14,7 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { Role } from '../common/enums';
+import { Role, StatutKanban } from '../common/enums';
 import { ProspectsService } from './prospects.service';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
@@ -35,8 +35,8 @@ export class ProspectsController {
   }
 
   @Get()
-  findAll(@Req() req: RequestWithUser) {
-    return this.prospectsService.findAll(req.user);
+  findAll() {
+    return this.prospectsService.findAll();
   }
 
   @Get(':id')
@@ -54,11 +54,26 @@ export class ProspectsController {
     return this.prospectsService.update(id, dto, req.user);
   }
 
-  // Convertit le prospect en client et retourne le Client créé
+  // Convertit le prospect en client et retourne le Client créé — réservé à
+  // l'expert-comptable, seul habilité à valider un prospect en client.
   @Post(':id/convert')
-  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN)
+  @Roles(Role.EXPERT_COMPTABLE, Role.ADMIN)
   convertToClient(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.prospectsService.convertToClient(id, req.user);
+  }
+
+  // Refus direct, sans passer par le PATCH générique. Réservé à
+  // responsable/expert-comptable/admin : refuser un prospect est une
+  // décision métier, pas au collaborateur de la prendre (contrairement à la
+  // suppression pour fausse manip, cf. remove() plus bas).
+  @Patch(':id/refuser')
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
+  refuser(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.prospectsService.update(
+      id,
+      { statutKanban: StatutKanban.REFUSE },
+      req.user,
+    );
   }
 
   @Delete(':id')

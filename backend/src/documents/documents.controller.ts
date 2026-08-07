@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -16,8 +17,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { Role } from '../common/enums';
-import { DocumentsService } from './documents.service';
+import { Role, TypeDocument } from '../common/enums';
+import { DocumentsService, DocumentRelationIds } from './documents.service';
 
 type StorageCb = (err: Error | null, value: string) => void;
 
@@ -57,7 +58,7 @@ const multerLib = require('multer') as MulterModule;
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @Post('upload/:clientId')
+  @Post('client/:clientId')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: multerLib.diskStorage({
@@ -77,17 +78,34 @@ export class DocumentsController {
   upload(
     @Param('clientId') clientId: string,
     @UploadedFile() file: MulterFile,
+    @Body('type') type: TypeDocument | undefined,
+    @Body('contactId') contactId: string | undefined,
+    @Body('missionId') missionId: string | undefined,
+    @Body('planningEtapeId') planningEtapeId: string | undefined,
+    @Body('operationSensibleId') operationSensibleId: string | undefined,
     @Req() req: RequestWithUser,
   ) {
-    return this.documentsService.upload(clientId, file, req.user);
+    const relations: DocumentRelationIds = {
+      contactId,
+      missionId,
+      planningEtapeId,
+      operationSensibleId,
+    };
+    return this.documentsService.upload(
+      clientId,
+      file,
+      req.user,
+      type,
+      relations,
+    );
   }
 
-  @Get('file/:id')
+  @Get(':id/download')
   streamFile(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.documentsService.streamFile(id, req.user);
   }
 
-  @Get(':clientId')
+  @Get('client/:clientId')
   findByClient(@Param('clientId') clientId: string) {
     return this.documentsService.findByClient(clientId);
   }

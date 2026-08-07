@@ -1,16 +1,19 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { hash } from 'bcrypt';
+import { compare, hash } from 'bcrypt';
 import { User } from './entities/user.entity';
 import { Role } from '../common/enums';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateSignatureDto } from './dto/update-signature.dto';
+import { UpdateMeDto } from './dto/update-me.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class UsersService {
@@ -46,6 +49,44 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable');
     return user;
+  }
+
+  async updateMe(
+    id: string,
+    dto: UpdateMeDto,
+  ): Promise<
+    Pick<User, 'id' | 'email' | 'prenom' | 'nom' | 'role' | 'signatureDataUri'>
+  > {
+    const user = await this.repo.findOneBy({ id });
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.repo.findOneBy({ email: dto.email });
+      if (existing) throw new ConflictException('Email déjà utilisé');
+    }
+
+    if (dto.prenom) user.prenom = dto.prenom;
+    if (dto.nom) user.nom = dto.nom;
+    if (dto.email) user.email = dto.email;
+    await this.repo.save(user);
+
+    return this.findMe(id);
+  }
+
+  async changeMyPassword(id: string, dto: ChangePasswordDto): Promise<void> {
+    const user = await this.repo.findOneBy({ id });
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+
+    const match = await compare(dto.currentPassword, user.passwordHash);
+    if (!match) {
+      // BadRequestException (400) et pas Unauthorized (401) : le frontend
+      // traite tout 401 comme une session expirée et déconnecte l'utilisateur
+      // (voir apiFetch) — ici c'est une erreur de saisie, pas d'authentification.
+      throw new BadRequestException('Mot de passe actuel incorrect');
+    }
+
+    user.passwordHash = await hash(dto.newPassword, 12);
+    await this.repo.save(user);
   }
 
   async updateMySignature(
@@ -106,5 +147,18 @@ export class UsersService {
 
     await this.repo.update(id, update);
     return this.findOne(id);
+  }
+
+  async remove(id: string, currentUserId: string): Promise<void> {
+    if (id === currentUserId) {
+      throw new ConflictException(
+        'Vous ne pouvez pas supprimer votre propre compte',
+      );
+    }
+
+    const user = await this.repo.findOneBy({ id });
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+
+    await this.repo.remove(user);
   }
 }
