@@ -238,9 +238,9 @@ Contacts
 
 | Niveau | Score | Actions requises |
 |--------|:-----:|-----------------|
-| **FAIBLE** | 0 – 33 | Diligences standard |
-| **MOYEN** | 34 – 66 | Diligences renforcées |
-| **ÉLEVÉ** | 67 – 100 | Diligences renforcées + validation Responsable obligatoire |
+| **FAIBLE** | 0 – 29 | Diligences standard |
+| **MOYEN** | 30 – 59 | Diligences renforcées |
+| **ÉLEVÉ** | 60 – 100 | Diligences renforcées + validation Responsable obligatoire |
 
 **Vue cartographie :**
 - Vue liste avec filtre par niveau de risque

@@ -1,5 +1,5 @@
 import { LoginForm } from "@/components/login-form";
-import { IconShieldLock, IconBuildingBank } from "@tabler/icons-react";
+import { IconShieldLock } from "@tabler/icons-react";
 
 export default function LoginPage() {
   return (
@@ -11,8 +11,12 @@ export default function LoginPage() {
       <div className="relative grid w-full max-w-6xl overflow-hidden rounded-3xl border border-white/60 bg-white shadow-2xl lg:grid-cols-2">
         {/* Partie gauche (desktop uniquement) */}
         <div className="hidden bg-gradient-to-br from-violet-700 via-indigo-700 to-blue-700 p-12 text-white lg:flex lg:flex-col lg:justify-center">
-          <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-            <IconBuildingBank className="size-8" />
+          <div className="mb-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white/15 backdrop-blur">
+            <img
+              src="/logo-qw-conseils.jpg"
+              alt="QW Conseils"
+              className="h-full w-full object-cover"
+            />
           </div>
 
           <h1 className="text-4xl font-bold leading-tight">QW Conseils</h1>
@@ -28,8 +32,12 @@ export default function LoginPage() {
             <div className="mb-8 text-center">
               {/* Branding visible uniquement sur mobile, déjà présent à gauche sur desktop */}
               <div className="mb-4 flex items-center justify-center gap-2 lg:hidden">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100">
-                  <IconBuildingBank className="size-5 text-violet-700" />
+                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-violet-100">
+                  <img
+                    src="/logo-qw-conseils.jpg"
+                    alt="QW Conseils"
+                    className="h-full w-full object-cover"
+                  />
                 </div>
                 <span className="text-lg font-bold text-slate-900">
                   QW Conseils

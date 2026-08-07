@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   IconBuilding,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
+  IconChevronUp,
   IconPlus,
   IconSearch,
+  IconSelector,
   IconShieldCheck,
   IconUsers,
 } from "@tabler/icons-react";
@@ -55,6 +58,31 @@ const AVATAR_CLASSES: Record<NiveauRisque | "SANS_SCORE", string> = {
   ELEVE: "from-red-500 to-rose-500",
   SANS_SCORE: "from-blue-500 to-indigo-500",
 };
+
+const RISK_ORDER: Record<NiveauRisque, number> = {
+  FAIBLE: 1,
+  MOYEN: 2,
+  ELEVE: 3,
+};
+
+type SortKey =
+  | "ref"
+  | "raisonSociale"
+  | "siret"
+  | "statut"
+  | "kycStatut"
+  | "risque"
+  | "score";
+
+const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "ref", label: "Réf." },
+  { key: "raisonSociale", label: "Raison sociale" },
+  { key: "siret", label: "SIRET" },
+  { key: "statut", label: "Statut" },
+  { key: "kycStatut", label: "KYC" },
+  { key: "risque", label: "Risque" },
+  { key: "score", label: "Score" },
+];
 
 function StatutBadge({ statut }: { statut: StatutClient }) {
   const classes: Record<StatutClient, string> = {
@@ -131,7 +159,20 @@ export default function ClientsPage() {
     "Tous",
   );
 
+  const [sortKey, setSortKey] = useState<SortKey>("raisonSociale");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
   const [page, setPage] = useState(1);
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setPage(1);
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -191,10 +232,49 @@ export default function ClientsPage() {
 
         return score?.niveau === filterRisque;
       })
-      .sort((a, b) =>
-        a.client.raisonSociale.localeCompare(b.client.raisonSociale, "fr"),
-      );
-  }, [rows, search, filterStatut, filterKyc, filterRisque]);
+      .sort((a, b) => {
+        let cmp = 0;
+
+        switch (sortKey) {
+          case "ref":
+            cmp = a.client.ref.localeCompare(b.client.ref, "fr");
+            break;
+          case "siret":
+            cmp = (a.client.siret ?? "").localeCompare(
+              b.client.siret ?? "",
+              "fr",
+            );
+            break;
+          case "statut":
+            cmp = STATUT_LABELS[a.client.statut].localeCompare(
+              STATUT_LABELS[b.client.statut],
+              "fr",
+            );
+            break;
+          case "kycStatut":
+            cmp = KYC_LABELS[a.client.kycStatut].localeCompare(
+              KYC_LABELS[b.client.kycStatut],
+              "fr",
+            );
+            break;
+          case "risque":
+            cmp =
+              (a.score ? RISK_ORDER[a.score.niveau] : 0) -
+              (b.score ? RISK_ORDER[b.score.niveau] : 0);
+            break;
+          case "score":
+            cmp = (a.score?.score ?? -1) - (b.score?.score ?? -1);
+            break;
+          default:
+            cmp = a.client.raisonSociale.localeCompare(
+              b.client.raisonSociale,
+              "fr",
+            );
+        }
+
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [rows, search, filterStatut, filterKyc, filterRisque, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -483,33 +563,35 @@ export default function ClientsPage() {
             <table className="w-full min-w-[1000px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Réf.
-                  </th>
+                  {SORT_COLUMNS.map((col) => {
+                    const active = sortKey === col.key;
 
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Raison sociale
-                  </th>
-
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    SIRET
-                  </th>
-
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Statut
-                  </th>
-
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    KYC
-                  </th>
-
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Risque
-                  </th>
-
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Score
-                  </th>
+                    return (
+                      <th
+                        key={col.key}
+                        className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          className={`inline-flex items-center gap-1 hover:text-slate-900 ${
+                            active ? "text-indigo-700" : ""
+                          }`}
+                        >
+                          {col.label}
+                          {active ? (
+                            sortDir === "asc" ? (
+                              <IconChevronUp className="size-3.5" />
+                            ) : (
+                              <IconChevronDown className="size-3.5" />
+                            )
+                          ) : (
+                            <IconSelector className="size-3.5 text-slate-300" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
 
                   <th className="w-16 px-5 py-4" />
                 </tr>

@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
+import { Prospect } from '../../prospects/entities/prospect.entity';
 import { LettreMission } from '../../lettres-mission/entities/lettre-mission.entity';
 import { TypeMission, StatutMission } from '../../common/enums';
 import { RepartitionTravauxAssignation } from '../../common/repartition-travaux';
@@ -44,9 +45,18 @@ export class Mission {
   @Column({ type: 'jsonb', nullable: true })
   repartitionTravaux: RepartitionTravauxAssignation[] | null;
 
-  @ManyToOne(() => Client, (client) => client.missions, { nullable: false })
+  // Exactement un des deux doit être renseigné : une mission « brouillon »
+  // préparée dès la validation LAB d'un prospect (avant conversion), ou une
+  // mission d'un client déjà converti. Voir contrainte CHK_missions_client_xor_prospect.
+  @ManyToOne(() => Client, (client) => client.missions, { nullable: true })
   @JoinColumn({ name: 'id_client' })
-  client: Client;
+  client: Client | null;
+
+  @ManyToOne(() => Prospect, (prospect) => prospect.missions, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'id_prospect' })
+  prospect: Prospect | null;
 
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_createur' })

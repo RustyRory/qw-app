@@ -30,6 +30,19 @@ function field(label: string, value: string): string {
     </div>`;
 }
 
+// Variante pour les champs indispensables à la lettre de mission (régime
+// fiscal, TVA, capital social…) : signale visuellement au lieu de laisser
+// une ligne vide silencieuse quand la donnée n'a pas encore été saisie sur
+// la fiche client/prospect.
+function fieldRequis(label: string, value: string): string {
+  const safe = value ? escapeHtml(value) : '';
+  return `
+    <div class="field">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <span class="field-value${safe ? '' : ' missing'}">${safe || '⚠ À compléter'}</span>
+    </div>`;
+}
+
 function checkbox(checked: boolean): string {
   return `<span class="chk${checked ? ' checked' : ''}"></span>`;
 }
@@ -158,20 +171,9 @@ function renderAttestationConclusion(contenu: LettreMissionContenu): string {
 }
 
 function renderRepartitionSection(contenu: LettreMissionContenu): string {
-  const { cabinet, mission } = contenu;
+  const { mission } = contenu;
 
-  if (mission.type === TypeMission.COMPTABILITE) {
-    return renderRepartitionTable(mission.repartitionTravaux);
-  }
-
-  return `
-<p>
-  La répartition des travaux entre le Client et ${escapeHtml(cabinet.nom)} pour cette mission
-  ${mission.typeLabel ? escapeHtml(mission.typeLabel) : ''} est précisée ci-dessous${
-    mission.description ? ' :' : ", d'un commun accord entre les parties."
-  }
-</p>
-${mission.description ? `<p>${escapeHtml(mission.description)}</p>` : ''}`;
+  return renderRepartitionTable(mission.repartitionTravaux);
 }
 
 function renderSignatureBlock(
@@ -248,6 +250,14 @@ export function renderLettreMissionHtml(
   .field, .signature-block, .fields-grid { page-break-inside: avoid; }
   table.repartition thead { display: table-header-group; }
   table.repartition tr { page-break-inside: avoid; }
+  .annexe { page-break-before: always; }
+  /* Les clauses de l'annexe (ex. « Obligations de l'expert-comptable »,
+     « Obligations du client ») sont trop longues pour tenir sur une seule
+     page — le page-break-inside: avoid hérité de la règle "p, li" ci-dessus
+     forçait alors le renvoi de la clause entière en bloc sur la page
+     suivante, laissant un blanc et un saut de page injustifié entre deux
+     items. On les laisse ici se répartir normalement sur plusieurs pages. */
+  .annexe li { page-break-inside: auto; }
   .annexe ul { margin: 6px 0 6px 18px; padding: 0; }
   .header {
     display: flex;
@@ -270,6 +280,7 @@ export function renderLettreMissionHtml(
   .field { display: flex; border-bottom: 1px dotted #ccc; padding: 3px 0; }
   .field-label { width: 50%; color: #555; font-weight: 600; }
   .field-value { flex: 1; }
+  .field-value.missing { color: #b45309; font-weight: 600; font-style: italic; }
   p { margin: 7px 0; text-align: justify; }
   table.repartition {
     width: 100%;
@@ -285,23 +296,22 @@ export function renderLettreMissionHtml(
   table.repartition th { background: #f1f5f9; }
   td.chk-cell { text-align: center; width: 40px; }
   .chk {
-    display: inline-block;
-    width: 9px;
-    height: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 11px;
+    height: 11px;
     border: 1px solid #333;
+    border-radius: 2px;
     position: relative;
   }
-  .chk.checked::before, .chk.checked::after {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 3.5px;
-    width: 1px;
-    height: 11px;
-    background: #333;
+  .chk.checked::after {
+    content: '\\2713';
+    font-size: 9px;
+    line-height: 1;
+    font-weight: 700;
+    color: #1e293b;
   }
-  .chk.checked::before { transform: rotate(45deg); }
-  .chk.checked::after { transform: rotate(-45deg); }
   .signatures {
     display: flex;
     justify-content: space-between;
@@ -357,17 +367,26 @@ export function renderLettreMissionHtml(
   ${field('Raison sociale', client.raisonSociale)}
   ${field('Forme juridique', client.formeJuridique)}
   ${field('Siège social', client.adresse)}
-  ${field('Capital social', '')}
+  ${fieldRequis('Capital social', client.capitalSocial)}
   ${field('Gérant', client.gerant)}
   ${field('Siret', client.siret)}
   ${field('Code activité', client.codeNaf)}
   ${field('Activité principale', client.activitePrincipale)}
-  ${field('Adresse courriel', '')}
-  ${field('Régime fiscal', '')}
-  ${field('Régime TVA', '')}
-  ${field('N° TVA intracommunautaire', '')}
-  ${field('Existence de salariés', '')}
-  ${field('Convention collective appliquée', '')}
+  ${field('Adresse courriel', client.email)}
+  ${fieldRequis('Régime fiscal', client.regimeFiscal)}
+  ${fieldRequis('Régime TVA', client.regimeTva)}
+  ${fieldRequis('N° TVA intracommunautaire', client.tvaIntracommunautaire)}
+  ${fieldRequis('Existence de salariés', client.existenceSalaries)}
+  ${
+    // Sans objet si l'entité n'a pas de salarié — à ne pas confondre avec
+    // une donnée simplement pas encore saisie (cf. fieldRequis ci-dessus).
+    client.existenceSalaries === 'Non'
+      ? field('Convention collective appliquée', 'Sans objet')
+      : fieldRequis(
+          'Convention collective appliquée',
+          client.conventionCollective,
+        )
+  }
 </div>
 
 <h2>2. Notre mission</h2>

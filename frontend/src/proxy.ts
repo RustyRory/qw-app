@@ -29,6 +29,12 @@ export function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/dashboard")) {
     if (!isAuthenticated) return redirect("/login");
+    if (
+      payload!.role === "MODERATEUR" &&
+      !pathname.startsWith("/dashboard/admin/users")
+    ) {
+      return redirect("/dashboard/admin/users");
+    }
     return NextResponse.next();
   }
 

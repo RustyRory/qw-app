@@ -13,8 +13,16 @@ import { TypeMission } from '../../common/enums';
 import { RepartitionTravauxLigneDto } from './repartition-travaux-ligne.dto';
 
 export class CreateMissionDto {
+  // Exactement un des deux doit être fourni : clientId pour une mission
+  // classique, prospectId pour préparer une lettre de mission avant
+  // conversion (validé côté service).
+  @IsOptional()
   @IsUUID()
-  clientId: string;
+  clientId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  prospectId?: string;
 
   @IsEnum(TypeMission)
   type: TypeMission;

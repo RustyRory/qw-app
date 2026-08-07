@@ -77,7 +77,7 @@ export class ClientsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.ADMIN)
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   remove(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.clientsService.remove(id, req.user);
   }

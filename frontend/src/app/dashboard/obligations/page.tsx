@@ -1,31 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   IconAlertTriangle,
   IconClockExclamation,
+  IconExternalLink,
   IconSearch,
 } from "@tabler/icons-react";
 
 import { apiFetch } from "@/lib/apiFetch";
-import { StatusBadge } from "@/lib/status";
+import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 
-import type { Obligation, TypeObligation } from "@/types";
-
-const TYPE_LABELS: Record<TypeObligation, string> = {
-  KYC_VERIFICATION: "Vérification KYC",
-  EVALUATION_RISQUE: "Évaluation du risque",
-  MISE_A_JOUR_DOCS: "Mise à jour des documents",
-  VALIDATION_RELATION: "Validation de la relation",
-  LETTRE_MISSION: "Lettre de mission",
-};
+import type { Obligation } from "@/types";
 
 function formatDate(date?: string | null) {
   if (!date) return "—";
 
-  return new Date(`${date.slice(0, 10)}T00:00:00`).toLocaleDateString(
-    "fr-FR",
-  );
+  return new Date(`${date.slice(0, 10)}T00:00:00`).toLocaleDateString("fr-FR");
 }
 
 export default function ObligationsGlobalPage() {
@@ -35,9 +27,6 @@ export default function ObligationsGlobalPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-
     apiFetch<Obligation[]>("/obligations/en-retard")
       .then(setItems)
       .catch((err: Error) => {
@@ -55,7 +44,7 @@ export default function ObligationsGlobalPage() {
         if (!value) return true;
 
         const typeLabel =
-          TYPE_LABELS[obligation.type]?.toLowerCase() ?? "";
+          OBLIGATION_TYPE_LABELS[obligation.type]?.toLowerCase() ?? "";
 
         const date = obligation.dateEcheance
           ? formatDate(obligation.dateEcheance)
@@ -64,7 +53,10 @@ export default function ObligationsGlobalPage() {
         return (
           typeLabel.includes(value) ||
           date.toLowerCase().includes(value) ||
-          obligation.statut.toLowerCase().includes(value)
+          obligation.statut.toLowerCase().includes(value) ||
+          (obligation.client?.raisonSociale ?? obligation.prospect?.nom ?? "")
+            .toLowerCase()
+            .includes(value)
         );
       })
       .sort((a, b) => {
@@ -185,6 +177,10 @@ export default function ObligationsGlobalPage() {
                   </th>
 
                   <th className="px-5 py-4 text-left font-semibold text-amber-800">
+                    Client
+                  </th>
+
+                  <th className="px-5 py-4 text-left font-semibold text-amber-800">
                     Échéance
                   </th>
 
@@ -198,7 +194,7 @@ export default function ObligationsGlobalPage() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="px-5 py-12 text-center text-slate-400"
                     >
                       Chargement…
@@ -207,7 +203,7 @@ export default function ObligationsGlobalPage() {
                 ) : filteredItems.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="px-5 py-12 text-center text-slate-400"
                     >
                       Aucune obligation en retard
@@ -221,13 +217,35 @@ export default function ObligationsGlobalPage() {
                     >
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-900">
-                          {TYPE_LABELS[obligation.type] ??
+                          {OBLIGATION_TYPE_LABELS[obligation.type] ??
                             obligation.type}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
                           Obligation réglementaire
                         </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {obligation.client ? (
+                          <Link
+                            href={`/dashboard/clients/${obligation.client.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-amber-800 hover:bg-amber-100 hover:text-amber-900 transition-colors"
+                          >
+                            {obligation.client.raisonSociale}
+                            <IconExternalLink className="size-3.5 shrink-0" />
+                          </Link>
+                        ) : obligation.prospect ? (
+                          <Link
+                            href={`/dashboard/prospects/${obligation.prospect.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-amber-800 hover:bg-amber-100 hover:text-amber-900 transition-colors"
+                          >
+                            {obligation.prospect.nom}
+                            <IconExternalLink className="size-3.5 shrink-0" />
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
 
                       <td className="px-5 py-4 font-mono text-slate-500">
@@ -260,7 +278,7 @@ export default function ObligationsGlobalPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-900">
-                        {TYPE_LABELS[obligation.type] ??
+                        {OBLIGATION_TYPE_LABELS[obligation.type] ??
                           obligation.type}
                       </p>
 
@@ -272,7 +290,25 @@ export default function ObligationsGlobalPage() {
                     <StatusBadge status={obligation.statut} />
                   </div>
 
-                  <div className="mt-4 rounded-xl bg-amber-50 p-3">
+                  {obligation.client ? (
+                    <Link
+                      href={`/dashboard/clients/${obligation.client.id}`}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800"
+                    >
+                      {obligation.client.raisonSociale}
+                      <IconExternalLink className="size-3.5 shrink-0" />
+                    </Link>
+                  ) : obligation.prospect ? (
+                    <Link
+                      href={`/dashboard/prospects/${obligation.prospect.id}`}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800"
+                    >
+                      {obligation.prospect.nom}
+                      <IconExternalLink className="size-3.5 shrink-0" />
+                    </Link>
+                  ) : null}
+
+                  <div className="mt-3 rounded-xl bg-amber-50 p-3">
                     <p className="text-xs font-medium text-amber-700">
                       Date d’échéance
                     </p>

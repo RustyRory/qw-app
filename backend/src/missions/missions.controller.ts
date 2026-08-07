@@ -46,6 +46,11 @@ export class MissionsController {
     return this.svc.findByClient(clientId);
   }
 
+  @Get('prospect/:prospectId')
+  findByProspect(@Param('prospectId') prospectId: string) {
+    return this.svc.findByProspect(prospectId);
+  }
+
   @Get('repartition-catalogue')
   getRepartitionCatalogue() {
     return REPARTITION_TRAVAUX_CATALOGUE;

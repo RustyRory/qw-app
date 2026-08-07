@@ -38,9 +38,19 @@ export class PlanningController {
     return this.svc.create(dto, req.user.id);
   }
 
+  @Get('calendrier')
+  findCalendrier() {
+    return this.svc.findCalendrier();
+  }
+
   @Get('client/:clientId')
   findByClient(@Param('clientId') clientId: string) {
     return this.svc.findByClient(clientId);
+  }
+
+  @Get('prospect/:prospectId')
+  findByProspect(@Param('prospectId') prospectId: string) {
+    return this.svc.findByProspect(prospectId);
   }
 
   @Patch(':id/completer')

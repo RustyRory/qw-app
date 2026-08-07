@@ -12,6 +12,7 @@ import * as path from 'path';
 import puppeteer from 'puppeteer';
 import { LettreMission } from './entities/lettre-mission.entity';
 import { Mission } from '../missions/entities/mission.entity';
+import { Prospect } from '../prospects/entities/prospect.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateLettreMissionDto } from './dto/create-lettre.dto';
 import { EnvoyerDocusignDto } from './dto/envoyer-docusign.dto';
@@ -23,7 +24,16 @@ import { renderLettreMissionHtml } from './templates/lettre-mission.template';
 import { DocusignService } from '../docusign/docusign.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
-import { DocusignStatutEnvelope } from '../common/enums';
+import { PlanningService } from '../planning/planning.service';
+import { ObligationsService } from '../obligations/obligations.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  DocusignStatutEnvelope,
+  Role,
+  StatutKanban,
+  TypeObligation,
+} from '../common/enums';
+import { avancerStatutKanban } from '../common/prospect-kanban.util';
 
 const DOCUSIGN_ANCHOR_STRING = '/sig-client/';
 const DOCUSIGN_INITIALES_ANCHOR_STRING = '/init-client/';
@@ -79,8 +89,13 @@ export class LettresMissionService {
     private readonly repo: Repository<LettreMission>,
     @InjectRepository(Mission)
     private readonly missionRepo: Repository<Mission>,
+    @InjectRepository(Prospect)
+    private readonly prospectRepo: Repository<Prospect>,
     private readonly docusignService: DocusignService,
     private readonly auditService: AuditService,
+    private readonly planningService: PlanningService,
+    private readonly obligationsService: ObligationsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private async renderPdf(
@@ -118,7 +133,7 @@ export class LettresMissionService {
   async generateForMission(missionId: string): Promise<LettreMission> {
     const mission = await this.missionRepo.findOne({
       where: { id: missionId },
-      relations: ['client'],
+      relations: ['client', 'prospect'],
     });
     if (!mission) throw new NotFoundException('Mission introuvable');
 
@@ -131,7 +146,7 @@ export class LettresMissionService {
     const buffer = await this.renderPdf(html, buildFooterTemplate(null));
     const cheminStockage = this.writePdfFile(mission.id, buffer);
 
-    return this.repo.save(
+    const saved = await this.repo.save(
       this.repo.create({
         mission: { id: mission.id } as Mission,
         contenu: contenu as unknown as Record<string, unknown>,
@@ -139,6 +154,25 @@ export class LettresMissionService {
         version: 1,
       }),
     );
+
+    if (mission.prospect) {
+      await this.obligationsService.cloturerPourProspect(
+        mission.prospect.id,
+        TypeObligation.LETTRE_MISSION,
+      );
+      await this.obligationsService.ouvrirPourProspect(
+        mission.prospect.id,
+        TypeObligation.VALIDATION_LETTRE_MISSION,
+      );
+      await this.notificationsService.creerPourRoles(
+        [Role.RESPONSABLE, Role.EXPERT_COMPTABLE],
+        'Lettre de mission à valider',
+        mission.prospect.nom,
+        `/dashboard/prospects/${mission.prospect.id}`,
+      );
+    }
+
+    return saved;
   }
 
   async regenerateLatestForMission(missionId: string): Promise<void> {
@@ -150,7 +184,7 @@ export class LettresMissionService {
 
     const mission = await this.missionRepo.findOne({
       where: { id: missionId },
-      relations: ['client'],
+      relations: ['client', 'prospect'],
     });
     if (!mission) return;
 
@@ -196,9 +230,59 @@ export class LettresMissionService {
     return l;
   }
 
-  async signer(id: string, userId: string): Promise<LettreMission> {
-    const l = await this.repo.findOneBy({ id });
+  // Étape 2/3 du circuit collaborateur → responsable → expert-comptable :
+  // le responsable valide le contenu préparé par le collaborateur, ce qui
+  // débloque la signature de l'expert-comptable.
+  async validerParResponsable(
+    id: string,
+    userId: string,
+  ): Promise<LettreMission> {
+    const l = await this.repo.findOne({
+      where: { id },
+      relations: ['mission', 'mission.prospect'],
+    });
     if (!l) throw new NotFoundException('Lettre de mission introuvable');
+    if (l.valideeParResponsable) {
+      throw new BadRequestException('Cette lettre de mission est déjà validée');
+    }
+    l.valideeParResponsable = true;
+    l.valideeAt = new Date();
+    l.valideePar = { id: userId } as User;
+    const saved = await this.repo.save(l);
+
+    if (l.mission.prospect) {
+      await this.obligationsService.cloturerPourProspect(
+        l.mission.prospect.id,
+        TypeObligation.VALIDATION_LETTRE_MISSION,
+      );
+      await this.obligationsService.ouvrirPourProspect(
+        l.mission.prospect.id,
+        TypeObligation.SIGNATURE_LETTRE_MISSION,
+      );
+      await this.notificationsService.creerPourRoles(
+        [Role.EXPERT_COMPTABLE],
+        'Lettre de mission à signer',
+        l.mission.prospect.nom,
+        `/dashboard/prospects/${l.mission.prospect.id}`,
+      );
+    }
+
+    return this.findOne(saved.id);
+  }
+
+  // Étape 3/3 : l'expert-comptable signe — c'est ce qui « envoie » la lettre
+  // (au sens du kanban), donc ce qui fait avancer le prospect en LM_ENVOYEE.
+  async signer(id: string, userId: string): Promise<LettreMission> {
+    const l = await this.repo.findOne({
+      where: { id },
+      relations: ['mission', 'mission.prospect'],
+    });
+    if (!l) throw new NotFoundException('Lettre de mission introuvable');
+    if (!l.valideeParResponsable) {
+      throw new BadRequestException(
+        "Cette lettre de mission doit d'abord être validée par un responsable",
+      );
+    }
     if (l.signeeParExpert) {
       throw new BadRequestException('Cette lettre de mission est déjà signée');
     }
@@ -208,6 +292,22 @@ export class LettresMissionService {
     const saved = await this.repo.save(l);
 
     await this.regeneratePdf(saved.id);
+
+    if (l.mission.prospect) {
+      if (avancerStatutKanban(l.mission.prospect, StatutKanban.LM_ENVOYEE)) {
+        await this.prospectRepo.save(l.mission.prospect);
+      }
+      await this.obligationsService.cloturerPourProspect(
+        l.mission.prospect.id,
+        TypeObligation.SIGNATURE_LETTRE_MISSION,
+      );
+      await this.notificationsService.creerPourRoles(
+        [Role.EXPERT_COMPTABLE],
+        'Prospect prêt à être converti en client',
+        l.mission.prospect.nom,
+        `/dashboard/prospects/${l.mission.prospect.id}`,
+      );
+    }
 
     return this.findOne(saved.id);
   }
@@ -370,6 +470,40 @@ export class LettresMissionService {
       return;
     }
     await this.rafraichirStatutDocusign(l.id);
+  }
+
+  // Supprime les lettres de mission (et leurs fichiers) rattachées à une
+  // mission, préalable requis avant de pouvoir supprimer la mission
+  // elle-même (FK id_mission NOT NULL / ON DELETE NO ACTION). Refuse
+  // uniquement si l'une d'elles a déjà été envoyée en signature au client
+  // (DocuSign) — à ce stade c'est engagé vers l'extérieur, pas avant : une
+  // signature de l'expert-comptable seule reste une erreur humaine possible,
+  // récupérable en supprimant et en refaisant la lettre.
+  async removeByMission(missionId: string): Promise<void> {
+    const lettres = await this.repo.find({
+      where: { mission: { id: missionId } },
+    });
+
+    const engagee = lettres.find((l) => l.docusignEnvelopeId);
+    if (engagee) {
+      throw new BadRequestException(
+        'Impossible de supprimer cette mission : sa lettre de mission a déjà été envoyée en signature au client.',
+      );
+    }
+
+    for (const lettre of lettres) {
+      if (lettre.cheminStockage) {
+        try {
+          fs.unlinkSync(lettre.cheminStockage);
+        } catch {
+          // fichier déjà absent : rien à faire
+        }
+      }
+    }
+
+    if (lettres.length > 0) {
+      await this.repo.remove(lettres);
+    }
   }
 
   async streamFile(id: string): Promise<StreamableFile> {

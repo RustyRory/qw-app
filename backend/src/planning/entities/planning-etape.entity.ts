@@ -8,6 +8,8 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
+import { Prospect } from '../../prospects/entities/prospect.entity';
+import { Mission } from '../../missions/entities/mission.entity';
 import { TypePlanningEtape, StatutPlanningEtape } from '../../common/enums';
 
 @Entity('planning_etape')
@@ -37,11 +39,26 @@ export class PlanningEtape {
   @Column({ type: 'timestamptz', nullable: true })
   completedAt: Date | null;
 
+  // Exactement un des deux doit être renseigné : une étape « prospect »
+  // (pipeline LAB → lettre de mission, avant conversion) ou une étape d'un
+  // client déjà converti. Voir contrainte CHK_planning_etape_client_xor_prospect.
   @ManyToOne(() => Client, (client) => client.planningEtapes, {
-    nullable: false,
+    nullable: true,
   })
   @JoinColumn({ name: 'id_client' })
-  client: Client;
+  client: Client | null;
+
+  @ManyToOne(() => Prospect, (prospect) => prospect.planningEtapes, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'id_prospect' })
+  prospect: Prospect | null;
+
+  // Renseigné uniquement pour les étapes de renouvellement générées
+  // automatiquement à partir d'une mission (voir PlanningService).
+  @ManyToOne(() => Mission, { nullable: true })
+  @JoinColumn({ name: 'id_mission' })
+  mission: Mission | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'id_completed_by' })

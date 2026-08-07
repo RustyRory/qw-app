@@ -61,6 +61,17 @@ export class QuestionnairesController {
     return this.svc.updateReponses(id, dto, req.user.id);
   }
 
+  @Patch(':id/completer')
+  @Roles(
+    Role.COLLABORATEUR,
+    Role.RESPONSABLE,
+    Role.EXPERT_COMPTABLE,
+    Role.ADMIN,
+  )
+  marquerComplete(@Param('id') id: string) {
+    return this.svc.marquerComplete(id);
+  }
+
   @Patch(':id/valider')
   @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   validate(@Param('id') id: string, @Req() req: RequestWithUser) {
@@ -75,5 +86,11 @@ export class QuestionnairesController {
     @Req() req: RequestWithUser,
   ) {
     return this.svc.refuse(id, motif, req.user.id);
+  }
+
+  @Patch(':id/rouvrir')
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
+  reopen(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.svc.reopen(id, req.user.id);
   }
 }

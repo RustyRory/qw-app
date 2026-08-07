@@ -7,7 +7,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Mission } from './entities/mission.entity';
-import { Client } from '../clients/entities/client.entity';
 import { User } from '../users/entities/user.entity';
 import { StatutMission } from '../common/enums';
 import { CreateMissionDto } from './dto/create-mission.dto';
@@ -25,8 +24,14 @@ export class MissionsService {
   ) {}
 
   async create(dto: CreateMissionDto, userId: string): Promise<Mission> {
+    if (!dto.clientId === !dto.prospectId) {
+      throw new BadRequestException(
+        'Renseignez soit clientId, soit prospectId (jamais les deux, ni aucun des deux)',
+      );
+    }
     const m = this.repo.create({
-      client: { id: dto.clientId } as Client,
+      client: dto.clientId ? { id: dto.clientId } : null,
+      prospect: dto.prospectId ? { id: dto.prospectId } : null,
       type: dto.type,
       description: dto.description ?? null,
       dateDebut: new Date(dto.dateDebut),
@@ -57,10 +62,18 @@ export class MissionsService {
     });
   }
 
+  findByProspect(prospectId: string): Promise<Mission[]> {
+    return this.repo.find({
+      where: { prospect: { id: prospectId } },
+      relations: ['lettresMission'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async findOne(id: string): Promise<Mission> {
     const m = await this.repo.findOne({
       where: { id },
-      relations: ['client', 'createdBy'],
+      relations: ['client', 'prospect', 'createdBy'],
     });
     if (!m) throw new NotFoundException('Mission introuvable');
     return m;
@@ -115,6 +128,10 @@ export class MissionsService {
   async remove(id: string): Promise<void> {
     const m = await this.repo.findOneBy({ id });
     if (!m) throw new NotFoundException('Mission introuvable');
+    // La/les lettre(s) de mission (brouillon) doivent être supprimées avant
+    // la mission elle-même : la FK id_mission est NOT NULL / ON DELETE NO
+    // ACTION, sinon la suppression échoue en violation de contrainte.
+    await this.lettresMissionService.removeByMission(id);
     await this.repo.remove(m);
   }
 }

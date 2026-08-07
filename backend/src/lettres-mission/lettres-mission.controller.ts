@@ -51,6 +51,12 @@ export class LettresMissionController {
     return this.svc.streamFile(id);
   }
 
+  @Patch(':id/valider')
+  @Roles(Role.RESPONSABLE, Role.ADMIN)
+  validerParResponsable(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.svc.validerParResponsable(id, req.user.id);
+  }
+
   @Patch(':id/signer')
   @Roles(Role.EXPERT_COMPTABLE, Role.ADMIN)
   signer(@Param('id') id: string, @Req() req: RequestWithUser) {

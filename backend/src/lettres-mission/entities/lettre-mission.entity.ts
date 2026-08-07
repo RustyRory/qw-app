@@ -21,6 +21,19 @@ export class LettreMission {
   @Column({ type: 'jsonb' })
   contenu: Record<string, unknown>;
 
+  // Étape intermédiaire obligatoire avant la signature de l'expert-comptable :
+  // le responsable valide le contenu (répartition des travaux, honoraires…)
+  // préparé par le collaborateur.
+  @Column({ type: 'boolean', default: false })
+  valideeParResponsable: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  valideeAt: Date | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'id_valide_par' })
+  valideePar: User | null;
+
   @Column({ type: 'boolean', default: false })
   signeeParExpert: boolean;
 
