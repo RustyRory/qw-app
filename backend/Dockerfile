@@ -1,18 +1,18 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+    PUPPETEER_SKIP_DOWNLOAD=true
 COPY package*.json ./
 RUN npm install --no-audit --no-fund --loglevel=error
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 RUN apk add --no-cache chromium
 ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_SKIP_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund --loglevel=error
