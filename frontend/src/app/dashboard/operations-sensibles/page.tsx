@@ -50,9 +50,7 @@ export default function OperationsSensiblesPage() {
 
   const [rows, setRows] = useState<OperationWithClient[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(
-    null,
-  );
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<
@@ -62,9 +60,7 @@ export default function OperationsSensiblesPage() {
   const [search, setSearch] = useState("");
 
   const canManage =
-    role === "RESPONSABLE" ||
-    role === "EXPERT_COMPTABLE" ||
-    role === "ADMIN";
+    role === "RESPONSABLE" || role === "EXPERT_COMPTABLE" || role === "ADMIN";
 
   async function loadOperations() {
     setLoading(true);
@@ -101,26 +97,24 @@ export default function OperationsSensiblesPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOperations();
   }, []);
 
   const counts = useMemo<Record<StatutOperationSensible, number>>(
     () => ({
-      SIGNALEE: rows.filter(
-        ({ operation }) => operation.statut === "SIGNALEE",
-      ).length,
+      SIGNALEE: rows.filter(({ operation }) => operation.statut === "SIGNALEE")
+        .length,
 
       EN_ANALYSE: rows.filter(
         ({ operation }) => operation.statut === "EN_ANALYSE",
       ).length,
 
-      CLASSEE: rows.filter(
-        ({ operation }) => operation.statut === "CLASSEE",
-      ).length,
+      CLASSEE: rows.filter(({ operation }) => operation.statut === "CLASSEE")
+        .length,
 
       TRACFIN_DECLARE: rows.filter(
-        ({ operation }) =>
-          operation.statut === "TRACFIN_DECLARE",
+        ({ operation }) => operation.statut === "TRACFIN_DECLARE",
       ).length,
     }),
     [rows],
@@ -138,18 +132,13 @@ export default function OperationsSensiblesPage() {
       .filter(({ operation, client }) => {
         if (!normalizedSearch) return true;
 
-        const typeLabel =
-          TYPE_LABELS[operation.type]?.toLowerCase() ?? "";
+        const typeLabel = TYPE_LABELS[operation.type]?.toLowerCase() ?? "";
 
         return (
-          client.raisonSociale
-            .toLowerCase()
-            .includes(normalizedSearch) ||
+          client.raisonSociale.toLowerCase().includes(normalizedSearch) ||
           client.ref.toLowerCase().includes(normalizedSearch) ||
           typeLabel.includes(normalizedSearch) ||
-          operation.description
-            .toLowerCase()
-            .includes(normalizedSearch)
+          operation.description.toLowerCase().includes(normalizedSearch)
         );
       })
       .sort(
@@ -217,10 +206,7 @@ export default function OperationsSensiblesPage() {
     }
   }
 
-  function formatAmount(
-    amount?: number | null,
-    devise?: string | null,
-  ) {
+  function formatAmount(amount?: number | null, devise?: string | null) {
     if (amount === null || amount === undefined) return "—";
 
     try {
@@ -230,9 +216,7 @@ export default function OperationsSensiblesPage() {
         maximumFractionDigits: 2,
       }).format(Number(amount));
     } catch {
-      return `${Number(amount).toLocaleString("fr-FR")} ${
-        devise || "EUR"
-      }`;
+      return `${Number(amount).toLocaleString("fr-FR")} ${devise || "EUR"}`;
     }
   }
 
@@ -261,9 +245,8 @@ export default function OperationsSensiblesPage() {
                   </h1>
 
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-red-50">
-                    Analysez les opérations signalées et suivez leur
-                    traitement jusqu’au classement ou à la déclaration
-                    TRACFIN.
+                    Analysez les opérations signalées et suivez leur traitement
+                    jusqu’au classement ou à la déclaration TRACFIN.
                   </p>
                 </div>
               </div>
@@ -272,9 +255,7 @@ export default function OperationsSensiblesPage() {
                 value={statusFilter}
                 onChange={(event) =>
                   setStatusFilter(
-                    event.target.value as
-                      | "TOUS"
-                      | StatutOperationSensible,
+                    event.target.value as "TOUS" | StatutOperationSensible,
                   )
                 }
                 className="h-11 w-full rounded-xl border border-white/20 bg-white px-4 text-sm font-medium text-slate-700 shadow-lg outline-none sm:w-auto"
@@ -283,9 +264,7 @@ export default function OperationsSensiblesPage() {
                 <option value="SIGNALEE">Signalées</option>
                 <option value="EN_ANALYSE">En analyse</option>
                 <option value="CLASSEE">Classées</option>
-                <option value="TRACFIN_DECLARE">
-                  TRACFIN déclaré
-                </option>
+                <option value="TRACFIN_DECLARE">TRACFIN déclaré</option>
               </select>
             </div>
 
@@ -354,9 +333,7 @@ export default function OperationsSensiblesPage() {
                   ? "Chargement..."
                   : `${filteredRows.length} opération${
                       filteredRows.length > 1 ? "s" : ""
-                    } affichée${
-                      filteredRows.length > 1 ? "s" : ""
-                    }`}
+                    } affichée${filteredRows.length > 1 ? "s" : ""}`}
               </p>
             </div>
           </div>
@@ -425,9 +402,9 @@ export default function OperationsSensiblesPage() {
                         className="transition hover:bg-red-50/30"
                       >
                         <td className="px-5 py-4 font-mono text-xs text-slate-500">
-                          {new Date(
-                            operation.createdAt,
-                          ).toLocaleDateString("fr-FR")}
+                          {new Date(operation.createdAt).toLocaleDateString(
+                            "fr-FR",
+                          )}
                         </td>
 
                         <td className="px-5 py-4">
@@ -441,15 +418,11 @@ export default function OperationsSensiblesPage() {
                         </td>
 
                         <td className="px-5 py-4 text-slate-600">
-                          {TYPE_LABELS[operation.type] ??
-                            operation.type}
+                          {TYPE_LABELS[operation.type] ?? operation.type}
                         </td>
 
                         <td className="px-5 py-4 font-mono font-medium text-slate-700">
-                          {formatAmount(
-                            operation.montant,
-                            operation.devise,
-                          )}
+                          {formatAmount(operation.montant, operation.devise)}
                         </td>
 
                         <td className="px-5 py-4">
@@ -471,9 +444,7 @@ export default function OperationsSensiblesPage() {
                                 <button
                                   type="button"
                                   disabled={busy}
-                                  onClick={() =>
-                                    handleClasser(operation.id)
-                                  }
+                                  onClick={() => handleClasser(operation.id)}
                                   className="text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50"
                                 >
                                   {busy ? "Traitement…" : "Classer"}
@@ -482,9 +453,7 @@ export default function OperationsSensiblesPage() {
                                 <button
                                   type="button"
                                   disabled={busy}
-                                  onClick={() =>
-                                    handleTracfin(operation.id)
-                                  }
+                                  onClick={() => handleTracfin(operation.id)}
                                   className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
                                 >
                                   TRACFIN
@@ -537,45 +506,33 @@ export default function OperationsSensiblesPage() {
 
                     <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p className="text-xs text-slate-400">
-                          Type
-                        </p>
+                        <p className="text-xs text-slate-400">Type</p>
 
                         <p className="mt-1 text-slate-600">
-                          {TYPE_LABELS[operation.type] ??
-                            operation.type}
+                          {TYPE_LABELS[operation.type] ?? operation.type}
                         </p>
                       </div>
 
                       <div>
-                        <p className="text-xs text-slate-400">
-                          Montant
-                        </p>
+                        <p className="text-xs text-slate-400">Montant</p>
 
                         <p className="mt-1 font-mono font-medium text-slate-700">
-                          {formatAmount(
-                            operation.montant,
-                            operation.devise,
+                          {formatAmount(operation.montant, operation.devise)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-400">Date</p>
+
+                        <p className="mt-1 text-slate-600">
+                          {new Date(operation.createdAt).toLocaleDateString(
+                            "fr-FR",
                           )}
                         </p>
                       </div>
 
                       <div>
-                        <p className="text-xs text-slate-400">
-                          Date
-                        </p>
-
-                        <p className="mt-1 text-slate-600">
-                          {new Date(
-                            operation.createdAt,
-                          ).toLocaleDateString("fr-FR")}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          Description
-                        </p>
+                        <p className="text-xs text-slate-400">Description</p>
 
                         <p className="mt-1 line-clamp-2 text-slate-600">
                           {operation.description}
@@ -597,9 +554,7 @@ export default function OperationsSensiblesPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() =>
-                              handleClasser(operation.id)
-                            }
+                            onClick={() => handleClasser(operation.id)}
                             className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
                           >
                             Classer
@@ -608,9 +563,7 @@ export default function OperationsSensiblesPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() =>
-                              handleTracfin(operation.id)
-                            }
+                            onClick={() => handleTracfin(operation.id)}
                             className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
                           >
                             <IconFileCheck className="size-4" />

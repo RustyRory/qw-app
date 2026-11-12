@@ -11,6 +11,9 @@
     "backend",
     "frontend"
   ],
+  "overrides": {
+    "typescript": "5.9.3"
+  },
   "scripts": {
     "prepare": "husky",
     "infra:up": "docker compose -f deployment/docker-compose.dev.yml up -d",
