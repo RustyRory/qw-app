@@ -7,6 +7,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { MotDePasseRobuste } from '../../common/validators/mot-de-passe';
 import { Role } from '../../common/enums';
 
 export class UpdateUserDto {
@@ -27,9 +28,9 @@ export class UpdateUserDto {
   @MaxLength(255)
   email?: string;
 
+  // Réinitialisation par un admin : nouveau mot de passe provisoire.
   @IsOptional()
-  @IsString()
-  @MinLength(6)
+  @MotDePasseRobuste()
   password?: string;
 
   @IsOptional()

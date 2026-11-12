@@ -16,7 +16,7 @@ async function seed() {
   console.log('  admin@qwconseils.fr        / Admin1234!');
   console.log('  responsable@qwconseils.fr  / Resp1234!');
   console.log('  collab@qwconseils.fr       / Collab1234!');
-  console.log('  moderateur@qwconseils.fr   / Moderateur1234!');
+  console.log('  expert@qwconseils.fr       / Expert1234!');
 
   await AppDataSource.destroy();
 }

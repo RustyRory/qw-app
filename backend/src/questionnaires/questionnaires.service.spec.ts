@@ -11,7 +11,13 @@ import { AuditService } from '../audit/audit.service';
 import { PlanningService } from '../planning/planning.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { StatutKanban, TypeObligation } from '../common/enums';
+import {
+  NiveauRisque,
+  Role,
+  StatutKanban,
+  TypeObligation,
+} from '../common/enums';
+import { ForbiddenException } from '@nestjs/common';
 
 const ETAPE_QUESTIONNAIRE_A_REMPLIR = 'Questionnaire à remplir';
 
@@ -32,7 +38,10 @@ describe('QuestionnairesService', () => {
       createdBy: { id: 'user-createur' },
     }),
   };
-  const scoringServiceMock = { recalculateForProspect: jest.fn() };
+  const scoringServiceMock = {
+    recalculateForProspect: jest.fn(),
+    findCurrentByProspect: jest.fn().mockResolvedValue(null),
+  };
   const auditServiceMock = { log: jest.fn() };
   const planningServiceMock = {
     ouvrirEtapePourProspect: jest.fn(),
@@ -99,6 +108,42 @@ describe('QuestionnairesService', () => {
   });
 
   describe('validate', () => {
+    it('refuse au responsable de valider un dossier à risque ÉLEVÉ', async () => {
+      repoMock.findOne.mockResolvedValue({
+        id: 'q-1',
+        statut: StatutQuestionnaire.EN_COURS,
+        prospect: {
+          id: 'prospect-1',
+          statutKanban: StatutKanban.VALIDATION_LAB,
+        },
+      });
+      scoringServiceMock.findCurrentByProspect.mockResolvedValueOnce({
+        niveau: NiveauRisque.ELEVE,
+      });
+
+      await expect(
+        service.validate('q-1', 'user-1', Role.RESPONSABLE),
+      ).rejects.toThrow(ForbiddenException);
+      expect(repoMock.save).not.toHaveBeenCalled();
+    });
+
+    it("laisse l'expert-comptable valider un dossier à risque ÉLEVÉ", async () => {
+      repoMock.findOne.mockResolvedValue({
+        id: 'q-1',
+        statut: StatutQuestionnaire.EN_COURS,
+        prospect: {
+          id: 'prospect-1',
+          statutKanban: StatutKanban.VALIDATION_LAB,
+        },
+      });
+      scoringServiceMock.findCurrentByProspect.mockResolvedValueOnce({
+        niveau: NiveauRisque.ELEVE,
+      });
+
+      await service.validate('q-1', 'user-1', Role.EXPERT_COMPTABLE);
+      expect(repoMock.save).toHaveBeenCalled();
+    });
+
     it('ferme les tâches de remplissage/validation et ouvre "LM à faire"', async () => {
       const prospect = {
         id: 'prospect-1',

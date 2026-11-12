@@ -21,8 +21,8 @@ src/
 ├── beneficiaires/           # Bénéficiaires effectifs (UBO)
 ├── contacts/                # Tiers liés au client
 ├── missions/                # Missions (rattachées à un client ou un prospect)
-├── lettres-mission/         # Lettres de mission (versionnées, DocuSign)
-├── docusign/                # Intégration DocuSign (envoi/statut/webhook)
+├── lettres-mission/         # Lettres de mission (versions/avenants, signatures)
+├── cabinet/                 # Coordonnées du cabinet (en-tête des lettres)
 ├── documents/                # Upload et métadonnées des documents
 ├── scoring/                   # Calcul automatique du score de risque (client + prospect)
 ├── planning/                    # Étapes de planning/diligences

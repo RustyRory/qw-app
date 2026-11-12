@@ -426,7 +426,7 @@ export async function seedData(
   // ── Missions ─────────────────────────────────────────────────
   const missionDurand = await missionRepo.save(
     missionRepo.create({
-      type: TypeMission.COMPTABILITE,
+      type: TypeMission.COMPTES_ANNUELS,
       description: 'Tenue de comptabilité annuelle',
       statut: StatutMission.EN_COURS,
       dateDebut: new Date('2024-01-01'),

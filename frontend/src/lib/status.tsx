@@ -73,8 +73,8 @@ export const STATUS_CLASS: Record<string, string> = {
 // globale des obligations, l'onglet obligations d'un client et la carte
 // "À faire" d'un prospect, pour rester cohérents entre les trois.
 export const OBLIGATION_TYPE_LABELS: Record<string, string> = {
-  KYC_VERIFICATION: "Vérification KYC",
-  EVALUATION_RISQUE: "Évaluation du risque",
+  KYC_VERIFICATION: "Vérification KYC (revue annuelle)",
+  EVALUATION_RISQUE: "Questionnaire LAB à refaire (revue annuelle)",
   MISE_A_JOUR_DOCS: "Mise à jour des documents",
   VALIDATION_RELATION: "Questionnaire à valider",
   LETTRE_MISSION: "Lettre de mission à faire",

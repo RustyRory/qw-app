@@ -27,11 +27,10 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
   RESPONSABLE: "Peut valider et gérer certaines opérations sensibles.",
   EXPERT_COMPTABLE: "Accès aux validations réservées à l’expert-comptable.",
   ADMIN: "Accès complet, y compris à la gestion des utilisateurs.",
-  MODERATEUR: "Accès exclusif à la gestion des comptes utilisateurs.",
 };
 
 export default function NewUserPage() {
-  const { ready } = useAuth(["ADMIN", "MODERATEUR"]);
+  const { ready } = useAuth(["ADMIN"]);
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
@@ -205,7 +204,6 @@ export default function NewUserPage() {
                     <option value="RESPONSABLE">Responsable</option>
                     <option value="EXPERT_COMPTABLE">Expert-comptable</option>
                     <option value="ADMIN">Administrateur</option>
-                    <option value="MODERATEUR">Modérateur</option>
                   </select>
                 </div>
 
@@ -224,8 +222,8 @@ export default function NewUserPage() {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Minimum 6 caractères"
-                    minLength={6}
+                    placeholder="12 caractères min., maj., min., chiffre"
+                    minLength={12}
                     className="pl-10 pr-10"
                     required
                   />
@@ -250,7 +248,9 @@ export default function NewUserPage() {
 
                 <p className="mt-2 flex items-center gap-1 text-xs text-slate-400">
                   <IconEye className="size-3.5" />
-                  Le mot de passe sera chiffré avant d’être enregistré.
+                  Mot de passe provisoire : au moins 12 caractères, dont une
+                  majuscule, une minuscule et un chiffre. L’utilisateur devra le
+                  changer à sa première connexion.
                 </p>
               </Field>
             </FieldGroup>

@@ -28,6 +28,20 @@ import {
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
+import { RepartitionEditor } from "@/components/repartition-editor";
+import { LettreMissionActions } from "@/components/lettre-mission-actions";
+import { OperationActions } from "@/components/operation-actions";
+import {
+  MISSION_TYPE_LABELS,
+  repartitionInitiale,
+  repartitionVersApi,
+  type RepartitionEtat,
+} from "@/lib/missions";
+import {
+  DOCUMENT_ACCEPT,
+  DOCUMENT_TYPE_LABELS,
+  deposerDocument,
+} from "@/lib/documents";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
@@ -56,7 +70,6 @@ import type {
   TypeDocument,
   TypeEntite,
   User,
-  AssignationTache,
   RepartitionTravauxCategorie,
 } from "@/types";
 
@@ -738,23 +751,18 @@ function TabInfos({
 }
 
 // ─── Onglet KYC ───────────────────────────────────────────────────────────────
-const DOCUMENT_TYPE_LABELS: Record<TypeDocument, string> = {
-  PIECE_IDENTITE: "Pièce d’identité",
-  JUSTIFICATIF_DOMICILE: "Justificatif de domicile",
-  KBIS: "KBIS",
-  STATUTS: "Statuts",
-  LISTE_UBO: "Liste des bénéficiaires effectifs",
-  ATTESTATION_PPE: "Attestation PPE",
-  JUSTIFICATIF_FONDS: "Justificatif de fonds",
-  LETTRE_MISSION: "Lettre de mission",
-  RAPPORT: "Rapport",
-  ANNEXE: "Annexe",
-  AUTRE: "Autre",
-};
 
-// Miroir de backend/src/common/document-checklist.ts — tenu à jour manuellement.
+// Miroir de backend/src/common/document-checklist.ts — tenu à jour
+// manuellement (le justificatif d'origine des fonds, exigé en risque
+// ÉLEVÉ, apparaît dans les conditions de validation renvoyées par l'API).
 const DOCUMENTS_REQUIS: Record<TypeEntite, TypeDocument[]> = {
-  PERSONNE_MORALE: ["KBIS", "STATUTS", "LISTE_UBO"],
+  PERSONNE_MORALE: [
+    "KBIS",
+    "STATUTS",
+    "LISTE_UBO",
+    "PIECE_IDENTITE_DIRIGEANT",
+    "PIECE_IDENTITE_BENEFICIAIRE",
+  ],
   PERSONNE_PHYSIQUE: ["PIECE_IDENTITE", "JUSTIFICATIF_DOMICILE"],
 };
 
@@ -765,10 +773,22 @@ function TabKyc({
   client: Client;
   onRefresh: () => void;
 }) {
-  const { can } = useRole();
+  const { can, userId } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState<TypeDocument>("AUTRE");
+  const [uploadExpiration, setUploadExpiration] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [conditionsKyc, setConditionsKyc] = useState<string[] | null>(null);
+  const [kycError, setKycError] = useState<string | null>(null);
+
+  // Conditions de validation du KYC, recalculées à chaque changement de
+  // pièces ou de dossier.
+  useEffect(() => {
+    apiFetch<string[]>(`/clients/${client.id}/conditions-kyc`)
+      .then(setConditionsKyc)
+      .catch(() => setConditionsKyc(null));
+  }, [client, docs]);
   const [showScreeningPicker, setShowScreeningPicker] = useState(false);
   const [screeningSaving, setScreeningSaving] = useState(false);
   const [showPpeEditor, setShowPpeEditor] = useState(false);
@@ -816,26 +836,37 @@ function TabKyc({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId) return;
     setUploading(true);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", uploadType);
+    setUploadError(null);
     try {
-      await apiFetch(`/documents/client/${client.id}`, {
-        method: "POST",
-        body,
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: client.id,
+        file,
+        type: uploadType,
+        dateExpiration: uploadExpiration || null,
       });
-      const updated = await apiFetch<Document[]>(
-        `/documents/client/${client.id}`,
+      setUploadExpiration("");
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Impossible d’envoyer le fichier.",
       );
-      setDocs(updated);
     } finally {
+      apiFetch<Document[]>(`/documents/client/${client.id}`)
+        .then(setDocs)
+        .catch(() => {});
       setUploading(false);
       e.target.value = "";
     }
   }
 
-  const docsExistants = docs.map((d) => d.type);
+  // Une pièce expirée ne compte plus.
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const docsExistants = docs
+    .filter((d) => !d.dateExpiration || d.dateExpiration >= aujourdhui)
+    .map((d) => d.type);
   const typesRequis = [
     ...DOCUMENTS_REQUIS[client.typeEntite],
     ...(client.ppe ? (["ATTESTATION_PPE"] as TypeDocument[]) : []),
@@ -883,17 +914,35 @@ function TabKyc({
             </div>
           ))}
           {can.validerQuestionnaire && client.kycStatut !== "VALIDE" && (
-            <button
-              onClick={async () => {
-                await apiFetch(`/clients/${client.id}/validate`, {
-                  method: "PATCH",
-                });
-                onRefresh();
-              }}
-              className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-            >
-              [Valider KYC ✓] (RESPONSABLE)
-            </button>
+            <div className="mt-2 space-y-1">
+              <button
+                disabled={!conditionsKyc || conditionsKyc.length > 0}
+                onClick={async () => {
+                  setKycError(null);
+                  try {
+                    await apiFetch(`/clients/${client.id}/validate`, {
+                      method: "PATCH",
+                    });
+                    onRefresh();
+                  } catch (err) {
+                    setKycError(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  }
+                }}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors disabled:cursor-not-allowed disabled:text-slate-400"
+              >
+                Valider le KYC ✓
+              </button>
+              {conditionsKyc && conditionsKyc.length > 0 && (
+                <ul className="text-xs text-slate-500">
+                  {conditionsKyc.map((c) => (
+                    <li key={c}>• {c}</li>
+                  ))}
+                </ul>
+              )}
+              {kycError && <p className="text-xs text-red-600">{kycError}</p>}
+            </div>
           )}
         </div>
       </div>
@@ -937,12 +986,14 @@ function TabKyc({
             >
               {showPpeEditor ? "[Fermer]" : "[Modifier PPE]"}
             </button>
-            <button
-              onClick={() => setShowScreeningPicker(!showScreeningPicker)}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
-              {showScreeningPicker ? "[Fermer]" : "[Relancer screening]"}
-            </button>
+            {can.validerQuestionnaire && (
+              <button
+                onClick={() => setShowScreeningPicker(!showScreeningPicker)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {showScreeningPicker ? "[Fermer]" : "[Relancer screening]"}
+              </button>
+            )}
           </div>
 
           {showPpeEditor && (
@@ -1035,9 +1086,19 @@ function TabKyc({
                 </option>
               ))}
             </select>
+            <input
+              type="date"
+              value={uploadExpiration}
+              onChange={(e) => setUploadExpiration(e.target.value)}
+              disabled={uploading}
+              title="Date de fin de validité de la pièce (facultatif)"
+              aria-label="Valide jusqu’au"
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700"
+            />
             <label className="cursor-pointer">
               <input
                 type="file"
+                accept={DOCUMENT_ACCEPT}
                 className="sr-only"
                 onChange={handleUpload}
                 disabled={uploading}
@@ -1049,6 +1110,11 @@ function TabKyc({
             </label>
           </div>
         </div>
+        {uploadError && (
+          <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {uploadError}
+          </div>
+        )}
         {docs.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">
             Aucun document
@@ -1142,6 +1208,7 @@ function TabUbo({
   clientId: string;
   onRefresh: () => void;
 }) {
+  const { userId } = useRole();
   const [ubos, setUbos] = useState<BeneficiaireEffectif[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<BeneficiaireEffectif | null>(null);
@@ -1182,15 +1249,16 @@ function TabUbo({
   async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId) return;
     setDocUploading(true);
     setDocError(null);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", "LISTE_UBO");
     try {
-      await apiFetch(`/documents/client/${clientId}`, {
-        method: "POST",
-        body,
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: clientId,
+        file,
+        type: "LISTE_UBO",
       });
       loadDocs();
     } catch (err) {
@@ -1440,6 +1508,7 @@ function TabUbo({
             <input
               type="file"
               className="sr-only"
+              accept={DOCUMENT_ACCEPT}
               onChange={handleUploadDoc}
               disabled={docUploading}
             />
@@ -1645,7 +1714,10 @@ type DocumentRelationKind =
   | "planningEtape"
   | "operationSensible";
 
-const RELATION_FIELD: Record<DocumentRelationKind, string> = {
+const RELATION_FIELD: Record<
+  DocumentRelationKind,
+  "contactId" | "missionId" | "planningEtapeId" | "operationSensibleId"
+> = {
   contact: "contactId",
   mission: "missionId",
   planningEtape: "planningEtapeId",
@@ -1663,6 +1735,7 @@ function EntityDocumentZone({
   relationId: string;
   defaultType?: TypeDocument;
 }) {
+  const { userId } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadType, setUploadType] = useState<TypeDocument>(defaultType);
@@ -1685,16 +1758,17 @@ function EntityDocumentZone({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId) return;
     setUploading(true);
     setError(null);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", uploadType);
-    body.append(RELATION_FIELD[relationKind], relationId);
     try {
-      await apiFetch(`/documents/client/${clientId}`, {
-        method: "POST",
-        body,
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: clientId,
+        file,
+        type: uploadType,
+        relations: { [RELATION_FIELD[relationKind]]: relationId },
       });
       load();
     } catch (err) {
@@ -1745,6 +1819,7 @@ function EntityDocumentZone({
             <input
               type="file"
               className="sr-only"
+              accept={DOCUMENT_ACCEPT}
               onChange={handleUpload}
               disabled={uploading}
             />
@@ -2116,16 +2191,10 @@ function TabContacts({ clientId }: { clientId: string }) {
 
 // ─── Onglet Scoring ───────────────────────────────────────────────────────────
 // ─── Onglet Missions ──────────────────────────────────────────────────────────
-const MISSION_LABELS: Record<TypeMission, string> = {
-  COMPTABILITE: "Comptabilité",
-  AUDIT: "Audit",
-  CONSEIL: "Conseil",
-  JURIDIQUE: "Juridique",
-  AUTRE: "Autre",
-};
+const MISSION_LABELS = MISSION_TYPE_LABELS;
 
 function TabMissions({ clientId }: { clientId: string }) {
-  const { can, role } = useRole();
+  const { can } = useRole();
   const [items, setItems] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -2139,17 +2208,10 @@ function TabMissions({ clientId }: { clientId: string }) {
     url: string;
   } | null>(null);
   const [catalogue, setCatalogue] = useState<RepartitionTravauxCategorie[]>([]);
-  const [selectedType, setSelectedType] = useState<TypeMission>("COMPTABILITE");
-  const [repartition, setRepartition] = useState<
-    Record<string, AssignationTache>
-  >({});
+  const [selectedType, setSelectedType] =
+    useState<TypeMission>("COMPTES_ANNUELS");
+  const [repartition, setRepartition] = useState<RepartitionEtat>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [docusignBusy, setDocusignBusy] = useState<string | null>(null);
-  const [docusignModalLettre, setDocusignModalLettre] = useState<string | null>(
-    null,
-  );
-  const [docusignEmail, setDocusignEmail] = useState("");
-  const [docusignNom, setDocusignNom] = useState("");
   const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -2181,8 +2243,8 @@ function TabMissions({ clientId }: { clientId: string }) {
   function openCreate() {
     setEditing(null);
     setError(null);
-    setSelectedType("COMPTABILITE");
-    setRepartition({});
+    setSelectedType("COMPTES_ANNUELS");
+    setRepartition(repartitionInitiale(catalogue));
     setFormOpen(true);
   }
 
@@ -2190,7 +2252,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     setEditing(item);
     setError(null);
     setSelectedType(item.type);
-    setRepartition({});
+    setRepartition(repartitionInitiale(catalogue, item.repartitionTravaux));
     setFormOpen(true);
   }
 
@@ -2202,18 +2264,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     const form = new FormData(event.currentTarget);
 
     const repartitionTravaux =
-      catalogue.length > 0
-        ? catalogue.flatMap((cat) =>
-            cat.lignes.map((ligne) => ({
-              id: ligne.id,
-              assignation:
-                repartition[ligne.id] ??
-                editing?.repartitionTravaux?.find((a) => a.id === ligne.id)
-                  ?.assignation ??
-                ligne.defaut,
-            })),
-          )
-        : undefined;
+      catalogue.length > 0 ? repartitionVersApi(repartition) : undefined;
 
     const payload = editing
       ? {
@@ -2333,88 +2384,6 @@ function TabMissions({ clientId }: { clientId: string }) {
     setPreviewLettre(null);
   }
 
-  async function handleValiderLettre(lettreId: string) {
-    setBusy(lettreId);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/valider`, {
-        method: "PATCH",
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de valider la lettre de mission.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleSignerLettre(lettreId: string) {
-    setBusy(lettreId);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/signer`, {
-        method: "PATCH",
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de signer la lettre de mission.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleEnvoyerDocusign(
-    lettreId: string,
-    email: string,
-    nom: string,
-  ) {
-    setDocusignBusy(lettreId);
-    setError(null);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/docusign/envoyer`, {
-        method: "POST",
-        body: JSON.stringify({ email, nom }),
-      });
-      setDocusignModalLettre(null);
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible d'envoyer la lettre de mission via DocuSign.",
-      );
-    } finally {
-      setDocusignBusy(null);
-    }
-  }
-
-  async function handleRafraichirStatutDocusign(lettreId: string) {
-    setDocusignBusy(lettreId);
-    setError(null);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/docusign/statut`);
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de vérifier le statut DocuSign.",
-      );
-    } finally {
-      setDocusignBusy(null);
-    }
-  }
-
   return (
     <>
       <section className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
@@ -2428,14 +2397,16 @@ function TabMissions({ clientId }: { clientId: string }) {
             </p>
           </div>
 
-          <Button
-            size="sm"
-            onClick={openCreate}
-            className="w-full rounded-xl bg-indigo-700 text-white sm:w-auto"
-          >
-            <IconPlus className="size-4" />
-            Créer une mission
-          </Button>
+          {can.gererMissions && (
+            <Button
+              size="sm"
+              onClick={openCreate}
+              className="w-full rounded-xl bg-indigo-700 text-white sm:w-auto"
+            >
+              <IconPlus className="size-4" />
+              Créer une mission
+            </Button>
+          )}
         </div>
 
         {error && !formOpen && (
@@ -2500,6 +2471,7 @@ function TabMissions({ clientId }: { clientId: string }) {
 
                     <button
                       type="button"
+                      hidden={!can.gererMissions}
                       onClick={() => openEdit(item)}
                       className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700"
                     >
@@ -2511,6 +2483,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                     {!closed && item.statut !== "SUSPENDUE" && (
                       <button
                         disabled={busy === item.id}
+                        hidden={!can.gererMissions}
                         onClick={() => changeStatus(item.id, "SUSPENDUE")}
                         className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
                       >
@@ -2521,6 +2494,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                     {!closed && item.statut === "SUSPENDUE" && (
                       <button
                         disabled={busy === item.id}
+                        hidden={!can.gererMissions}
                         onClick={() => changeStatus(item.id, "EN_COURS")}
                         className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50"
                       >
@@ -2532,6 +2506,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                       <>
                         <button
                           disabled={busy === item.id}
+                          hidden={!can.gererMissions}
                           onClick={() => changeStatus(item.id, "TERMINEE")}
                           className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
                         >
@@ -2539,6 +2514,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                         </button>
                         <button
                           disabled={busy === item.id}
+                          hidden={!can.gererMissions}
                           onClick={() => changeStatus(item.id, "RESILIEE")}
                           className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
                         >
@@ -2560,6 +2536,7 @@ function TabMissions({ clientId }: { clientId: string }) {
 
                     <button
                       disabled={busy === item.id}
+                      hidden={!can.gererMissions}
                       onClick={() => remove(item.id)}
                       className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"
                     >
@@ -2576,158 +2553,18 @@ function TabMissions({ clientId }: { clientId: string }) {
                     />
                   )}
 
-                  {item.lettresMission &&
-                    item.lettresMission.length > 0 &&
-                    (() => {
-                      const lettre = item.lettresMission![0];
-                      return (
-                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Lettre de mission
-                          </span>
-                          <button
-                            disabled={previewLoading === lettre.id}
-                            onClick={() => handlePreviewLettre(lettre.id)}
-                            className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                          >
-                            <IconEye className="size-4" />
-                            {previewLoading === lettre.id
-                              ? "Chargement…"
-                              : "Aperçu"}
-                          </button>
-                          {/* Réservé à l'expert-comptable, une fois le
-                              client signataire (DocuSign) — l'aperçu
-                              ci-dessus reste ouvert à tous. */}
-                          {(role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
-                            lettre.docusignStatut === "SIGNE" && (
-                              <button
-                                onClick={() => handleDownloadLettre(lettre.id)}
-                                className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
-                              >
-                                Télécharger le PDF
-                              </button>
-                            )}
-                          {lettre.signeeParExpert ? (
-                            <span className="text-xs text-emerald-600">
-                              Signée le{" "}
-                              {lettre.signeeAt
-                                ? new Date(lettre.signeeAt).toLocaleDateString(
-                                    "fr-FR",
-                                  )
-                                : ""}
-                              {lettre.signataire
-                                ? ` par ${lettre.signataire.prenom} ${lettre.signataire.nom}`
-                                : ""}
-                            </span>
-                          ) : lettre.valideeParResponsable ? (
-                            can.signerLettre ? (
-                              <button
-                                disabled={busy === lettre.id}
-                                onClick={() => handleSignerLettre(lettre.id)}
-                                className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
-                              >
-                                Signer
-                              </button>
-                            ) : (
-                              <span className="text-xs text-blue-600">
-                                Validée — en attente de signature
-                              </span>
-                            )
-                          ) : can.validerLettreMission ? (
-                            <button
-                              disabled={busy === lettre.id}
-                              onClick={() => handleValiderLettre(lettre.id)}
-                              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50"
-                            >
-                              Valider (responsable)
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400">
-                              Non validée
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                  {item.lettresMission &&
-                    item.lettresMission.length > 0 &&
-                    item.lettresMission[0].signeeParExpert &&
-                    (() => {
-                      const lettre = item.lettresMission![0];
-                      const statut = lettre.docusignStatut;
-                      return (
-                        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Signature client (DocuSign)
-                          </span>
-
-                          {(!statut ||
-                            statut === "REFUSE" ||
-                            statut === "ANNULE") &&
-                            can.signerLettre && (
-                              <>
-                                {statut === "REFUSE" && (
-                                  <span className="text-xs text-red-600">
-                                    Refusée par le client —
-                                  </span>
-                                )}
-                                {statut === "ANNULE" && (
-                                  <span className="text-xs text-slate-400">
-                                    Annulée —
-                                  </span>
-                                )}
-                                <button
-                                  disabled={docusignBusy === lettre.id}
-                                  onClick={() => {
-                                    setDocusignModalLettre(lettre.id);
-                                    setDocusignEmail("");
-                                    setDocusignNom("");
-                                  }}
-                                  className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 disabled:opacity-50"
-                                >
-                                  Envoyer au client (DocuSign)
-                                </button>
-                              </>
-                            )}
-
-                          {(statut === "ENVOYE" || statut === "LIVRE") && (
-                            <>
-                              <span className="text-xs text-amber-600">
-                                {statut === "ENVOYE"
-                                  ? "Envoyée"
-                                  : "Reçue par le client"}
-                                {lettre.docusignDestinataireEmail
-                                  ? ` à ${lettre.docusignDestinataireEmail}`
-                                  : ""}
-                              </span>
-                              <button
-                                disabled={docusignBusy === lettre.id}
-                                onClick={() =>
-                                  handleRafraichirStatutDocusign(lettre.id)
-                                }
-                                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                              >
-                                {docusignBusy === lettre.id
-                                  ? "Vérification…"
-                                  : "Vérifier le statut"}
-                              </button>
-                            </>
-                          )}
-
-                          {statut === "SIGNE" && (
-                            <span className="text-xs text-emerald-600">
-                              Signée par le client
-                              {lettre.signeeParClientAt
-                                ? ` le ${new Date(
-                                    lettre.signeeParClientAt,
-                                  ).toLocaleDateString("fr-FR")}`
-                                : ""}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                  {(item.lettresMission?.length ?? 0) > 0 && (
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Lettre de mission
+                      </p>
+                      <LettreMissionActions
+                        lettres={item.lettresMission ?? []}
+                        onChange={load}
+                        onPreview={handlePreviewLettre}
+                      />
+                    </div>
+                  )}
                 </article>
               );
             })}
@@ -2837,80 +2674,11 @@ function TabMissions({ clientId }: { clientId: string }) {
               </div>
 
               {catalogue.length > 0 && (
-                <Field>
-                  <FieldLabel>Répartition des travaux</FieldLabel>
-                  <div className="space-y-4">
-                    {catalogue.map((cat) => (
-                      <div key={cat.titre}>
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          {cat.titre}
-                        </p>
-                        <div className="overflow-x-auto rounded-xl border border-slate-200">
-                          <table className="w-full min-w-[420px] text-xs">
-                            <thead className="bg-slate-50 text-slate-500">
-                              <tr>
-                                <th className="px-3 py-2 text-left font-semibold">
-                                  Tâche
-                                </th>
-                                <th className="px-2 py-2 text-center font-semibold">
-                                  Cabinet
-                                </th>
-                                <th className="px-2 py-2 text-center font-semibold">
-                                  Client
-                                </th>
-                                <th className="px-2 py-2 text-center font-semibold">
-                                  N.A.
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {cat.lignes.map((ligne) => {
-                                const value =
-                                  repartition[ligne.id] ??
-                                  editing?.repartitionTravaux?.find(
-                                    (a) => a.id === ligne.id,
-                                  )?.assignation ??
-                                  ligne.defaut;
-
-                                return (
-                                  <tr key={ligne.id}>
-                                    <td className="px-3 py-2 text-slate-700">
-                                      {ligne.tache}
-                                    </td>
-                                    {(
-                                      [
-                                        "CABINET",
-                                        "CLIENT",
-                                        "NA",
-                                      ] as AssignationTache[]
-                                    ).map((option) => (
-                                      <td key={option} className="px-2 py-2">
-                                        <div className="flex items-center justify-center">
-                                          <input
-                                            type="checkbox"
-                                            name={`repartition-${ligne.id}`}
-                                            checked={value === option}
-                                            onChange={() =>
-                                              setRepartition((prev) => ({
-                                                ...prev,
-                                                [ligne.id]: option,
-                                              }))
-                                            }
-                                            className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
-                                          />
-                                        </div>
-                                      </td>
-                                    ))}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Field>
+                <RepartitionEditor
+                  catalogue={catalogue}
+                  value={repartition}
+                  onChange={setRepartition}
+                />
               )}
             </FieldGroup>
 
@@ -2932,8 +2700,7 @@ function TabMissions({ clientId }: { clientId: string }) {
             .flatMap((m) => m.lettresMission ?? [])
             .find((l) => l.id === previewLettre.id);
           const peutTelechargerPreview =
-            (role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
-            previewLettreObj?.docusignStatut === "SIGNE";
+            previewLettreObj?.signeeParExpert === true;
 
           return (
             <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">
@@ -2979,102 +2746,6 @@ function TabMissions({ clientId }: { clientId: string }) {
             </div>
           );
         })()}
-
-      {docusignModalLettre && (
-        <Modal
-          title="Envoyer la lettre au client pour signature"
-          description="Le client recevra un email DocuSign pour signer électroniquement la lettre de mission."
-          onClose={() => setDocusignModalLettre(null)}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!docusignEmail.trim() || !docusignNom.trim()) return;
-              handleEnvoyerDocusign(
-                docusignModalLettre,
-                docusignEmail.trim(),
-                docusignNom.trim(),
-              );
-            }}
-          >
-            {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <FieldGroup>
-              {contacts.some((c) => c.email) && (
-                <Field>
-                  <FieldLabel htmlFor="docusign-contact">
-                    Contact du client
-                  </FieldLabel>
-                  <select
-                    id="docusign-contact"
-                    defaultValue=""
-                    onChange={(e) => {
-                      const contact = contacts.find(
-                        (c) => c.id === e.target.value,
-                      );
-                      if (!contact) return;
-                      setDocusignEmail(contact.email ?? "");
-                      setDocusignNom(
-                        `${contact.prenom ?? ""} ${contact.nom}`.trim(),
-                      );
-                    }}
-                    className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">— Sélectionner un contact —</option>
-                    {[...contacts]
-                      .filter((c) => c.email)
-                      .sort((a) => (a.type === "INTERVENANT" ? -1 : 0))
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.prenom ? `${c.prenom} ` : ""}
-                          {c.nom} ({c.email})
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-              )}
-
-              <Field>
-                <FieldLabel htmlFor="docusign-email">
-                  Email du signataire *
-                </FieldLabel>
-                <Input
-                  id="docusign-email"
-                  type="email"
-                  required
-                  value={docusignEmail}
-                  onChange={(e) => setDocusignEmail(e.target.value)}
-                  className="h-11 rounded-xl"
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="docusign-nom">
-                  Nom du signataire *
-                </FieldLabel>
-                <Input
-                  id="docusign-nom"
-                  type="text"
-                  required
-                  value={docusignNom}
-                  onChange={(e) => setDocusignNom(e.target.value)}
-                  className="h-11 rounded-xl"
-                />
-              </Field>
-            </FieldGroup>
-
-            <FormActions
-              saving={docusignBusy === docusignModalLettre}
-              submitLabel="Envoyer"
-              onCancel={() => setDocusignModalLettre(null)}
-            />
-          </form>
-        </Modal>
-      )}
     </>
   );
 }
@@ -3686,7 +3357,6 @@ function TabOperations({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
@@ -3738,58 +3408,6 @@ function TabOperations({ clientId }: { clientId: string }) {
       );
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function classer(id: string) {
-    if (!window.confirm("Classer cette opération sensible ?")) return;
-
-    setBusy(id);
-    setError(null);
-
-    try {
-      await apiFetch(`/operations-sensibles/${id}/classer`, {
-        method: "PATCH",
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de classer l’opération.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function declarerTracfin(id: string) {
-    const date = window.prompt(
-      "Date de déclaration TRACFIN (AAAA-MM-JJ)",
-      new Date().toISOString().slice(0, 10),
-    );
-
-    if (!date) return;
-
-    setBusy(id);
-    setError(null);
-
-    try {
-      await apiFetch(`/operations-sensibles/${id}/tracfin`, {
-        method: "PATCH",
-        body: JSON.stringify({ date }),
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de déclarer l’opération à TRACFIN.",
-      );
-    } finally {
-      setBusy(null);
     }
   }
 
@@ -3878,23 +3496,7 @@ function TabOperations({ clientId }: { clientId: string }) {
 
                   <div className="mt-4 flex flex-col gap-2 border-t border-red-100 pt-4 sm:flex-row">
                     {!closed && (
-                      <>
-                        <button
-                          disabled={busy === item.id}
-                          onClick={() => classer(item.id)}
-                          className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
-                        >
-                          Classer
-                        </button>
-
-                        <button
-                          disabled={busy === item.id}
-                          onClick={() => declarerTracfin(item.id)}
-                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
-                        >
-                          Déclarer TRACFIN
-                        </button>
-                      </>
+                      <OperationActions operation={item} onDone={load} />
                     )}
 
                     <button
@@ -4034,6 +3636,28 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const activeTab = searchParams.get("tab") ?? "infos";
+  const { can } = useRole();
+
+  async function changerStatut(statut: StatutClient) {
+    if (!client || statut === client.statut) return;
+    if (
+      statut === "RESILIE" &&
+      !window.confirm(
+        "Résilier la relation avec ce client ? Le dossier passera en lecture seule et sera conservé 5 ans (obligation LCB-FT). Cette action est définitive.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await apiFetch(`/clients/${client.id}/statut`, {
+        method: "PATCH",
+        body: JSON.stringify({ statut }),
+      });
+      load();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   const load = useCallback(() => {
     apiFetch<Client>(`/clients/${id}`)
@@ -4093,6 +3717,21 @@ export default function ClientDetailPage() {
   return (
     <div className="min-h-full bg-slate-50 pb-24 md:pb-8">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 md:px-8 md:py-6">
+        {client.statut === "RESILIE" && (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p className="font-semibold">
+              Client résilié — dossier en lecture seule
+            </p>
+            <p className="mt-1">
+              Relation terminée
+              {client.dateFinRelation
+                ? ` le ${new Date(client.dateFinRelation).toLocaleDateString("fr-FR")}`
+                : ""}
+              . Conservation obligatoire 5 ans (LCB-FT).
+            </p>
+          </div>
+        )}
+
         {/* En-tête du dossier */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-800 to-violet-700 p-5 text-white shadow-xl sm:p-7">
           <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-cyan-300/20 blur-3xl" />
@@ -4135,9 +3774,30 @@ export default function ClientDetailPage() {
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1.5 text-xs font-semibold text-emerald-100">
-                    ● {client.statut}
-                  </span>
+                  {can.validerQuestionnaire && client.statut !== "RESILIE" ? (
+                    <select
+                      value={client.statut}
+                      onChange={(e) =>
+                        changerStatut(e.target.value as StatutClient)
+                      }
+                      aria-label="Statut du client"
+                      className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1.5 text-xs font-semibold text-emerald-50"
+                    >
+                      <option value="ACTIF" className="text-slate-800">
+                        ACTIF
+                      </option>
+                      <option value="INACTIF" className="text-slate-800">
+                        INACTIF
+                      </option>
+                      <option value="RESILIE" className="text-slate-800">
+                        RÉSILIÉ
+                      </option>
+                    </select>
+                  ) : (
+                    <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                      ● {client.statut}
+                    </span>
+                  )}
 
                   <span className="rounded-full border border-blue-300/30 bg-blue-400/15 px-3 py-1.5 text-xs font-semibold text-blue-100">
                     ● KYC {client.kycStatut}

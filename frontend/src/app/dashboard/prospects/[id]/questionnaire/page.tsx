@@ -768,7 +768,7 @@ function ModulePanel({
                 type="button"
                 onClick={() => onBulkAction(module, "non")}
                 className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                title="Répond « Non » aux questions de ce module pas encore renseignées"
+                title="Répond « Non » à toutes les questions de ce module"
               >
                 Tout cocher (Non)
               </button>
@@ -776,7 +776,7 @@ function ModulePanel({
                 type="button"
                 onClick={() => onBulkAction(module, "oui")}
                 className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                title="Répond « Oui » (risque élevé) aux questions de ce module pas encore renseignées"
+                title="Répond « Oui » (risque élevé) à toutes les questions de ce module"
               >
                 Tout cocher (Oui)
               </button>
@@ -892,8 +892,10 @@ export default function QuestionnairePage() {
     setReponses((prev) => ({ ...prev, [qid]: val }));
   }
 
-  // Actions groupées à l'échelle d'un module (onglet) : remplit rapidement les
-  // questions pas encore renseignées de ce module, ou les remet à zéro.
+  // Actions groupées à l'échelle d'un module (onglet) : répond « Oui » ou
+  // « Non » à TOUTES les questions du module (réponses déjà saisies
+  // comprises, pour pouvoir basculer directement de tout-Oui à tout-Non), ou
+  // les remet à zéro.
   function handleModuleAction(module: QModule, mode: "oui" | "non" | "clear") {
     const moduleQuestions = module.groups.flatMap((g) => g.questions);
     if (
@@ -909,7 +911,6 @@ export default function QuestionnairePage() {
           delete next[q.id];
           continue;
         }
-        if (next[q.id]) continue;
         if (mode === "non") {
           next[q.id] = q.kind === "pct" ? "0" : "non";
         } else {

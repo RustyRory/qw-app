@@ -39,6 +39,8 @@ import { ObligationsModule } from './obligations/obligations.module';
 import { OperationsModule } from './operations-sensibles/operations.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ParametresCabinet } from './cabinet/cabinet.entity';
+import { CabinetModule } from './cabinet/cabinet.module';
 
 const ALL_ENTITIES = [
   User,
@@ -56,6 +58,7 @@ const ALL_ENTITIES = [
   OperationSensible,
   AuditLog,
   Notification,
+  ParametresCabinet,
 ];
 
 @Module({
@@ -86,6 +89,7 @@ const ALL_ENTITIES = [
     OperationsModule,
     AuditModule,
     NotificationsModule,
+    CabinetModule,
   ],
   controllers: [AppController],
   providers: [AppService],

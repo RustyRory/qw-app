@@ -139,8 +139,8 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
-// "CONVERTI" est un statut kanban comme les autres, librement sélectionnable
-// — il ne déclenche pas la vraie conversion (voir prospects/[id]/page.tsx).
+// « Converti » n'est pas proposé : seul le bouton « Convertir en client »
+// de la fiche le pose. Choisir « Refusé » demande un motif.
 const STATUT_OPTIONS = COLUMNS;
 
 function ProspectsTable({
@@ -463,21 +463,38 @@ export default function ProspectsPage() {
     const prospect = prospects.find((p) => p.id === prospectId);
     if (!prospect || prospect.statutKanban === targetCol) return;
     const prevStatut = prospect.statutKanban;
+
+    // Refus : décision motivée (motif obligatoire, conservé LCB-FT).
+    let motif: string | null = null;
+    if (targetCol === "REFUSE") {
+      motif = window.prompt(`Motif du refus de « ${prospect.nom} » :`);
+      if (!motif?.trim()) return;
+    }
     setProspects((prev) =>
       prev.map((p) =>
         p.id === prospectId ? { ...p, statutKanban: targetCol } : p,
       ),
     );
     try {
-      await apiFetch(`/prospects/${prospectId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ statutKanban: targetCol }),
-      });
-    } catch {
+      if (motif) {
+        await apiFetch(`/prospects/${prospectId}/refuser`, {
+          method: "PATCH",
+          body: JSON.stringify({ motif: motif.trim() }),
+        });
+      } else {
+        await apiFetch(`/prospects/${prospectId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ statutKanban: targetCol }),
+        });
+      }
+    } catch (err) {
       setProspects((prev) =>
         prev.map((p) =>
           p.id === prospectId ? { ...p, statutKanban: prevStatut } : p,
         ),
+      );
+      window.alert(
+        err instanceof Error ? err.message : "Changement de statut impossible.",
       );
     }
   }
@@ -518,15 +535,24 @@ export default function ProspectsPage() {
                 : `${activeProspects.length} prospect${activeProspects.length !== 1 ? "s" : ""} actif${activeProspects.length !== 1 ? "s" : ""}`}
             </p>
           </div>
-          <Button
-            onClick={() => router.push("/dashboard/prospects/new")}
-            className="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold shadow-sm border-0 rounded-xl"
-            size="sm"
-          >
-            <IconPlus className="size-4" />
-            <span className="hidden sm:inline">Nouveau prospect</span>
-            <span className="sm:hidden">Nouveau</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => router.push("/dashboard/prospects/archives")}
+              className="bg-white/15 text-white hover:bg-white/25 font-semibold border-0 rounded-xl"
+              size="sm"
+            >
+              Archivés
+            </Button>
+            <Button
+              onClick={() => router.push("/dashboard/prospects/new")}
+              className="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold shadow-sm border-0 rounded-xl"
+              size="sm"
+            >
+              <IconPlus className="size-4" />
+              <span className="hidden sm:inline">Nouveau prospect</span>
+              <span className="sm:hidden">Nouveau</span>
+            </Button>
+          </div>
         </div>
       </div>
 

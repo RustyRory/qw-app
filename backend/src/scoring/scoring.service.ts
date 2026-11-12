@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ScoreRisque } from './entities/score-risque.entity';
@@ -12,6 +16,28 @@ import {
   flagsFromQuestionnaire,
   computeAutoScore,
 } from './auto-score.util';
+import { NiveauRisque } from '../common/enums';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
+
+type AjustementSource = {
+  niveauRisqueManuel: NiveauRisque | null;
+  justificationNiveauManuel: string | null;
+  niveauManuelAt: Date | null;
+  niveauManuelPar: User | null;
+};
+
+function ajustementDe(e: AjustementSource) {
+  if (!e.niveauRisqueManuel) return null;
+  return {
+    niveau: e.niveauRisqueManuel,
+    justification: e.justificationNiveauManuel ?? '',
+    par: e.niveauManuelPar
+      ? `${e.niveauManuelPar.prenom} ${e.niveauManuelPar.nom}`
+      : null,
+    le: e.niveauManuelAt ? e.niveauManuelAt.toISOString() : null,
+  };
+}
 
 @Injectable()
 export class ScoringService {
@@ -26,6 +52,7 @@ export class ScoringService {
     private readonly beneficiaireRepo: Repository<BeneficiaireEffectif>,
     @InjectRepository(QuestionnaireAcceptation)
     private readonly questionnaireRepo: Repository<QuestionnaireAcceptation>,
+    private readonly auditService: AuditService,
   ) {}
 
   // Calcul automatique du score d'un prospect à partir des réponses déjà
@@ -34,8 +61,14 @@ export class ScoringService {
     prospectId: string,
     userId: string,
   ): Promise<ScoreRisque | null> {
-    const prospect = await this.prospectRepo.findOneBy({ id: prospectId });
+    const prospect = await this.prospectRepo.findOne({
+      where: { id: prospectId },
+      relations: ['niveauManuelPar'],
+    });
     if (!prospect) return null;
+    const uboPpe = await this.beneficiaireRepo.exists({
+      where: { prospect: { id: prospectId }, ppe: true },
+    });
 
     const questionnaire = await this.questionnaireRepo.findOne({
       where: { prospect: { id: prospectId } },
@@ -44,11 +77,12 @@ export class ScoringService {
     const flags = flagsFromQuestionnaire(
       (questionnaire?.reponses as Record<string, unknown>) ?? {},
       prospect.typeEntite,
+      uboPpe,
     );
-    const { score, niveau, reponses } = computeAutoScore({
-      flags,
-      chiffreAffaires: prospect.chiffreAffaires,
-    });
+    const { score, niveau, reponses } = computeAutoScore(
+      { flags, chiffreAffaires: prospect.chiffreAffaires },
+      ajustementDe(prospect),
+    );
 
     return this.repo.save(
       this.repo.create({
@@ -70,7 +104,7 @@ export class ScoringService {
   ): Promise<ScoreRisque | null> {
     const client = await this.clientRepo.findOne({
       where: { id: clientId },
-      relations: ['prospect'],
+      relations: ['prospect', 'niveauManuelPar'],
     });
     if (!client) return null;
 
@@ -94,10 +128,10 @@ export class ScoringService {
       beneficiaires,
       questionnaireReponses,
     });
-    const { score, niveau, reponses } = computeAutoScore({
-      flags,
-      chiffreAffaires: client.chiffreAffaires,
-    });
+    const { score, niveau, reponses } = computeAutoScore(
+      { flags, chiffreAffaires: client.chiffreAffaires },
+      ajustementDe(client),
+    );
 
     return this.repo.save(
       this.repo.create({
@@ -136,5 +170,43 @@ export class ScoringService {
       where: { prospect: { id: prospectId } },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // Ajustement manuel (EC / admin) : justification obligatoire, tracé dans
+  // l'audit ; null retire l'ajustement. Le niveau ne descend jamais sous un
+  // « ÉLEVÉ d'office » (appliqué au calcul).
+  async ajuster(
+    cible: 'prospect' | 'client',
+    id: string,
+    niveau: NiveauRisque | null,
+    justification: string | undefined,
+    userId: string,
+  ): Promise<ScoreRisque | null> {
+    if (niveau && !justification?.trim()) {
+      throw new BadRequestException('Une justification est obligatoire');
+    }
+    const repo = cible === 'prospect' ? this.prospectRepo : this.clientRepo;
+    const existe = await repo.exists({ where: { id } });
+    if (!existe) throw new NotFoundException('Dossier introuvable');
+    await repo.update(id, {
+      niveauRisqueManuel: niveau,
+      justificationNiveauManuel: niveau ? justification!.trim() : null,
+      niveauManuelAt: niveau ? new Date() : null,
+      niveauManuelPar: niveau ? { id: userId } : null,
+    });
+    await this.auditService.log(
+      userId,
+      AuditAction.UPDATE,
+      cible === 'prospect' ? 'Prospect' : 'Client',
+      id,
+      {
+        event: 'AJUSTEMENT_NIVEAU_RISQUE',
+        niveau,
+        justification: justification ?? null,
+      },
+    );
+    return cible === 'prospect'
+      ? this.recalculateForProspect(id, userId)
+      : this.recalculateForClient(id, userId);
   }
 }

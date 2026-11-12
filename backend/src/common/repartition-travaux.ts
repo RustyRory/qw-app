@@ -11,9 +11,28 @@ export interface RepartitionTravauxCategorie {
   lignes: RepartitionTravauxLigneCatalogue[];
 }
 
+// Une tâche peut être cochée côté cabinet, côté client, les deux (tâche
+// partagée) ou aucun (non applicable).
 export interface RepartitionTravauxAssignation {
   id: string;
-  assignation: AssignationTache;
+  cabinet: boolean;
+  client: boolean;
+}
+
+// Ancien format (choix unique), encore présent dans les lettres de mission
+// déjà générées : converti à la lecture.
+interface AssignationLegacy {
+  id: string;
+  assignation?: AssignationTache;
+  cabinet?: boolean;
+  client?: boolean;
+}
+
+function depuisChoixUnique(a: AssignationTache): {
+  cabinet: boolean;
+  client: boolean;
+} {
+  return { cabinet: a === 'CABINET', client: a === 'CLIENT' };
 }
 
 export const REPARTITION_TRAVAUX_CATALOGUE: RepartitionTravauxCategorie[] = [
@@ -124,15 +143,20 @@ export function repartitionTravauxParDefaut(): RepartitionTravauxAssignation[] {
   return REPARTITION_TRAVAUX_CATALOGUE.flatMap((categorie) =>
     categorie.lignes.map((ligne) => ({
       id: ligne.id,
-      assignation: ligne.defaut,
+      ...depuisChoixUnique(ligne.defaut),
     })),
   );
 }
 
 export function resoudreAssignation(
   ligneId: string,
-  assignations: RepartitionTravauxAssignation[] | null | undefined,
+  assignations: AssignationLegacy[] | null | undefined,
   defaut: AssignationTache,
-): AssignationTache {
-  return assignations?.find((a) => a.id === ligneId)?.assignation ?? defaut;
+): { cabinet: boolean; client: boolean } {
+  const a = assignations?.find((x) => x.id === ligneId);
+  if (!a) return depuisChoixUnique(defaut);
+  if (a.cabinet !== undefined || a.client !== undefined) {
+    return { cabinet: !!a.cabinet, client: !!a.client };
+  }
+  return depuisChoixUnique(a.assignation ?? defaut);
 }

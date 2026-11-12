@@ -1,6 +1,8 @@
 export interface JwtPayload {
   sub: string;
   role: string;
+  // Mot de passe provisoire à changer (« must change password »).
+  mcp?: boolean;
   iat: number;
   exp: number;
 }
@@ -20,6 +22,6 @@ export function decodeToken(token: string): JwtPayload | null {
 }
 
 export function getDashboardPath(role: string): string {
-  if (role === "MODERATEUR") return "/dashboard/admin/users";
+  void role;
   return "/dashboard";
 }

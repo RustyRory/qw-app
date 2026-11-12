@@ -9,6 +9,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      UPLOADS_ROOT: /app/uploads
+    # Documents et PDF de lettres de mission : sans volume, ils seraient
+    # perdus à chaque reconstruction du conteneur.
+    volumes:
+      - qw_uploads:/app/uploads
     ports:
       - "127.0.0.1:3008:3001"
     depends_on:
@@ -47,3 +52,4 @@ services:
     restart: unless-stopped
 volumes:
   qw_postgres_data:
+  qw_uploads:

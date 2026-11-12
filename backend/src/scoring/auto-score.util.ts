@@ -9,6 +9,17 @@ export interface AutoScoreCritere {
 
 export interface AutoScoreReponses {
   criteres: AutoScoreCritere[];
+  // Niveau issu du seul score, avant critères « ÉLEVÉ d'office » et
+  // ajustement manuel.
+  niveauCalcule?: NiveauRisque;
+  // Critères imposant le niveau ÉLEVÉ quel que soit le score.
+  eleveDOffice?: string[];
+  ajustementManuel?: {
+    niveau: NiveauRisque;
+    justification: string;
+    par?: string | null;
+    le?: string | null;
+  } | null;
 }
 
 // Les 8 critères binaires de la grille officielle (le 9e, le chiffre d'affaires,
@@ -33,14 +44,34 @@ export interface AutoScoreInput {
   chiffreAffaires: number | null;
 }
 
-// Seuils volontairement resserrés par rapport à un découpage linéaire en
-// tiers (0-33/34-66/67-100) : on bascule plus tôt en MOYEN (30) et en ÉLEVÉ
-// (60), pour qu'un dossier avec plusieurs critères déclenchés n'ait pas à
-// en cumuler la quasi-totalité pour être signalé à risque élevé.
+// Découpage en tiers : 0-33 FAIBLE, 34-66 MOYEN, 67-100 ÉLEVÉ.
 export function computeNiveauAuto(score: number): NiveauRisque {
-  if (score < 30) return NiveauRisque.FAIBLE;
-  if (score < 60) return NiveauRisque.MOYEN;
+  if (score < 34) return NiveauRisque.FAIBLE;
+  if (score < 67) return NiveauRisque.MOYEN;
   return NiveauRisque.ELEVE;
+}
+
+const RANG: Record<NiveauRisque, number> = {
+  [NiveauRisque.FAIBLE]: 0,
+  [NiveauRisque.MOYEN]: 1,
+  [NiveauRisque.ELEVE]: 2,
+};
+
+export function niveauMax(a: NiveauRisque, b: NiveauRisque): NiveauRisque {
+  return RANG[a] >= RANG[b] ? a : b;
+}
+
+// Critères qui imposent la vigilance renforcée (niveau ÉLEVÉ) à eux seuls.
+export function criteresEleveDOffice(flags: RiskFlags): string[] {
+  const motifs: string[] = [];
+  if (flags.ppe) motifs.push('Personne politiquement exposée (PPE)');
+  if (flags.paysRisqueGafi) {
+    motifs.push('Pays à risque (liste GAFI / UE à haut risque)');
+  }
+  if (flags.alertesNationales) {
+    motifs.push('Alerte listes de sanctions / gel des avoirs (LIMPI)');
+  }
+  return motifs;
 }
 
 const estOui = (v: unknown) => v === 'oui';
@@ -68,9 +99,11 @@ function estFrancais(nationalite: string | null | undefined): boolean {
 export function flagsFromQuestionnaire(
   reponses: Record<string, unknown>,
   typeEntite: TypeEntite,
+  uboPpe = false,
 ): RiskFlags {
   return {
-    ppe: estOui(reponses['D1_11']),
+    // PPE : déclarée au questionnaire ou portée par un bénéficiaire effectif.
+    ppe: estOui(reponses['D1_11']) || uboPpe,
     paysRisqueGafi: uneDe(reponses, ['D3_1_1', 'D3_1_2', 'D3_1_3']),
     // Crypto (D2_13/26/27 + D5_5/6/7, opérations sur cryptoactifs), jeux
     // (D2_5 en risque élevé), immobilier (D2_2/D2_3 en risque élevé) et
@@ -132,7 +165,7 @@ export interface ClientFlagsInput {
   ppe: boolean;
   typeEntite: TypeEntite;
   screeningStatut: ScreeningStatut;
-  beneficiaires: Array<{ nationalite: string | null }>;
+  beneficiaires: Array<{ nationalite: string | null; ppe?: boolean }>;
   // Réponses du questionnaire d'acceptation du prospect d'origine, si connu :
   // comble les critères sans équivalent direct dans les données client
   // (pays à risque, secteur sensible, espèces, structure complexe, pays tiers).
@@ -145,7 +178,8 @@ export function flagsFromClient(input: ClientFlagsInput): RiskFlags {
     : null;
 
   return {
-    ppe: input.ppe,
+    // Un bénéficiaire effectif PPE rend le dossier PPE.
+    ppe: input.ppe || input.beneficiaires.some((b) => b.ppe),
     paysRisqueGafi: origine?.paysRisqueGafi ?? false,
     secteurSensible: origine?.secteurSensible ?? false,
     especes: origine?.especes ?? false,
@@ -162,7 +196,15 @@ export function flagsFromClient(input: ClientFlagsInput): RiskFlags {
 // (docs/mvp/cahier-des-charges.md : 9 critères, 100 points). Les 9 poids
 // totalisent en réalité 155 pts, pas 100 — incohérence de la grille source
 // elle-même — le score est donc normalisé en pourcentage du total.
-export function computeAutoScore(input: AutoScoreInput): {
+export function computeAutoScore(
+  input: AutoScoreInput,
+  ajustement?: {
+    niveau: NiveauRisque;
+    justification: string;
+    par?: string | null;
+    le?: string | null;
+  } | null,
+): {
   score: number;
   niveau: NiveauRisque;
   reponses: AutoScoreReponses;
@@ -233,6 +275,25 @@ export function computeAutoScore(input: AutoScoreInput): {
     0,
   );
   const score = Math.round((brut / poidsTotal) * 100);
+  const niveauCalcule = computeNiveauAuto(score);
+  const eleveDOffice = criteresEleveDOffice(flags);
+  const plancher =
+    eleveDOffice.length > 0 ? NiveauRisque.ELEVE : NiveauRisque.FAIBLE;
+  // L'ajustement manuel remplace le niveau calculé, sans jamais descendre
+  // sous un « ÉLEVÉ d'office ».
+  const niveau = niveauMax(
+    ajustement ? ajustement.niveau : niveauMax(niveauCalcule, plancher),
+    plancher,
+  );
 
-  return { score, niveau: computeNiveauAuto(score), reponses: { criteres } };
+  return {
+    score,
+    niveau,
+    reponses: {
+      criteres,
+      niveauCalcule,
+      eleveDOffice,
+      ajustementManuel: ajustement ?? null,
+    },
+  };
 }

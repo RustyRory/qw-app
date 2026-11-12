@@ -5,6 +5,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { MotDePasseRobuste } from '../../common/validators/mot-de-passe';
 import { Role } from '../../common/enums';
 
 export class CreateUserDto {
@@ -22,8 +23,9 @@ export class CreateUserDto {
   @MaxLength(255)
   email: string;
 
-  @IsString()
-  @MinLength(6)
+  // Mot de passe provisoire : l'utilisateur devra le changer à sa première
+  // connexion.
+  @MotDePasseRobuste()
   password: string;
 
   @IsEnum(Role)

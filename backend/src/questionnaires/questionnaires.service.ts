@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,7 +18,12 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { PlanningService } from '../planning/planning.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Role, StatutKanban, TypeObligation } from '../common/enums';
+import {
+  NiveauRisque,
+  Role,
+  StatutKanban,
+  TypeObligation,
+} from '../common/enums';
 import {
   avancerStatutKanban,
   refuserProspectAuto,
@@ -122,7 +128,7 @@ export class QuestionnairesService {
   ): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
@@ -145,7 +151,7 @@ export class QuestionnairesService {
   async marquerComplete(id: string): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
@@ -173,15 +179,29 @@ export class QuestionnairesService {
     return q;
   }
 
+  // Risque ÉLEVÉ : seul l'expert-comptable (ou un admin) peut décider de
+  // l'acceptation ou du refus de la relation.
+  private async assertPeutDecider(prospectId: string, role: Role) {
+    if (role === Role.EXPERT_COMPTABLE || role === Role.ADMIN) return;
+    const score = await this.scoringService.findCurrentByProspect(prospectId);
+    if (score?.niveau === NiveauRisque.ELEVE) {
+      throw new ForbiddenException(
+        'Risque ÉLEVÉ : la décision revient à l’expert-comptable',
+      );
+    }
+  }
+
   async validate(
     id: string,
     userId: string,
+    role: Role = Role.ADMIN,
   ): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
+    await this.assertPeutDecider(q.prospect.id, role);
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
       throw new BadRequestException(
         'Seul un questionnaire en cours peut être validé',
@@ -216,6 +236,10 @@ export class QuestionnairesService {
       `/dashboard/prospects/${q.prospect.id}`,
     );
 
+    // Revue annuelle d'un client : obligation « évaluation du risque ».
+    if (q.client) {
+      await this.obligationsService.synchroniserPourClient(q.client.id);
+    }
     return saved;
   }
 
@@ -223,15 +247,17 @@ export class QuestionnairesService {
     id: string,
     motif: string,
     userId: string,
+    role: Role = Role.ADMIN,
   ): Promise<QuestionnaireAcceptation> {
     if (!motif?.trim()) {
       throw new BadRequestException('Le motif de refus est obligatoire');
     }
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
+    await this.assertPeutDecider(q.prospect.id, role);
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
       throw new BadRequestException(
         'Seul un questionnaire en cours peut être refusé',
@@ -246,6 +272,8 @@ export class QuestionnairesService {
     // Automatisation : un LAB refusé bascule le prospect en REFUSE dans le
     // kanban, plus besoin d'une action séparée pour que ça se voie.
     if (refuserProspectAuto(q.prospect)) {
+      // Le motif du refus LAB devient le motif de refus du prospect.
+      q.prospect.motifRefus = q.motifRefus;
       await this.prospectRepo.save(q.prospect);
     }
 
@@ -258,6 +286,10 @@ export class QuestionnairesService {
       TypeObligation.VALIDATION_RELATION,
     );
 
+    // Revue annuelle d'un client : obligation « évaluation du risque ».
+    if (q.client) {
+      await this.obligationsService.synchroniserPourClient(q.client.id);
+    }
     return saved;
   }
 
@@ -267,7 +299,7 @@ export class QuestionnairesService {
   async reopen(id: string, userId: string): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect', 'validatedBy'],
+      relations: ['prospect', 'client', 'validatedBy'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut === StatutQuestionnaire.EN_COURS) {
@@ -307,6 +339,10 @@ export class QuestionnairesService {
       TypeObligation.VALIDATION_RELATION,
     );
 
+    // Revue annuelle d'un client : obligation « évaluation du risque ».
+    if (q.client) {
+      await this.obligationsService.synchroniserPourClient(q.client.id);
+    }
     return saved;
   }
 }

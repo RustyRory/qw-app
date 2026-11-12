@@ -19,14 +19,17 @@ export function useRole() {
       validerQuestionnaire: (
         ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
       ).includes(role!),
-      convertirProspect: (["EXPERT_COMPTABLE", "ADMIN"] as Role[]).includes(
-        role!,
-      ),
-      validerLettreMission: (["RESPONSABLE", "ADMIN"] as Role[]).includes(
-        role!,
-      ),
+      convertirProspect: (
+        ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
+      ).includes(role!),
+      validerLettreMission: (
+        ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
+      ).includes(role!),
+      gererMissions: (
+        ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
+      ).includes(role!),
       signerLettre: (["EXPERT_COMPTABLE", "ADMIN"] as Role[]).includes(role!),
-      gererUtilisateurs: role === "ADMIN" || role === "MODERATEUR",
+      gererUtilisateurs: role === "ADMIN",
       supprimerDossier: role === "ADMIN",
       voirCartographie: (
         ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]

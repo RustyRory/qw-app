@@ -4,8 +4,7 @@ export type Role =
   | "COLLABORATEUR"
   | "RESPONSABLE"
   | "EXPERT_COMPTABLE"
-  | "ADMIN"
-  | "MODERATEUR";
+  | "ADMIN";
 export type TypeEntite = "PERSONNE_PHYSIQUE" | "PERSONNE_MORALE";
 export type StatutKanban =
   | "PRISE_CONTACT"
@@ -21,6 +20,8 @@ export type ScreeningStatut = "NON_EFFECTUE" | "OK" | "ALERTE";
 export type NiveauRisque = "FAIBLE" | "MOYEN" | "ELEVE";
 export type TypeDocument =
   | "PIECE_IDENTITE"
+  | "PIECE_IDENTITE_DIRIGEANT"
+  | "PIECE_IDENTITE_BENEFICIAIRE"
   | "JUSTIFICATIF_DOMICILE"
   | "KBIS"
   | "STATUTS"
@@ -32,10 +33,13 @@ export type TypeDocument =
   | "ANNEXE"
   | "AUTRE";
 export type TypeMission =
-  | "COMPTABILITE"
-  | "AUDIT"
-  | "CONSEIL"
+  | "TENUE_COMPTABLE"
+  | "COMPTES_ANNUELS"
+  | "SOCIAL_PAIE"
+  | "FISCAL"
   | "JURIDIQUE"
+  | "CONSEIL"
+  | "AUDIT_EXAMEN"
   | "AUTRE";
 export type StatutMission = "EN_COURS" | "SUSPENDUE" | "TERMINEE" | "RESILIEE";
 export type TypeObligation =
@@ -79,6 +83,7 @@ export interface User {
   nom: string;
   role: Role;
   isActive: boolean;
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 
@@ -89,6 +94,7 @@ export interface MonProfil {
   nom: string;
   role: Role;
   signatureDataUri: string | null;
+  mustChangePassword: boolean;
 }
 
 export interface Prospect {
@@ -181,6 +187,7 @@ export interface Client {
   // Prospect d'origine si ce client a été créé par conversion — permet de
   // retrouver le questionnaire d'acceptation rempli avant l'entrée en relation.
   prospect?: { id: string; ref: string } | null;
+  dateFinRelation?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -212,10 +219,14 @@ export interface Document {
   id: string;
   type: TypeDocument;
   nomFichier: string;
+  nomOriginal?: string | null;
+  cheminRelatif?: string | null;
+  dateExpiration?: string | null;
   cheminStockage: string;
   typeMime: string;
   taille: number;
   createdAt: string;
+  utilisateur?: { id: string; prenom?: string; nom?: string } | null;
   contact?: { id: string } | null;
   mission?: { id: string } | null;
   planningEtape?: { id: string } | null;
@@ -231,6 +242,14 @@ export interface AutoScoreCritere {
 
 export interface AutoScoreReponses {
   criteres: AutoScoreCritere[];
+  niveauCalcule?: NiveauRisque;
+  eleveDOffice?: string[];
+  ajustementManuel?: {
+    niveau: NiveauRisque;
+    justification: string;
+    par?: string | null;
+    le?: string | null;
+  } | null;
 }
 
 export interface ScoreRisque {
@@ -246,9 +265,11 @@ export interface ScoreRisque {
 
 export type AssignationTache = "CABINET" | "CLIENT" | "NA";
 
+// Tâche cochée côté cabinet, côté client, les deux (partagée) ou aucun (N/A).
 export interface RepartitionTravauxAssignation {
   id: string;
-  assignation: AssignationTache;
+  cabinet: boolean;
+  client: boolean;
 }
 
 export interface RepartitionTravauxLigneCatalogue {
@@ -277,13 +298,6 @@ export interface Mission {
   updatedAt: string;
 }
 
-export type DocusignStatutEnvelope =
-  | "ENVOYE"
-  | "LIVRE"
-  | "SIGNE"
-  | "REFUSE"
-  | "ANNULE";
-
 export interface LettreMission {
   id: string;
   version: number;
@@ -295,12 +309,9 @@ export interface LettreMission {
   signeeAt?: string | null;
   signataire?: User | null;
   cheminStockage?: string | null;
+  cheminRelatif?: string | null;
   signeeParClientAt?: string | null;
-  docusignEnvelopeId?: string | null;
-  docusignStatut?: DocusignStatutEnvelope | null;
-  docusignDestinataireEmail?: string | null;
-  docusignDestinataireNom?: string | null;
-  docusignEnvoyeAt?: string | null;
+  documentSigneClient?: Document | null;
   createdAt: string;
 }
 
@@ -359,6 +370,9 @@ export interface OperationSensible {
   devise?: string | null;
   statut: StatutOperationSensible;
   tracfinDate?: string | null;
+  analyseAt?: string | null;
+  analysePar?: User | null;
+  motifClassement?: string | null;
   validatedBy?: User | null;
   validatedAt?: string | null;
   signaleBy: User;

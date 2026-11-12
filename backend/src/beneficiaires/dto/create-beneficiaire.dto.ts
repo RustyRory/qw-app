@@ -11,8 +11,15 @@ import {
 } from 'class-validator';
 
 export class CreateBeneficiaireDto {
+  // Exactement un des deux : bénéficiaire d'un client, ou d'un prospect
+  // (transféré au client à la conversion).
+  @IsOptional()
   @IsUUID()
-  clientId: string;
+  clientId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  prospectId?: string;
 
   @IsString()
   @IsNotEmpty()

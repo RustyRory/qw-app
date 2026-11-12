@@ -1,9 +1,8 @@
 import { LettreMissionContenu } from '../lettre-mission-data.util';
-import { TypeMission } from '../../common/enums';
+import { estMissionComptable } from '../../common/types-mission';
 import {
   REPARTITION_TRAVAUX_CATALOGUE,
   resoudreAssignation,
-  AssignationTache,
 } from '../../common/repartition-travaux';
 
 export interface LettreMissionSignature {
@@ -59,13 +58,12 @@ function renderRepartitionTable(
           <th>Tâche</th>
           <th>Cabinet</th>
           <th>Client</th>
-          <th>N.A.</th>
         </tr>
       </thead>
       <tbody>
         ${cat.lignes
           .map((l) => {
-            const assignation: AssignationTache = resoudreAssignation(
+            const { cabinet, client } = resoudreAssignation(
               l.id,
               assignations,
               l.defaut,
@@ -73,9 +71,8 @@ function renderRepartitionTable(
             return `
         <tr>
           <td>${escapeHtml(l.tache)}</td>
-          <td class="chk-cell">${checkbox(assignation === 'CABINET')}</td>
-          <td class="chk-cell">${checkbox(assignation === 'CLIENT')}</td>
-          <td class="chk-cell">${checkbox(assignation === 'NA')}</td>
+          <td class="chk-cell">${checkbox(cabinet)}</td>
+          <td class="chk-cell">${checkbox(client)}</td>
         </tr>`;
           })
           .join('')}
@@ -87,7 +84,7 @@ function renderRepartitionTable(
 function renderNatureEtObjectif(contenu: LettreMissionContenu): string {
   const { mission } = contenu;
 
-  if (mission.type === TypeMission.COMPTABILITE) {
+  if (estMissionComptable(mission.type)) {
     return `
 <p>
   Il s'agit d'une mission d'assurance de niveau modéré aboutissant à une opinion exprimée sous
@@ -110,7 +107,7 @@ ${mission.description ? `<p>${escapeHtml(mission.description)}</p>` : ''}`;
 function renderEtendueTravaux(contenu: LettreMissionContenu): string {
   const { cabinet, mission } = contenu;
 
-  if (mission.type === TypeMission.COMPTABILITE) {
+  if (estMissionComptable(mission.type)) {
     return `
 <p>
   La répartition des travaux entre votre entreprise et notre cabinet est détaillée au point 3
@@ -131,7 +128,7 @@ function renderEtendueTravaux(contenu: LettreMissionContenu): string {
 function renderLimitesTravaux(contenu: LettreMissionContenu): string {
   const { mission } = contenu;
 
-  if (mission.type === TypeMission.COMPTABILITE) {
+  if (estMissionComptable(mission.type)) {
     return `
 <p>
   Nos travaux consisteront à vous assister pour la clôture des comptes et leur présentation
@@ -161,7 +158,7 @@ function renderLimitesTravaux(contenu: LettreMissionContenu): string {
 }
 
 function renderAttestationConclusion(contenu: LettreMissionContenu): string {
-  if (contenu.mission.type !== TypeMission.COMPTABILITE) return '';
+  if (!estMissionComptable(contenu.mission.type)) return '';
 
   return `
 <p>
@@ -202,7 +199,6 @@ function renderSignatureBlock(
     <div class="titre">Le Client</div>
     <div class="sous-titre">&nbsp;</div>
     <div class="note">(signature précédée de la mention : Lu et approuvé)</div>
-    <span style="font-size:1px;color:#ffffff;">/sig-client/</span>
   </div>
 </div>`;
 }
@@ -270,6 +266,21 @@ export function renderLettreMissionHtml(
   .header .cabinet-identite { display: flex; align-items: center; gap: 10px; }
   .header .cabinet-logo { width: 36px; height: 36px; object-fit: contain; }
   .header .cabinet-nom { font-size: 18px; font-weight: 700; color: #1e3a8a; }
+  .entete-lettre {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 22px;
+  }
+  .entete-lettre .expediteur { font-size: 9.5px; color: #333; line-height: 1.45; }
+  .entete-lettre .destinataire {
+    min-width: 46%;
+    margin-top: 28px;
+    padding: 8px 12px;
+    border-left: 2px solid #1e3a8a;
+    line-height: 1.5;
+  }
+  .entete-lettre .destinataire .nom { font-weight: 700; }
   .lieu-date { text-align: right; margin-bottom: 18px; }
   .objet { font-weight: 700; margin: 14px 0; }
   .fields-grid {
@@ -340,6 +351,23 @@ export function renderLettreMissionHtml(
     <div class="cabinet-nom">${escapeHtml(cabinet.nom)}</div>
   </div>
   <div>${escapeHtml(cabinet.formeJuridique)}</div>
+</div>
+
+<div class="entete-lettre">
+  <div class="expediteur">
+    <strong>${escapeHtml(cabinet.raisonSociale)}</strong><br />
+    ${escapeHtml(cabinet.adresse)}<br />
+    ${cabinet.codePostal ? `${escapeHtml(cabinet.codePostal)} ` : ''}${escapeHtml(cabinet.ville)}<br />
+    ${cabinet.telephone ? `Tél. : ${escapeHtml(cabinet.telephone)}<br />` : ''}
+    ${cabinet.email ? `${escapeHtml(cabinet.email)}<br />` : ''}
+    SIRET ${escapeHtml(cabinet.siret)}
+  </div>
+  <div class="destinataire">
+    <div class="nom">${escapeHtml(client.raisonSociale) || 'À compléter'}</div>
+    ${client.gerant ? `<div>À l'attention de ${escapeHtml(client.gerant)}</div>` : ''}
+    ${client.adresse ? `<div>${escapeHtml(client.adresse)}</div>` : ''}
+    ${client.email ? `<div>${escapeHtml(client.email)}</div>` : ''}
+  </div>
 </div>
 
 <div class="lieu-date">${escapeHtml(cabinet.ville)}, le ${escapeHtml(contenu.dateGenerationLong)}</div>
