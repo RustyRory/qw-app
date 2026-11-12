@@ -370,6 +370,9 @@ export interface OperationSensible {
   devise?: string | null;
   statut: StatutOperationSensible;
   tracfinDate?: string | null;
+  analyseAt?: string | null;
+  analysePar?: User | null;
+  motifClassement?: string | null;
   validatedBy?: User | null;
   validatedAt?: string | null;
   signaleBy: User;

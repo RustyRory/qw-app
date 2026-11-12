@@ -30,6 +30,7 @@ import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { RepartitionEditor } from "@/components/repartition-editor";
 import { LettreMissionActions } from "@/components/lettre-mission-actions";
+import { OperationActions } from "@/components/operation-actions";
 import {
   MISSION_TYPE_LABELS,
   repartitionInitiale,
@@ -2193,7 +2194,7 @@ function TabContacts({ clientId }: { clientId: string }) {
 const MISSION_LABELS = MISSION_TYPE_LABELS;
 
 function TabMissions({ clientId }: { clientId: string }) {
-  const { can, role } = useRole();
+  const { can } = useRole();
   const [items, setItems] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -3356,7 +3357,6 @@ function TabOperations({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
@@ -3408,58 +3408,6 @@ function TabOperations({ clientId }: { clientId: string }) {
       );
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function classer(id: string) {
-    if (!window.confirm("Classer cette opération sensible ?")) return;
-
-    setBusy(id);
-    setError(null);
-
-    try {
-      await apiFetch(`/operations-sensibles/${id}/classer`, {
-        method: "PATCH",
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de classer l’opération.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function declarerTracfin(id: string) {
-    const date = window.prompt(
-      "Date de déclaration TRACFIN (AAAA-MM-JJ)",
-      new Date().toISOString().slice(0, 10),
-    );
-
-    if (!date) return;
-
-    setBusy(id);
-    setError(null);
-
-    try {
-      await apiFetch(`/operations-sensibles/${id}/tracfin`, {
-        method: "PATCH",
-        body: JSON.stringify({ date }),
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de déclarer l’opération à TRACFIN.",
-      );
-    } finally {
-      setBusy(null);
     }
   }
 
@@ -3548,23 +3496,7 @@ function TabOperations({ clientId }: { clientId: string }) {
 
                   <div className="mt-4 flex flex-col gap-2 border-t border-red-100 pt-4 sm:flex-row">
                     {!closed && (
-                      <>
-                        <button
-                          disabled={busy === item.id}
-                          onClick={() => classer(item.id)}
-                          className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
-                        >
-                          Classer
-                        </button>
-
-                        <button
-                          disabled={busy === item.id}
-                          onClick={() => declarerTracfin(item.id)}
-                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
-                        >
-                          Déclarer TRACFIN
-                        </button>
-                      </>
+                      <OperationActions operation={item} onDone={load} />
                     )}
 
                     <button
