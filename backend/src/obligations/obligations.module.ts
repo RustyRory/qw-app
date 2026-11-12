@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { QuestionnaireAcceptation } from '../questionnaires/entities/questionnaire-acceptation.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
 import { ScoreRisque } from '../scoring/entities/score-risque.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -18,7 +20,9 @@ import { ObligationsController } from './obligations.controller';
       Prospect,
       BeneficiaireEffectif,
       ScoreRisque,
+      QuestionnaireAcceptation,
     ]),
+    NotificationsModule,
   ],
   controllers: [ObligationsController],
   providers: [ObligationsService],

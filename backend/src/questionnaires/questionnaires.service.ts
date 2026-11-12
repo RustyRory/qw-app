@@ -128,7 +128,7 @@ export class QuestionnairesService {
   ): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
@@ -151,7 +151,7 @@ export class QuestionnairesService {
   async marquerComplete(id: string): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
@@ -198,7 +198,7 @@ export class QuestionnairesService {
   ): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     await this.assertPeutDecider(q.prospect.id, role);
@@ -236,6 +236,10 @@ export class QuestionnairesService {
       `/dashboard/prospects/${q.prospect.id}`,
     );
 
+    // Revue annuelle d'un client : obligation « évaluation du risque ».
+    if (q.client) {
+      await this.obligationsService.synchroniserPourClient(q.client.id);
+    }
     return saved;
   }
 
@@ -250,7 +254,7 @@ export class QuestionnairesService {
     }
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect'],
+      relations: ['prospect', 'client'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     await this.assertPeutDecider(q.prospect.id, role);
@@ -282,6 +286,10 @@ export class QuestionnairesService {
       TypeObligation.VALIDATION_RELATION,
     );
 
+    // Revue annuelle d'un client : obligation « évaluation du risque ».
+    if (q.client) {
+      await this.obligationsService.synchroniserPourClient(q.client.id);
+    }
     return saved;
   }
 
@@ -291,7 +299,7 @@ export class QuestionnairesService {
   async reopen(id: string, userId: string): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
-      relations: ['prospect', 'validatedBy'],
+      relations: ['prospect', 'client', 'validatedBy'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
     if (q.statut === StatutQuestionnaire.EN_COURS) {
@@ -331,6 +339,10 @@ export class QuestionnairesService {
       TypeObligation.VALIDATION_RELATION,
     );
 
+    // Revue annuelle d'un client : obligation « évaluation du risque ».
+    if (q.client) {
+      await this.obligationsService.synchroniserPourClient(q.client.id);
+    }
     return saved;
   }
 }
