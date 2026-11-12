@@ -2,7 +2,7 @@
 
 ## Prérequis
 
-- Node.js ≥ 20 LTS
+- Node.js ≥ 22 LTS
 - npm ≥ 10
 - Docker + Docker Compose
 - Git
