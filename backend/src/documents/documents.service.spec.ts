@@ -1,4 +1,9 @@
-import { NotFoundException, StreamableFile } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  StreamableFile,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as fs from 'fs';
@@ -7,6 +12,9 @@ import { Document } from './entities/document.entity';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
 import { Role, TypeDocument } from '../common/enums';
 import { ObligationsService } from '../obligations/obligations.service';
+import { Client } from '../clients/entities/client.entity';
+import { Prospect } from '../prospects/entities/prospect.entity';
+import { User } from '../users/entities/user.entity';
 
 jest.mock('fs');
 
@@ -27,6 +35,7 @@ const makeDoc = (override: Partial<Document> = {}): Document =>
     typeMime: 'application/pdf',
     taille: 20480,
     client: { id: 'client-1' },
+    utilisateur: { id: 'user-x' },
     ...override,
   }) as Document;
 
@@ -40,7 +49,11 @@ describe('DocumentsService', () => {
     save: jest.fn(),
     create: jest.fn((data) => data),
     softRemove: jest.fn(),
+    exists: jest.fn(),
   };
+
+  const clientRepoMock = { findOneBy: jest.fn() };
+  const prospectRepoMock = { findOneBy: jest.fn() };
 
   const auditRepoMock = {
     save: jest.fn(),
@@ -61,6 +74,8 @@ describe('DocumentsService', () => {
         DocumentsService,
         { provide: getRepositoryToken(Document), useValue: docRepoMock },
         { provide: getRepositoryToken(AuditLog), useValue: auditRepoMock },
+        { provide: getRepositoryToken(Client), useValue: clientRepoMock },
+        { provide: getRepositoryToken(Prospect), useValue: prospectRepoMock },
         { provide: ObligationsService, useValue: obligationsServiceMock },
       ],
     }).compile();
@@ -71,34 +86,84 @@ describe('DocumentsService', () => {
   // ------------------------------------------------------------------ upload
   describe('upload', () => {
     const file = {
-      originalname: 'rapport.pdf',
+      originalname: 'carte identité.PDF',
       mimetype: 'application/pdf',
       size: 20480,
-      path: '/uploads/clients/client-1/123-rapport.pdf',
+      buffer: Buffer.from('pdf'),
     };
 
-    it('persiste les métadonnées avec le bon clientId', async () => {
-      docRepoMock.save.mockResolvedValue({ id: 'doc-new', ...file });
-
-      await service.upload('client-1', file, COLLAB);
-
-      expect(docRepoMock.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          nomFichier: 'rapport.pdf',
-          typeMime: 'application/pdf',
-          taille: 20480,
-          cheminStockage: file.path,
-          client: { id: 'client-1' },
-          utilisateur: { id: COLLAB.id },
-        }),
-      );
+    beforeEach(() => {
+      clientRepoMock.findOneBy.mockResolvedValue({
+        id: 'client-1',
+        ref: 'QW-2026-001',
+        raisonSociale: 'Société Martin',
+      });
+      prospectRepoMock.findOneBy.mockResolvedValue({
+        id: 'prospect-1',
+        ref: 'QWP-2026-004',
+        nom: 'Boulangerie Dupont',
+      });
+      docRepoMock.exists.mockResolvedValue(false);
+      docRepoMock.save.mockImplementation((d) => Promise.resolve(d));
     });
 
-    it('enregistre un audit CREATE', async () => {
-      docRepoMock.save.mockResolvedValue({ id: 'doc-new' });
+    it('nomme le fichier Nom-Type-JJ-MM-AAAA et le range dans Clients/<Réf> <Nom>', async () => {
+      const doc = await service.upload('client', 'client-1', file, COLLAB, {
+        type: TypeDocument.PIECE_IDENTITE,
+      });
 
-      await service.upload('client-1', file, COLLAB);
+      expect(doc.nomFichier).toMatch(
+        /^SocieteMartin-PieceIdentite-\d{2}-\d{2}-\d{4}\.pdf$/,
+      );
+      expect(doc.cheminRelatif).toBe(
+        `Clients/QW-2026-001 Société Martin/${doc.nomFichier}`,
+      );
+      expect(doc.nomOriginal).toBe('carte identité.PDF');
+      expect(doc.client).toEqual({ id: 'client-1' });
+      expect(doc.prospect).toBeNull();
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        doc.cheminStockage,
+        file.buffer,
+      );
+      expect(
+        obligationsServiceMock.synchroniserPourClient,
+      ).toHaveBeenCalledWith('client-1');
+    });
 
+    it('range un document de prospect dans Prospects/ sans synchroniser les obligations client', async () => {
+      const doc = await service.upload('prospect', 'prospect-1', file, COLLAB, {
+        type: TypeDocument.KBIS,
+      });
+
+      expect(doc.cheminRelatif).toMatch(
+        /^Prospects\/QWP-2026-004 Boulangerie Dupont\/BoulangerieDupont-Kbis-/,
+      );
+      expect(doc.prospect).toEqual({ id: 'prospect-1' });
+      expect(doc.client).toBeNull();
+      expect(
+        obligationsServiceMock.synchroniserPourClient,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('ajoute un suffixe -2 si un document du même type existe déjà le même jour', async () => {
+      docRepoMock.exists
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      const doc = await service.upload('client', 'client-1', file, COLLAB, {
+        type: TypeDocument.KBIS,
+      });
+
+      expect(doc.nomFichier).toMatch(/-2\.pdf$/);
+    });
+
+    it("enregistre la date d'expiration et un audit CREATE", async () => {
+      const doc = await service.upload('client', 'client-1', file, COLLAB, {
+        type: TypeDocument.KBIS,
+        dateExpiration: '2027-01-31',
+      });
+
+      expect(doc.dateExpiration).toBe('2027-01-31');
       expect(auditRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.CREATE,
@@ -109,24 +174,53 @@ describe('DocumentsService', () => {
     });
 
     it('rattache le document à la sous-entité fournie (ex: contact)', async () => {
-      docRepoMock.save.mockResolvedValue({ id: 'doc-new', ...file });
+      const doc = await service.upload('client', 'client-1', file, COLLAB, {
+        contactId: 'contact-1',
+      });
 
-      await service.upload(
-        'client-1',
-        file,
-        COLLAB,
-        TypeDocument.PIECE_IDENTITE,
-        { contactId: 'contact-1' },
-      );
-
-      expect(docRepoMock.save).toHaveBeenCalledWith(
+      expect(doc).toEqual(
         expect.objectContaining({
+          type: TypeDocument.AUTRE,
           contact: { id: 'contact-1' },
           mission: null,
           planningEtape: null,
           operationSensible: null,
         }),
       );
+    });
+
+    it('refuse un format non autorisé', async () => {
+      await expect(
+        service.upload(
+          'client',
+          'client-1',
+          { ...file, originalname: 'script.exe' },
+          COLLAB,
+          {},
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(docRepoMock.save).not.toHaveBeenCalled();
+    });
+
+    it('refuse un fichier de plus de 20 Mo', async () => {
+      await expect(
+        service.upload(
+          'client',
+          'client-1',
+          { ...file, size: 21 * 1024 * 1024 },
+          COLLAB,
+          {},
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('lève NotFoundException si le client est introuvable', async () => {
+      clientRepoMock.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.upload('client', 'inconnu', file, COLLAB, {}),
+      ).rejects.toThrow(NotFoundException);
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
   });
 
@@ -142,7 +236,13 @@ describe('DocumentsService', () => {
       expect(docRepoMock.find).toHaveBeenCalledWith({
         where: { client: { id: 'client-1' } },
         order: { createdAt: 'DESC' },
-        relations: ['contact', 'mission', 'planningEtape', 'operationSensible'],
+        relations: [
+          'utilisateur',
+          'contact',
+          'mission',
+          'planningEtape',
+          'operationSensible',
+        ],
       });
     });
   });
@@ -206,6 +306,26 @@ describe('DocumentsService', () => {
       expect(
         obligationsServiceMock.synchroniserPourClient,
       ).toHaveBeenCalledWith('client-1');
+    });
+
+    it('autorise le déposant (collaborateur) à supprimer son document', async () => {
+      const doc = makeDoc({ utilisateur: { id: COLLAB.id } as User });
+      docRepoMock.findOne.mockResolvedValue(doc);
+
+      await service.remove('doc-1', COLLAB);
+
+      expect(docRepoMock.softRemove).toHaveBeenCalledWith(doc);
+    });
+
+    it("refuse à un collaborateur de supprimer le document d'un autre", async () => {
+      docRepoMock.findOne.mockResolvedValue(
+        makeDoc({ utilisateur: { id: 'autre' } as User }),
+      );
+
+      await expect(service.remove('doc-1', COLLAB)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(docRepoMock.softRemove).not.toHaveBeenCalled();
     });
 
     it('lève NotFoundException si le document est introuvable', async () => {

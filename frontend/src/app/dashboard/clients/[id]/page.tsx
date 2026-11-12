@@ -28,6 +28,11 @@ import {
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
+import {
+  DOCUMENT_ACCEPT,
+  DOCUMENT_TYPE_LABELS,
+  deposerDocument,
+} from "@/lib/documents";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
@@ -738,19 +743,6 @@ function TabInfos({
 }
 
 // ─── Onglet KYC ───────────────────────────────────────────────────────────────
-const DOCUMENT_TYPE_LABELS: Record<TypeDocument, string> = {
-  PIECE_IDENTITE: "Pièce d’identité",
-  JUSTIFICATIF_DOMICILE: "Justificatif de domicile",
-  KBIS: "KBIS",
-  STATUTS: "Statuts",
-  LISTE_UBO: "Liste des bénéficiaires effectifs",
-  ATTESTATION_PPE: "Attestation PPE",
-  JUSTIFICATIF_FONDS: "Justificatif de fonds",
-  LETTRE_MISSION: "Lettre de mission",
-  RAPPORT: "Rapport",
-  ANNEXE: "Annexe",
-  AUTRE: "Autre",
-};
 
 // Miroir de backend/src/common/document-checklist.ts — tenu à jour manuellement.
 const DOCUMENTS_REQUIS: Record<TypeEntite, TypeDocument[]> = {
@@ -765,10 +757,12 @@ function TabKyc({
   client: Client;
   onRefresh: () => void;
 }) {
-  const { can } = useRole();
+  const { can, userId } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState<TypeDocument>("AUTRE");
+  const [uploadExpiration, setUploadExpiration] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [showScreeningPicker, setShowScreeningPicker] = useState(false);
   const [screeningSaving, setScreeningSaving] = useState(false);
   const [showPpeEditor, setShowPpeEditor] = useState(false);
@@ -816,20 +810,27 @@ function TabKyc({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId) return;
     setUploading(true);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", uploadType);
+    setUploadError(null);
     try {
-      await apiFetch(`/documents/client/${client.id}`, {
-        method: "POST",
-        body,
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: client.id,
+        file,
+        type: uploadType,
+        dateExpiration: uploadExpiration || null,
       });
-      const updated = await apiFetch<Document[]>(
-        `/documents/client/${client.id}`,
+      setUploadExpiration("");
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Impossible d’envoyer le fichier.",
       );
-      setDocs(updated);
     } finally {
+      apiFetch<Document[]>(`/documents/client/${client.id}`)
+        .then(setDocs)
+        .catch(() => {});
       setUploading(false);
       e.target.value = "";
     }
@@ -1035,9 +1036,19 @@ function TabKyc({
                 </option>
               ))}
             </select>
+            <input
+              type="date"
+              value={uploadExpiration}
+              onChange={(e) => setUploadExpiration(e.target.value)}
+              disabled={uploading}
+              title="Date de fin de validité de la pièce (facultatif)"
+              aria-label="Valide jusqu’au"
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700"
+            />
             <label className="cursor-pointer">
               <input
                 type="file"
+                accept={DOCUMENT_ACCEPT}
                 className="sr-only"
                 onChange={handleUpload}
                 disabled={uploading}
@@ -1049,6 +1060,11 @@ function TabKyc({
             </label>
           </div>
         </div>
+        {uploadError && (
+          <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {uploadError}
+          </div>
+        )}
         {docs.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">
             Aucun document
@@ -1142,6 +1158,7 @@ function TabUbo({
   clientId: string;
   onRefresh: () => void;
 }) {
+  const { userId } = useRole();
   const [ubos, setUbos] = useState<BeneficiaireEffectif[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<BeneficiaireEffectif | null>(null);
@@ -1182,15 +1199,16 @@ function TabUbo({
   async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId) return;
     setDocUploading(true);
     setDocError(null);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", "LISTE_UBO");
     try {
-      await apiFetch(`/documents/client/${clientId}`, {
-        method: "POST",
-        body,
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: clientId,
+        file,
+        type: "LISTE_UBO",
       });
       loadDocs();
     } catch (err) {
@@ -1440,6 +1458,7 @@ function TabUbo({
             <input
               type="file"
               className="sr-only"
+              accept={DOCUMENT_ACCEPT}
               onChange={handleUploadDoc}
               disabled={docUploading}
             />
@@ -1645,7 +1664,10 @@ type DocumentRelationKind =
   | "planningEtape"
   | "operationSensible";
 
-const RELATION_FIELD: Record<DocumentRelationKind, string> = {
+const RELATION_FIELD: Record<
+  DocumentRelationKind,
+  "contactId" | "missionId" | "planningEtapeId" | "operationSensibleId"
+> = {
   contact: "contactId",
   mission: "missionId",
   planningEtape: "planningEtapeId",
@@ -1663,6 +1685,7 @@ function EntityDocumentZone({
   relationId: string;
   defaultType?: TypeDocument;
 }) {
+  const { userId } = useRole();
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadType, setUploadType] = useState<TypeDocument>(defaultType);
@@ -1685,16 +1708,17 @@ function EntityDocumentZone({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!userId) return;
     setUploading(true);
     setError(null);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", uploadType);
-    body.append(RELATION_FIELD[relationKind], relationId);
     try {
-      await apiFetch(`/documents/client/${clientId}`, {
-        method: "POST",
-        body,
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: clientId,
+        file,
+        type: uploadType,
+        relations: { [RELATION_FIELD[relationKind]]: relationId },
       });
       load();
     } catch (err) {
@@ -1745,6 +1769,7 @@ function EntityDocumentZone({
             <input
               type="file"
               className="sr-only"
+              accept={DOCUMENT_ACCEPT}
               onChange={handleUpload}
               disabled={uploading}
             />

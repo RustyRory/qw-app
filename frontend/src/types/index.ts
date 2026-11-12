@@ -21,6 +21,8 @@ export type ScreeningStatut = "NON_EFFECTUE" | "OK" | "ALERTE";
 export type NiveauRisque = "FAIBLE" | "MOYEN" | "ELEVE";
 export type TypeDocument =
   | "PIECE_IDENTITE"
+  | "PIECE_IDENTITE_DIRIGEANT"
+  | "PIECE_IDENTITE_BENEFICIAIRE"
   | "JUSTIFICATIF_DOMICILE"
   | "KBIS"
   | "STATUTS"
@@ -212,10 +214,14 @@ export interface Document {
   id: string;
   type: TypeDocument;
   nomFichier: string;
+  nomOriginal?: string | null;
+  cheminRelatif?: string | null;
+  dateExpiration?: string | null;
   cheminStockage: string;
   typeMime: string;
   taille: number;
   createdAt: string;
+  utilisateur?: { id: string; prenom?: string; nom?: string } | null;
   contact?: { id: string } | null;
   mission?: { id: string } | null;
   planningEtape?: { id: string } | null;

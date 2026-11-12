@@ -13,6 +13,7 @@ import {
 
 import { apiFetch } from "@/lib/apiFetch";
 import { SignaturePad } from "@/components/signature-pad";
+import { DossierLocalSection } from "@/components/dossier-local-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -76,6 +77,7 @@ export default function ProfilPage() {
           <>
             <InfosSection profil={profil} onSaved={setProfil} />
             <PasswordSection />
+            <DossierLocalSection userId={profil.id} />
             {/* Seul l'expert-comptable signe réellement une lettre de
                 mission — la validation du responsable ne stampe jamais de
                 signature sur le document, inutile de proposer la fonction. */}

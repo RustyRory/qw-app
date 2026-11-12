@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
+import { LETTRES_MISSION_ROOT } from '../common/storage';
 import puppeteer from 'puppeteer';
 import { LettreMission } from './entities/lettre-mission.entity';
 import { Mission } from '../missions/entities/mission.entity';
@@ -38,10 +39,7 @@ import { avancerStatutKanban } from '../common/prospect-kanban.util';
 const DOCUSIGN_ANCHOR_STRING = '/sig-client/';
 const DOCUSIGN_INITIALES_ANCHOR_STRING = '/init-client/';
 
-const UPLOADS_ROOT = path.join(
-  process.env.UPLOADS_ROOT ?? path.join(process.cwd(), 'uploads'),
-  'lettres-mission',
-);
+const UPLOADS_ROOT = LETTRES_MISSION_ROOT;
 
 const LOGO_PATH = path.join(__dirname, 'assets', 'logo.jpg');
 let cachedLogoDataUri: string | null | undefined;
