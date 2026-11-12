@@ -26,6 +26,7 @@ import {
   StatutClient,
   StatutKyc,
   ScreeningStatut,
+  NiveauRisque,
 } from '../../common/enums';
 
 @Entity('clients')
@@ -159,6 +160,21 @@ export class Client {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
+
+  // Ajustement manuel du niveau de risque (EC / admin), justification
+  // obligatoire ; conservé lors des recalculs automatiques.
+  @Column({ type: 'enum', enum: NiveauRisque, nullable: true })
+  niveauRisqueManuel: NiveauRisque | null;
+
+  @Column({ type: 'text', nullable: true })
+  justificationNiveauManuel: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  niveauManuelAt: Date | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'id_niveau_manuel_par' })
+  niveauManuelPar: User | null;
 
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_createur' })

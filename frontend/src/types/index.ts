@@ -241,6 +241,14 @@ export interface AutoScoreCritere {
 
 export interface AutoScoreReponses {
   criteres: AutoScoreCritere[];
+  niveauCalcule?: NiveauRisque;
+  eleveDOffice?: string[];
+  ajustementManuel?: {
+    niveau: NiveauRisque;
+    justification: string;
+    par?: string | null;
+    le?: string | null;
+  } | null;
 }
 
 export interface ScoreRisque {

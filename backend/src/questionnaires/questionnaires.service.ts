@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,7 +18,12 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { PlanningService } from '../planning/planning.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Role, StatutKanban, TypeObligation } from '../common/enums';
+import {
+  NiveauRisque,
+  Role,
+  StatutKanban,
+  TypeObligation,
+} from '../common/enums';
 import {
   avancerStatutKanban,
   refuserProspectAuto,
@@ -173,15 +179,29 @@ export class QuestionnairesService {
     return q;
   }
 
+  // Risque ÉLEVÉ : seul l'expert-comptable (ou un admin) peut décider de
+  // l'acceptation ou du refus de la relation.
+  private async assertPeutDecider(prospectId: string, role: Role) {
+    if (role === Role.EXPERT_COMPTABLE || role === Role.ADMIN) return;
+    const score = await this.scoringService.findCurrentByProspect(prospectId);
+    if (score?.niveau === NiveauRisque.ELEVE) {
+      throw new ForbiddenException(
+        'Risque ÉLEVÉ : la décision revient à l’expert-comptable',
+      );
+    }
+  }
+
   async validate(
     id: string,
     userId: string,
+    role: Role = Role.ADMIN,
   ): Promise<QuestionnaireAcceptation> {
     const q = await this.repo.findOne({
       where: { id },
       relations: ['prospect'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
+    await this.assertPeutDecider(q.prospect.id, role);
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
       throw new BadRequestException(
         'Seul un questionnaire en cours peut être validé',
@@ -223,6 +243,7 @@ export class QuestionnairesService {
     id: string,
     motif: string,
     userId: string,
+    role: Role = Role.ADMIN,
   ): Promise<QuestionnaireAcceptation> {
     if (!motif?.trim()) {
       throw new BadRequestException('Le motif de refus est obligatoire');
@@ -232,6 +253,7 @@ export class QuestionnairesService {
       relations: ['prospect'],
     });
     if (!q) throw new NotFoundException('Questionnaire introuvable');
+    await this.assertPeutDecider(q.prospect.id, role);
     if (q.statut !== StatutQuestionnaire.EN_COURS) {
       throw new BadRequestException(
         'Seul un questionnaire en cours peut être refusé',

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ScoringService } from './scoring.service';
+import { AuditService } from '../audit/audit.service';
 import { ScoreRisque } from './entities/score-risque.entity';
 import { Client } from '../clients/entities/client.entity';
 import { Prospect } from '../prospects/entities/prospect.entity';
@@ -20,8 +21,11 @@ describe('ScoringService', () => {
     create: jest.fn((data) => data),
   };
   const clientRepoMock = { findOne: jest.fn() };
-  const prospectRepoMock = { findOneBy: jest.fn() };
-  const beneficiaireRepoMock = { find: jest.fn() };
+  const prospectRepoMock = { findOne: jest.fn() };
+  const beneficiaireRepoMock = {
+    find: jest.fn(),
+    exists: jest.fn().mockResolvedValue(false),
+  };
   const questionnaireRepoMock = { findOne: jest.fn() };
 
   beforeEach(async () => {
@@ -33,6 +37,7 @@ describe('ScoringService', () => {
         { provide: getRepositoryToken(ScoreRisque), useValue: scoreRepoMock },
         { provide: getRepositoryToken(Client), useValue: clientRepoMock },
         { provide: getRepositoryToken(Prospect), useValue: prospectRepoMock },
+        { provide: AuditService, useValue: { log: jest.fn() } },
         {
           provide: getRepositoryToken(BeneficiaireEffectif),
           useValue: beneficiaireRepoMock,
@@ -50,7 +55,7 @@ describe('ScoringService', () => {
   // ------------------------------------------------------- recalculateForProspect
   describe('recalculateForProspect', () => {
     it('renvoie null si le prospect est introuvable', async () => {
-      prospectRepoMock.findOneBy.mockResolvedValue(null);
+      prospectRepoMock.findOne.mockResolvedValue(null);
 
       const result = await service.recalculateForProspect(
         'prospect-1',
@@ -62,7 +67,7 @@ describe('ScoringService', () => {
     });
 
     it('calcule le score depuis le questionnaire et le persiste rattaché au prospect', async () => {
-      prospectRepoMock.findOneBy.mockResolvedValue({
+      prospectRepoMock.findOne.mockResolvedValue({
         id: 'prospect-1',
         typeEntite: TypeEntite.PERSONNE_PHYSIQUE,
         chiffreAffaires: null,
@@ -77,7 +82,8 @@ describe('ScoringService', () => {
       expect(scoreRepoMock.save).toHaveBeenCalledWith(
         expect.objectContaining({
           score: Math.round((30 / 155) * 100),
-          niveau: NiveauRisque.FAIBLE,
+          // PPE : ÉLEVÉ d'office malgré un score faible.
+          niveau: NiveauRisque.ELEVE,
           prospect: { id: 'prospect-1' },
           calculatedBy: { id: USER_ID },
         }),
@@ -86,7 +92,7 @@ describe('ScoringService', () => {
     });
 
     it('calcule un score nul quand le prospect n’a pas encore de questionnaire', async () => {
-      prospectRepoMock.findOneBy.mockResolvedValue({
+      prospectRepoMock.findOne.mockResolvedValue({
         id: 'prospect-1',
         typeEntite: TypeEntite.PERSONNE_MORALE,
         chiffreAffaires: null,

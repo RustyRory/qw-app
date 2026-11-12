@@ -75,7 +75,7 @@ export class QuestionnairesController {
   @Patch(':id/valider')
   @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   validate(@Param('id') id: string, @Req() req: RequestWithUser) {
-    return this.svc.validate(id, req.user.id);
+    return this.svc.validate(id, req.user.id, req.user.role);
   }
 
   @Patch(':id/refuser')
@@ -85,7 +85,7 @@ export class QuestionnairesController {
     @Body('motif') motif: string,
     @Req() req: RequestWithUser,
   ) {
-    return this.svc.refuse(id, motif, req.user.id);
+    return this.svc.refuse(id, motif, req.user.id, req.user.role);
   }
 
   @Patch(':id/rouvrir')
