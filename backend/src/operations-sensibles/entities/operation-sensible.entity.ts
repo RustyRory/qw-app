@@ -42,6 +42,18 @@ export class OperationSensible {
   @Column({ type: 'timestamptz', nullable: true })
   tracfinDate: Date | null;
 
+  // Prise en analyse (statut EN_ANALYSE).
+  @Column({ type: 'timestamptz', nullable: true })
+  analyseAt: Date | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'id_analyse_par' })
+  analysePar: User | null;
+
+  // Motif obligatoire d'un classement sans suite.
+  @Column({ type: 'text', nullable: true })
+  motifClassement: string | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   validatedAt: Date | null;
 

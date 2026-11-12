@@ -7,8 +7,10 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  Check,
 } from 'typeorm';
 import { Client } from '../../clients/entities/client.entity';
+import { Prospect } from '../../prospects/entities/prospect.entity';
 import { User } from '../../users/entities/user.entity';
 import { Contact } from '../../contacts/entities/contact.entity';
 import { Mission } from '../../missions/entities/mission.entity';
@@ -18,6 +20,11 @@ import { TypeDocument } from '../../common/enums';
 
 @Entity('documents')
 @Index('idx_documents_id_client', ['client'])
+@Index('idx_documents_id_prospect', ['prospect'])
+@Check(
+  'CHK_documents_client_xor_prospect',
+  '("id_client" IS NULL) <> ("id_prospect" IS NULL)',
+)
 export class Document {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -25,8 +32,23 @@ export class Document {
   @Column({ type: 'enum', enum: TypeDocument, default: TypeDocument.AUTRE })
   type: TypeDocument;
 
+  // Nom normalisé « Nom-Type-JJ-MM-AAAA.ext » (cf. common/storage.ts).
   @Column({ type: 'varchar', length: 255 })
   nomFichier: string;
+
+  // Nom du fichier tel que déposé par l'utilisateur.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  nomOriginal: string | null;
+
+  // Emplacement dans le dossier local de l'utilisateur (séparateur « / ») :
+  // Clients/<Réf> <Nom>/<nomFichier>. Le fichier est aussi conservé côté
+  // serveur dans `cheminStockage`.
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  cheminRelatif: string | null;
+
+  // Date de fin de validité de la pièce (Kbis, pièce d'identité…).
+  @Column({ type: 'date', nullable: true })
+  dateExpiration: string | null;
 
   @Column({ type: 'varchar', length: 500 })
   cheminStockage: string;
@@ -43,9 +65,16 @@ export class Document {
   @DeleteDateColumn({ type: 'timestamptz' })
   deletedAt: Date | null;
 
-  @ManyToOne(() => Client, (client) => client.documents, { nullable: false })
+  // Exactement un des deux est renseigné : un document déposé avant la
+  // conversion appartient au prospect, puis il est transféré au client.
+  // Voir contrainte CHK_documents_client_xor_prospect.
+  @ManyToOne(() => Client, (client) => client.documents, { nullable: true })
   @JoinColumn({ name: 'id_client' })
-  client: Client;
+  client: Client | null;
+
+  @ManyToOne(() => Prospect, { nullable: true })
+  @JoinColumn({ name: 'id_prospect' })
+  prospect: Prospect | null;
 
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_utilisateur' })

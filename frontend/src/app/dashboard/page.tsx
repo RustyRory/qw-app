@@ -190,13 +190,6 @@ export default function DashboardPage() {
             bg: "bg-violet-100",
             text: "text-violet-700",
           },
-          {
-            href: "/dashboard/clients/new",
-            label: "Nouveau client",
-            icon: IconUsers,
-            bg: "bg-emerald-100",
-            text: "text-emerald-700",
-          },
         ]
       : []),
     ...(can.voirCartographie

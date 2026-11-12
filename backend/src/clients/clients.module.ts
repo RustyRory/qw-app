@@ -1,17 +1,20 @@
 import { Module } from '@nestjs/common';
+import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Client } from './entities/client.entity';
 import { AuditLog } from '../audit/entities/audit-log.entity';
 import { ScoringModule } from '../scoring/scoring.module';
 import { ObligationsModule } from '../obligations/obligations.module';
+import { LettresMissionModule } from '../lettres-mission/lettres-mission.module';
 import { ClientsController } from './clients.controller';
 import { ClientsService } from './clients.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Client, AuditLog]),
+    TypeOrmModule.forFeature([Client, AuditLog, BeneficiaireEffectif]),
     ScoringModule,
     ObligationsModule,
+    LettresMissionModule,
   ],
   controllers: [ClientsController],
   providers: [ClientsService],

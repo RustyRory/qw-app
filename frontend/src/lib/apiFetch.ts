@@ -1,4 +1,5 @@
 import { apiUrl } from "@/lib/api-url";
+import { LOGIN_URL } from "@/lib/login-url";
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -23,7 +24,7 @@ export async function apiFetch<T = unknown>(
 
   if (res.status === 401) {
     document.cookie = "qw_token=; path=/; max-age=0";
-    window.location.href = "/login";
+    window.location.href = LOGIN_URL;
     throw new Error("Unauthorized");
   }
 
@@ -51,7 +52,7 @@ export async function fetchBlobUrl(path: string): Promise<string> {
 
   if (res.status === 401) {
     document.cookie = "qw_token=; path=/; max-age=0";
-    window.location.href = "/login";
+    window.location.href = LOGIN_URL;
     throw new Error("Unauthorized");
   }
 

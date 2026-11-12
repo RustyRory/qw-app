@@ -31,6 +31,11 @@ export class User {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  // Mot de passe provisoire (compte créé ou réinitialisé par un admin) :
+  // l'utilisateur doit le changer avant d'accéder à l'application.
+  @Column({ type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
   @Column({ type: 'text', nullable: true })
   signatureDataUri: string | null;
 

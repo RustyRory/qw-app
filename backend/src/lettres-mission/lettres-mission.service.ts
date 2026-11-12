@@ -14,68 +14,82 @@ import { LettreMission } from './entities/lettre-mission.entity';
 import { Mission } from '../missions/entities/mission.entity';
 import { Prospect } from '../prospects/entities/prospect.entity';
 import { User } from '../users/entities/user.entity';
-import { CreateLettreMissionDto } from './dto/create-lettre.dto';
-import { EnvoyerDocusignDto } from './dto/envoyer-docusign.dto';
+import { Document } from '../documents/entities/document.entity';
 import {
   buildLettreMissionContenu,
   LettreMissionContenu,
 } from './lettre-mission-data.util';
 import { renderLettreMissionHtml } from './templates/lettre-mission.template';
-import { DocusignService } from '../docusign/docusign.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
-import { PlanningService } from '../planning/planning.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CabinetService } from '../cabinet/cabinet.service';
+import { DocumentsService, FichierRecu } from '../documents/documents.service';
 import {
-  DocusignStatutEnvelope,
   Role,
   StatutKanban,
+  TypeDocument,
   TypeObligation,
 } from '../common/enums';
 import { avancerStatutKanban } from '../common/prospect-kanban.util';
+import { LETTRES_MISSION_ROOT, cheminRelatifDocument } from '../common/storage';
+import { TYPES_MISSION } from '../common/types-mission';
 
-const DOCUSIGN_ANCHOR_STRING = '/sig-client/';
-const DOCUSIGN_INITIALES_ANCHOR_STRING = '/init-client/';
-
-const UPLOADS_ROOT = path.join(
-  process.env.UPLOADS_ROOT ?? path.join(process.cwd(), 'uploads'),
-  'lettres-mission',
-);
+type AuthUser = { id: string; role: Role };
 
 const LOGO_PATH = path.join(__dirname, 'assets', 'logo.jpg');
 let cachedLogoDataUri: string | null | undefined;
 
-function getLogoDataUri(): string | null {
-  if (cachedLogoDataUri === undefined) {
-    try {
-      const buffer = fs.readFileSync(LOGO_PATH);
-      cachedLogoDataUri = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-    } catch {
-      cachedLogoDataUri = null;
-    }
+function logoParDefaut(): string | null {
+  if (cachedLogoDataUri !== undefined) return cachedLogoDataUri;
+  try {
+    const buffer = fs.readFileSync(LOGO_PATH);
+    cachedLogoDataUri = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+  } catch {
+    cachedLogoDataUri = null;
   }
   return cachedLogoDataUri;
 }
-function buildFooterTemplate(
-  expertSignatureImageDataUri?: string | null,
-): string {
-  const parapheExpert = expertSignatureImageDataUri
-    ? `<img src="${expertSignatureImageDataUri}" style="height:9px;max-width:36px;object-fit:contain;vertical-align:middle;" />`
-    : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Pied de page de chaque page : mentions du cabinet + deux cases de
+// paraphe visibles (cabinet, rempli à la signature de l'EC ; client, vide).
+function buildFooterTemplate(
+  contenu: LettreMissionContenu,
+  parapheCabinet: string | null,
+): string {
+  const c = contenu.cabinet;
+  const adresse = [c.adresse, [c.codePostal, c.ville].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(' – ');
+  const caseParaphe = (titre: string, contenuCase: string) => `
+    <div style="width:30mm;border:0.6px solid #1e3a8a;border-radius:2px;">
+      <div style="font-size:5.5px;color:#1e3a8a;padding:1px 3px;border-bottom:0.4px solid #cbd5e1;">${titre}</div>
+      <div style="height:9mm;display:flex;align-items:center;justify-content:center;">${contenuCase}</div>
+    </div>`;
   return `
-  <div style="font-size:7px;width:100%;color:#555;padding:0 15mm;line-height:1.4;">
-    <div>QW CONSEILS - 29 Rue du Colisée – 75008 PARIS</div>
-    <div>SAS d'expertise-comptable au capital de 10 000 € - Siret : 952 244 887 00016 – Code APE : 6920 Z</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span>N° Tva intracommunautaire : FR89 952 244 887</span>
-      <span>
-        Page <span class="pageNumber"></span>/<span class="totalPages"></span>
-        &nbsp;–&nbsp;Initiales expert-comptable : ${parapheExpert}
-        &nbsp;–&nbsp;Initiales client :
-        <span style="font-size:1px;color:#ffffff;">${DOCUSIGN_INITIALES_ANCHOR_STRING}</span>
-      </span>
+  <div style="font-size:6.5px;width:100%;color:#555;padding:0 15mm;line-height:1.4;display:flex;justify-content:space-between;align-items:flex-end;gap:6mm;">
+    <div>
+      <div>${escapeHtml(c.raisonSociale)} – ${escapeHtml(adresse)}</div>
+      <div>${escapeHtml(c.formeJuridique)} au capital de ${escapeHtml(c.capitalSocial)} – SIRET : ${escapeHtml(c.siret)} – Code APE : ${escapeHtml(c.codeApe)}</div>
+      <div>N° TVA intracommunautaire : ${escapeHtml(c.tvaIntracommunautaire)} – Page <span class="pageNumber"></span>/<span class="totalPages"></span></div>
+    </div>
+    <div style="display:flex;gap:3mm;">
+      ${caseParaphe(
+        'Paraphe cabinet',
+        parapheCabinet
+          ? `<img src="${parapheCabinet}" style="max-height:8mm;max-width:27mm;object-fit:contain;" />`
+          : '',
+      )}
+      ${caseParaphe('Paraphe client', '')}
     </div>
   </div>`;
 }
@@ -91,11 +105,11 @@ export class LettresMissionService {
     private readonly missionRepo: Repository<Mission>,
     @InjectRepository(Prospect)
     private readonly prospectRepo: Repository<Prospect>,
-    private readonly docusignService: DocusignService,
     private readonly auditService: AuditService,
-    private readonly planningService: PlanningService,
     private readonly obligationsService: ObligationsService,
     private readonly notificationsService: NotificationsService,
+    private readonly cabinetService: CabinetService,
+    private readonly documentsService: DocumentsService,
   ) {}
 
   private async renderPdf(
@@ -114,7 +128,7 @@ export class LettresMissionService {
         displayHeaderFooter: true,
         headerTemplate: '<span></span>',
         footerTemplate,
-        margin: { top: '15mm', bottom: '20mm', left: '15mm', right: '15mm' },
+        margin: { top: '15mm', bottom: '30mm', left: '15mm', right: '15mm' },
       });
       return Buffer.from(pdf);
     } finally {
@@ -122,101 +136,177 @@ export class LettresMissionService {
     }
   }
 
-  private writePdfFile(missionId: string, buffer: Buffer): string {
-    const dir = path.join(UPLOADS_ROOT, missionId);
+  private cheminPdf(missionId: string, version: number): string {
+    const dir = path.join(LETTRES_MISSION_ROOT, missionId);
     fs.mkdirSync(dir, { recursive: true });
-    const cheminStockage = path.join(dir, 'v1.pdf');
-    fs.writeFileSync(cheminStockage, buffer);
-    return cheminStockage;
+    return path.join(dir, `v${version}.pdf`);
   }
 
-  async generateForMission(missionId: string): Promise<LettreMission> {
+  private async missionComplete(missionId: string): Promise<Mission> {
     const mission = await this.missionRepo.findOne({
       where: { id: missionId },
       relations: ['client', 'prospect'],
     });
     if (!mission) throw new NotFoundException('Mission introuvable');
+    return mission;
+  }
 
-    const contenu = buildLettreMissionContenu(mission);
+  // Produit le PDF d'une version à partir de son contenu (instantané) et de
+  // l'éventuelle signature de l'expert-comptable.
+  private async ecrirePdf(l: LettreMission): Promise<void> {
+    const contenu = l.contenu as unknown as LettreMissionContenu;
+    const cabinet = await this.cabinetService.get();
+    const signatureImage = l.signataire?.signatureDataUri ?? null;
     const html = renderLettreMissionHtml(
       contenu,
-      { signee: false },
-      getLogoDataUri(),
+      {
+        signee: l.signeeParExpert,
+        nom: l.signataire
+          ? `${l.signataire.prenom} ${l.signataire.nom}`
+          : undefined,
+        date: l.signeeAt ? l.signeeAt.toLocaleDateString('fr-FR') : undefined,
+        imageDataUri: signatureImage ?? undefined,
+      },
+      cabinet.logoDataUri ?? logoParDefaut(),
     );
-    const buffer = await this.renderPdf(html, buildFooterTemplate(null));
-    const cheminStockage = this.writePdfFile(mission.id, buffer);
-
-    const saved = await this.repo.save(
-      this.repo.create({
-        mission: { id: mission.id } as Mission,
-        contenu: contenu as unknown as Record<string, unknown>,
-        cheminStockage,
-        version: 1,
-      }),
+    const buffer = await this.renderPdf(
+      html,
+      buildFooterTemplate(contenu, l.signeeParExpert ? signatureImage : null),
     );
+    const chemin = l.cheminStockage ?? this.cheminPdf(l.mission.id, l.version);
+    fs.writeFileSync(chemin, buffer);
+    l.cheminStockage = chemin;
+  }
 
+  private async notifierValidationAttendue(mission: Mission): Promise<void> {
+    const nom = mission.prospect?.nom ?? mission.client?.raisonSociale ?? '';
+    const lien = mission.prospect
+      ? `/dashboard/prospects/${mission.prospect.id}`
+      : `/dashboard/clients/${mission.client?.id}?tab=missions`;
     if (mission.prospect) {
       await this.obligationsService.cloturerPourProspect(
         mission.prospect.id,
         TypeObligation.LETTRE_MISSION,
       );
+      await this.obligationsService.cloturerPourProspect(
+        mission.prospect.id,
+        TypeObligation.SIGNATURE_LETTRE_MISSION,
+      );
       await this.obligationsService.ouvrirPourProspect(
         mission.prospect.id,
         TypeObligation.VALIDATION_LETTRE_MISSION,
       );
-      await this.notificationsService.creerPourRoles(
-        [Role.RESPONSABLE, Role.EXPERT_COMPTABLE],
-        'Lettre de mission à valider',
-        mission.prospect.nom,
-        `/dashboard/prospects/${mission.prospect.id}`,
-      );
     }
-
-    return saved;
+    await this.notificationsService.creerPourRoles(
+      [Role.RESPONSABLE, Role.EXPERT_COMPTABLE],
+      'Lettre de mission à valider',
+      nom,
+      lien,
+    );
   }
 
-  async regenerateLatestForMission(missionId: string): Promise<void> {
-    const latest = await this.repo.findOne({
+  // Crée une nouvelle version (v1 à la création de la mission, v2+ pour un
+  // avenant après signature), à valider puis signer.
+  async genererVersion(missionId: string): Promise<LettreMission> {
+    const mission = await this.missionComplete(missionId);
+    const derniere = await this.repo.findOne({
       where: { mission: { id: missionId } },
       order: { version: 'DESC' },
     });
-    if (!latest || !latest.cheminStockage || latest.signeeParExpert) return;
-
-    const mission = await this.missionRepo.findOne({
-      where: { id: missionId },
-      relations: ['client', 'prospect'],
+    const cabinet = await this.cabinetService.get();
+    const l = this.repo.create({
+      mission,
+      version: (derniere?.version ?? 0) + 1,
+      contenu: buildLettreMissionContenu(mission, cabinet) as unknown as Record<
+        string,
+        unknown
+      >,
     });
-    if (!mission) return;
-
-    const contenu = buildLettreMissionContenu(mission);
-    const html = renderLettreMissionHtml(
-      contenu,
-      { signee: false },
-      getLogoDataUri(),
-    );
-    const buffer = await this.renderPdf(html, buildFooterTemplate(null));
-    fs.writeFileSync(latest.cheminStockage, buffer);
-
-    latest.contenu = contenu as unknown as Record<string, unknown>;
-    await this.repo.save(latest);
+    await this.ecrirePdf(l);
+    const saved = await this.repo.save(l);
+    await this.notifierValidationAttendue(mission);
+    return saved;
   }
 
-  async create(dto: CreateLettreMissionDto): Promise<LettreMission> {
-    const derniere = await this.repo.findOne({
-      where: { mission: { id: dto.missionId } },
+  // Compatibilité : appelé à la création d'une mission.
+  generateForMission(missionId: string): Promise<LettreMission> {
+    return this.genererVersion(missionId);
+  }
+
+  // Remet à jour une version non signée (contenu + PDF) et annule sa
+  // validation : le contenu validé n'est plus celui de la lettre.
+  private async regenerer(l: LettreMission): Promise<void> {
+    const mission = await this.missionComplete(l.mission.id);
+    const cabinet = await this.cabinetService.get();
+    const etaitValidee = l.valideeParResponsable;
+    l.mission = mission;
+    l.contenu = buildLettreMissionContenu(
+      mission,
+      cabinet,
+    ) as unknown as Record<string, unknown>;
+    l.valideeParResponsable = false;
+    l.valideeAt = null;
+    l.valideePar = null;
+    await this.ecrirePdf(l);
+    await this.repo.save(l);
+    if (etaitValidee) await this.notifierValidationAttendue(mission);
+  }
+
+  private derniereVersion(missionId: string): Promise<LettreMission | null> {
+    return this.repo.findOne({
+      where: { mission: { id: missionId } },
+      relations: ['mission', 'signataire'],
       order: { version: 'DESC' },
     });
-    const l = this.repo.create({
-      mission: { id: dto.missionId } as Mission,
-      contenu: dto.contenu,
-      version: derniere ? derniere.version + 1 : 1,
+  }
+
+  // Après modification d'une mission (honoraires, répartition, dates…) :
+  // version non signée → régénérée et à revalider ; version signée →
+  // nouvelle version (avenant) à valider et signer.
+  async apresModificationMission(missionId: string): Promise<void> {
+    const derniere = await this.derniereVersion(missionId);
+    if (!derniere) {
+      await this.genererVersion(missionId);
+      return;
+    }
+    if (derniere.signeeParExpert) {
+      await this.genererVersion(missionId);
+    } else {
+      await this.regenerer(derniere);
+    }
+  }
+
+  // Après modification de la fiche prospect / client (capital, régime
+  // fiscal…) : seules les lettres NON signées sont mises à jour.
+  async apresModificationDossier(cible: {
+    prospectId?: string;
+    clientId?: string;
+  }): Promise<void> {
+    const missions = await this.missionRepo.find({
+      where: cible.prospectId
+        ? { prospect: { id: cible.prospectId } }
+        : { client: { id: cible.clientId } },
+      select: { id: true },
     });
-    return this.repo.save(l);
+    for (const m of missions) {
+      const derniere = await this.derniereVersion(m.id);
+      if (derniere && !derniere.signeeParExpert) {
+        try {
+          await this.regenerer(derniere);
+        } catch (err) {
+          this.logger.error(
+            `Régénération impossible pour la lettre ${derniere.id}`,
+            err instanceof Error ? err.stack : String(err),
+          );
+        }
+      }
+    }
   }
 
   findByMission(missionId: string): Promise<LettreMission[]> {
     return this.repo.find({
       where: { mission: { id: missionId } },
+      relations: ['signataire', 'valideePar', 'documentSigneClient'],
       order: { version: 'DESC' },
     });
   }
@@ -224,63 +314,76 @@ export class LettresMissionService {
   async findOne(id: string): Promise<LettreMission> {
     const l = await this.repo.findOne({
       where: { id },
-      relations: ['mission', 'signataire'],
+      relations: ['mission', 'signataire', 'valideePar', 'documentSigneClient'],
     });
     if (!l) throw new NotFoundException('Lettre de mission introuvable');
     return l;
   }
 
-  // Étape 2/3 du circuit collaborateur → responsable → expert-comptable :
-  // le responsable valide le contenu préparé par le collaborateur, ce qui
-  // débloque la signature de l'expert-comptable.
-  async validerParResponsable(
-    id: string,
-    userId: string,
-  ): Promise<LettreMission> {
+  private async avecMission(id: string): Promise<LettreMission> {
     const l = await this.repo.findOne({
       where: { id },
-      relations: ['mission', 'mission.prospect'],
+      relations: [
+        'mission',
+        'mission.prospect',
+        'mission.client',
+        'signataire',
+      ],
     });
     if (!l) throw new NotFoundException('Lettre de mission introuvable');
+    return l;
+  }
+
+  // Validation du contenu (responsable, expert-comptable ou admin) :
+  // débloque la signature de l'expert-comptable.
+  async valider(id: string, userId: string): Promise<LettreMission> {
+    const l = await this.avecMission(id);
     if (l.valideeParResponsable) {
       throw new BadRequestException('Cette lettre de mission est déjà validée');
     }
     l.valideeParResponsable = true;
     l.valideeAt = new Date();
     l.valideePar = { id: userId } as User;
-    const saved = await this.repo.save(l);
+    await this.repo.save(l);
 
-    if (l.mission.prospect) {
+    const m = l.mission;
+    if (m.prospect) {
       await this.obligationsService.cloturerPourProspect(
-        l.mission.prospect.id,
+        m.prospect.id,
         TypeObligation.VALIDATION_LETTRE_MISSION,
       );
       await this.obligationsService.ouvrirPourProspect(
-        l.mission.prospect.id,
+        m.prospect.id,
         TypeObligation.SIGNATURE_LETTRE_MISSION,
       );
-      await this.notificationsService.creerPourRoles(
-        [Role.EXPERT_COMPTABLE],
-        'Lettre de mission à signer',
-        l.mission.prospect.nom,
-        `/dashboard/prospects/${l.mission.prospect.id}`,
-      );
     }
-
-    return this.findOne(saved.id);
+    await this.notificationsService.creerPourRoles(
+      [Role.EXPERT_COMPTABLE],
+      'Lettre de mission à signer',
+      m.prospect?.nom ?? m.client?.raisonSociale ?? '',
+      m.prospect
+        ? `/dashboard/prospects/${m.prospect.id}`
+        : `/dashboard/clients/${m.client?.id}?tab=missions`,
+    );
+    await this.auditService.log(
+      userId,
+      AuditAction.VALIDATE,
+      'lettre_mission',
+      id,
+      {
+        version: l.version,
+      },
+    );
+    return this.findOne(id);
   }
 
-  // Étape 3/3 : l'expert-comptable signe — c'est ce qui « envoie » la lettre
-  // (au sens du kanban), donc ce qui fait avancer le prospect en LM_ENVOYEE.
+  // Signature de l'expert-comptable (ou admin) avec la signature de ses
+  // paramètres. La lettre est ensuite téléchargée et envoyée au client.
   async signer(id: string, userId: string): Promise<LettreMission> {
-    const l = await this.repo.findOne({
-      where: { id },
-      relations: ['mission', 'mission.prospect'],
-    });
-    if (!l) throw new NotFoundException('Lettre de mission introuvable');
+    const l = await this.avecMission(id);
     if (!l.valideeParResponsable) {
       throw new BadRequestException(
-        "Cette lettre de mission doit d'abord être validée par un responsable",
+        "Cette lettre de mission doit d'abord être validée",
       );
     }
     if (l.signeeParExpert) {
@@ -288,222 +391,125 @@ export class LettresMissionService {
     }
     l.signeeParExpert = true;
     l.signeeAt = new Date();
-    l.signataire = { id: userId } as User;
-    const saved = await this.repo.save(l);
+    l.signataire = await this.repo.manager.findOneByOrFail(User, {
+      id: userId,
+    });
 
-    await this.regeneratePdf(saved.id);
+    const m = l.mission;
+    const proprietaire = m.client
+      ? {
+          cible: 'client' as const,
+          ref: m.client.ref,
+          nom: m.client.raisonSociale,
+        }
+      : {
+          cible: 'prospect' as const,
+          ref: m.prospect!.ref,
+          nom: m.prospect!.nom,
+        };
+    const versionSuffixe = l.version > 1 ? `-v${l.version}` : '';
+    l.cheminRelatif = cheminRelatifDocument({
+      ...proprietaire,
+      libelleType: `LettreMission-${TYPES_MISSION[m.type].fichier}${versionSuffixe}`,
+      extension: '.pdf',
+    });
+    await this.ecrirePdf(l);
+    await this.repo.save(l);
 
-    if (l.mission.prospect) {
-      if (avancerStatutKanban(l.mission.prospect, StatutKanban.LM_ENVOYEE)) {
-        await this.prospectRepo.save(l.mission.prospect);
+    if (m.prospect) {
+      if (avancerStatutKanban(m.prospect, StatutKanban.LM_ENVOYEE)) {
+        await this.prospectRepo.save(m.prospect);
       }
       await this.obligationsService.cloturerPourProspect(
-        l.mission.prospect.id,
+        m.prospect.id,
         TypeObligation.SIGNATURE_LETTRE_MISSION,
       );
-      await this.notificationsService.creerPourRoles(
-        [Role.EXPERT_COMPTABLE],
-        'Prospect prêt à être converti en client',
-        l.mission.prospect.nom,
-        `/dashboard/prospects/${l.mission.prospect.id}`,
-      );
     }
-
-    return this.findOne(saved.id);
-  }
-
-  private async regeneratePdf(id: string): Promise<void> {
-    const l = await this.repo.findOne({
-      where: { id },
-      relations: ['signataire'],
-    });
-    if (!l || !l.cheminStockage) return;
-
-    try {
-      const contenu = l.contenu as unknown as LettreMissionContenu;
-      const html = renderLettreMissionHtml(
-        contenu,
-        {
-          signee: l.signeeParExpert,
-          nom: l.signataire
-            ? `${l.signataire.prenom} ${l.signataire.nom}`
-            : undefined,
-          date: l.signeeAt ? l.signeeAt.toLocaleDateString('fr-FR') : undefined,
-          imageDataUri: l.signataire?.signatureDataUri ?? undefined,
-        },
-        getLogoDataUri(),
-      );
-      const buffer = await this.renderPdf(
-        html,
-        buildFooterTemplate(l.signataire?.signatureDataUri ?? null),
-      );
-      fs.writeFileSync(l.cheminStockage, buffer);
-    } catch (err) {
-      this.logger.error(
-        `Échec de régénération du PDF pour la lettre de mission ${id}`,
-        err instanceof Error ? err.stack : String(err),
-      );
-    }
-  }
-
-  async envoyerPourSignatureClient(
-    id: string,
-    dto: EnvoyerDocusignDto,
-    userId: string,
-  ): Promise<LettreMission> {
-    const l = await this.repo.findOneBy({ id });
-    if (!l) throw new NotFoundException('Lettre de mission introuvable');
-    if (!l.signeeParExpert || !l.cheminStockage) {
-      throw new BadRequestException(
-        "La lettre de mission doit d'abord être signée par l'expert-comptable.",
-      );
-    }
-    if (l.docusignStatut === DocusignStatutEnvelope.SIGNE) {
-      throw new BadRequestException(
-        'Cette lettre de mission a déjà été signée par le client.',
-      );
-    }
-    if (
-      l.docusignStatut === DocusignStatutEnvelope.ENVOYE ||
-      l.docusignStatut === DocusignStatutEnvelope.LIVRE
-    ) {
-      throw new BadRequestException(
-        'Une signature est déjà en cours pour cette lettre de mission.',
-      );
-    }
-
-    if (
-      l.docusignEnvelopeId &&
-      (l.docusignStatut === DocusignStatutEnvelope.REFUSE ||
-        l.docusignStatut === DocusignStatutEnvelope.ANNULE)
-    ) {
-      await this.docusignService.annulerEnveloppe(
-        l.docusignEnvelopeId,
-        'Nouvelle enveloppe envoyée depuis QW Conseils',
-      );
-    }
-
-    const pdfBuffer = fs.readFileSync(l.cheminStockage);
-    const webhookUrl = process.env.DOCUSIGN_WEBHOOK_URL || undefined;
-
-    const { envelopeId } = await this.docusignService.envoyerPourSignature({
-      pdfBuffer,
-      nomFichier: `lettre-mission-${l.id}.pdf`,
-      destinataireEmail: dto.email,
-      destinataireNom: dto.nom,
-      emailSubject: 'Lettre de mission à signer',
-      anchorString: DOCUSIGN_ANCHOR_STRING,
-      initialAnchorString: DOCUSIGN_INITIALES_ANCHOR_STRING,
-      webhookUrl,
-    });
-
-    l.docusignEnvelopeId = envelopeId;
-    l.docusignStatut = DocusignStatutEnvelope.ENVOYE;
-    l.docusignDestinataireEmail = dto.email;
-    l.docusignDestinataireNom = dto.nom;
-    l.docusignEnvoyeAt = new Date();
-    const saved = await this.repo.save(l);
-
     await this.auditService.log(
       userId,
-      AuditAction.UPDATE,
+      AuditAction.VALIDATE,
       'lettre_mission',
-      l.id,
+      id,
       {
-        event: 'docusign_envoye',
-        envelopeId,
+        event: 'signature_expert',
+        version: l.version,
       },
     );
-
-    return this.findOne(saved.id);
-  }
-
-  async rafraichirStatutDocusign(id: string): Promise<LettreMission> {
-    const l = await this.repo.findOneBy({ id });
-    if (!l) throw new NotFoundException('Lettre de mission introuvable');
-    if (!l.docusignEnvelopeId) return this.findOne(id);
-    if (
-      l.docusignStatut === DocusignStatutEnvelope.SIGNE ||
-      l.docusignStatut === DocusignStatutEnvelope.REFUSE ||
-      l.docusignStatut === DocusignStatutEnvelope.ANNULE
-    ) {
-      return this.findOne(id);
-    }
-
-    const statut = await this.docusignService.getStatut(l.docusignEnvelopeId);
-    if (statut && statut !== l.docusignStatut) {
-      l.docusignStatut = statut;
-      if (statut === DocusignStatutEnvelope.SIGNE) {
-        l.signeeParClientAt = new Date();
-        if (l.cheminStockage) {
-          try {
-            const buffer = await this.docusignService.telechargerDocumentSigne(
-              l.docusignEnvelopeId,
-            );
-            fs.writeFileSync(l.cheminStockage, buffer);
-          } catch (err) {
-            this.logger.error(
-              `Échec de téléchargement du document signé DocuSign pour la lettre ${id}`,
-              err instanceof Error ? err.stack : String(err),
-            );
-          }
-        }
-      }
-      await this.repo.save(l);
-    }
-
     return this.findOne(id);
   }
 
-  // Appelé par le webhook DocuSign (non authentifié) : ne fait jamais d'appel
-  // sortant vers DocuSign pour un envelopeId inconnu ou déjà dans un état
-  // terminal, afin d'éviter qu'un identifiant deviné/énuméré ne déclenche du
-  // trafic sortant inutile.
-  async traiterEvenementWebhookDocusign(envelopeId: string): Promise<void> {
-    const l = await this.repo.findOneBy({ docusignEnvelopeId: envelopeId });
-    if (!l) return;
-    if (
-      l.docusignStatut === DocusignStatutEnvelope.SIGNE ||
-      l.docusignStatut === DocusignStatutEnvelope.REFUSE ||
-      l.docusignStatut === DocusignStatutEnvelope.ANNULE
-    ) {
-      return;
+  // Dépôt du PDF signé par le client (reçu par mail) : conservé comme
+  // document du dossier et marque la lettre « signée par le client ».
+  async enregistrerSignatureClient(
+    id: string,
+    file: FichierRecu | undefined,
+    authUser: AuthUser,
+  ): Promise<{ lettre: LettreMission; document: Document }> {
+    const l = await this.avecMission(id);
+    if (!l.signeeParExpert) {
+      throw new BadRequestException(
+        "La lettre doit d'abord être signée par l'expert-comptable",
+      );
     }
-    await this.rafraichirStatutDocusign(l.id);
+    if (l.signeeParClientAt) {
+      throw new BadRequestException(
+        'La signature du client est déjà enregistrée pour cette version',
+      );
+    }
+    if (!file || path.extname(file.originalname).toLowerCase() !== '.pdf') {
+      throw new BadRequestException('Déposez le PDF signé par le client');
+    }
+    const m = l.mission;
+    const versionSuffixe = l.version > 1 ? `-v${l.version}` : '';
+    const document = await this.documentsService.upload(
+      m.client ? 'client' : 'prospect',
+      m.client?.id ?? m.prospect!.id,
+      file,
+      authUser,
+      { type: TypeDocument.LETTRE_MISSION, missionId: m.id },
+      {
+        libelleType: `LettreMissionSigneeClient-${TYPES_MISSION[m.type].fichier}${versionSuffixe}`,
+      },
+    );
+    l.signeeParClientAt = new Date();
+    l.documentSigneClient = document;
+    await this.repo.save(l);
+
+    await this.auditService.log(
+      authUser.id,
+      AuditAction.VALIDATE,
+      'lettre_mission',
+      id,
+      { event: 'signature_client_deposee', documentId: document.id },
+    );
+    if (m.prospect) {
+      await this.notificationsService.creerPourRoles(
+        [Role.RESPONSABLE, Role.EXPERT_COMPTABLE],
+        'Prospect prêt à être converti en client',
+        m.prospect.nom,
+        `/dashboard/prospects/${m.prospect.id}`,
+      );
+    }
+    return { lettre: await this.findOne(id), document };
   }
 
-  // Supprime les lettres de mission (et leurs fichiers) rattachées à une
-  // mission, préalable requis avant de pouvoir supprimer la mission
-  // elle-même (FK id_mission NOT NULL / ON DELETE NO ACTION). Refuse
-  // uniquement si l'une d'elles a déjà été envoyée en signature au client
-  // (DocuSign) — à ce stade c'est engagé vers l'extérieur, pas avant : une
-  // signature de l'expert-comptable seule reste une erreur humaine possible,
-  // récupérable en supprimant et en refaisant la lettre.
+  // Préalable à la suppression d'une mission : impossible dès qu'une
+  // version a été signée (engagement vis-à-vis du client).
   async removeByMission(missionId: string): Promise<void> {
     const lettres = await this.repo.find({
       where: { mission: { id: missionId } },
     });
-
-    const engagee = lettres.find((l) => l.docusignEnvelopeId);
-    if (engagee) {
+    if (lettres.some((l) => l.signeeParExpert)) {
       throw new BadRequestException(
-        'Impossible de supprimer cette mission : sa lettre de mission a déjà été envoyée en signature au client.',
+        'Impossible de supprimer cette mission : sa lettre de mission a été signée.',
       );
     }
-
     for (const lettre of lettres) {
       if (lettre.cheminStockage) {
-        try {
-          fs.unlinkSync(lettre.cheminStockage);
-        } catch {
-          // fichier déjà absent : rien à faire
-        }
+        fs.rmSync(lettre.cheminStockage, { force: true });
       }
     }
-
-    if (lettres.length > 0) {
-      await this.repo.remove(lettres);
-    }
+    if (lettres.length > 0) await this.repo.remove(lettres);
   }
 
   async streamFile(id: string): Promise<StreamableFile> {
@@ -512,10 +518,12 @@ export class LettresMissionService {
     if (!l.cheminStockage || !fs.existsSync(l.cheminStockage)) {
       throw new NotFoundException('Fichier introuvable sur le serveur');
     }
-
+    const nom = l.cheminRelatif
+      ? path.posix.basename(l.cheminRelatif)
+      : `LettreMission-v${l.version}.pdf`;
     return new StreamableFile(fs.createReadStream(l.cheminStockage), {
       type: 'application/pdf',
-      disposition: `attachment; filename="lettre-mission-${l.id}.pdf"`,
+      disposition: `attachment; filename="${nom.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nom)}`,
     });
   }
 }

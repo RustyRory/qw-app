@@ -5,10 +5,16 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Check,
 } from 'typeorm';
 import { Client } from '../../clients/entities/client.entity';
+import { Prospect } from '../../prospects/entities/prospect.entity';
 
 @Entity('beneficiaire_effectif')
+@Check(
+  'CHK_beneficiaire_client_xor_prospect',
+  '("id_client" IS NULL) <> ("id_prospect" IS NULL)',
+)
 export class BeneficiaireEffectif {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -34,11 +40,14 @@ export class BeneficiaireEffectif {
   @Column({ type: 'boolean', default: false })
   ppe: boolean;
 
-  @ManyToOne(() => Client, (client) => client.beneficiaires, {
-    nullable: false,
-  })
+  // Saisi dès le stade prospect, puis transféré au client à la conversion.
+  @ManyToOne(() => Client, { nullable: true })
   @JoinColumn({ name: 'id_client' })
-  client: Client;
+  client: Client | null;
+
+  @ManyToOne(() => Prospect, { nullable: true })
+  @JoinColumn({ name: 'id_prospect' })
+  prospect: Prospect | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

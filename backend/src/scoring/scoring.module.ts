@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScoreRisque } from './entities/score-risque.entity';
 import { Client } from '../clients/entities/client.entity';
@@ -10,6 +11,7 @@ import { ScoringService } from './scoring.service';
 
 @Module({
   imports: [
+    AuditModule,
     TypeOrmModule.forFeature([
       ScoreRisque,
       Client,

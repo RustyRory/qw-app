@@ -18,7 +18,7 @@ import { ScoreRisque } from '../../scoring/entities/score-risque.entity';
 import { Mission } from '../../missions/entities/mission.entity';
 import { Obligation } from '../../obligations/entities/obligation.entity';
 import { PlanningEtape } from '../../planning/entities/planning-etape.entity';
-import { TypeEntite, StatutKanban } from '../../common/enums';
+import { TypeEntite, StatutKanban, NiveauRisque } from '../../common/enums';
 
 @Entity('prospects')
 @Index('idx_prospect_statut', ['statutKanban'], {
@@ -119,6 +119,21 @@ export class Prospect {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   conventionCollective: string | null;
+
+  // Ajustement manuel du niveau de risque (EC / admin), justification
+  // obligatoire ; conservé lors des recalculs automatiques.
+  @Column({ type: 'enum', enum: NiveauRisque, nullable: true })
+  niveauRisqueManuel: NiveauRisque | null;
+
+  @Column({ type: 'text', nullable: true })
+  justificationNiveauManuel: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  niveauManuelAt: Date | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'id_niveau_manuel_par' })
+  niveauManuelPar: User | null;
 
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'id_createur' })

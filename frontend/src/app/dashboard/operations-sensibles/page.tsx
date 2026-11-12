@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   IconAlertHexagon,
   IconExternalLink,
-  IconFileCheck,
   IconSearch,
 } from "@tabler/icons-react";
 
@@ -19,6 +18,7 @@ import type {
   StatutOperationSensible,
   TypeOperationSensible,
 } from "@/types";
+import { OperationActions } from "@/components/operation-actions";
 
 interface OperationWithClient {
   operation: OperationSensible;
@@ -46,11 +46,10 @@ const STATUS_CARDS: {
 ];
 
 export default function OperationsSensiblesPage() {
-  const { role } = useAuth();
+  useAuth();
 
   const [rows, setRows] = useState<OperationWithClient[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<
@@ -58,9 +57,6 @@ export default function OperationsSensiblesPage() {
   >("TOUS");
 
   const [search, setSearch] = useState("");
-
-  const canManage =
-    role === "RESPONSABLE" || role === "EXPERT_COMPTABLE" || role === "ADMIN";
 
   async function loadOperations() {
     setLoading(true);
@@ -147,64 +143,6 @@ export default function OperationsSensiblesPage() {
           new Date(a.operation.createdAt).getTime(),
       );
   }, [rows, statusFilter, search]);
-
-  async function handleClasser(id: string) {
-    const confirmed = window.confirm(
-      "Voulez-vous vraiment classer cette opération ?",
-    );
-
-    if (!confirmed) return;
-
-    setActionLoading(id);
-    setError(null);
-
-    try {
-      await apiFetch(`/operations-sensibles/${id}/classer`, {
-        method: "PATCH",
-      });
-
-      await loadOperations();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de classer cette opération.",
-      );
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  async function handleTracfin(id: string) {
-    const today = new Date().toISOString().slice(0, 10);
-
-    const date = window.prompt(
-      "Date de la déclaration TRACFIN au format AAAA-MM-JJ :",
-      today,
-    );
-
-    if (!date) return;
-
-    setActionLoading(id);
-    setError(null);
-
-    try {
-      await apiFetch(`/operations-sensibles/${id}/tracfin`, {
-        method: "PATCH",
-        body: JSON.stringify({ date }),
-      });
-
-      await loadOperations();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de déclarer cette opération à TRACFIN.",
-      );
-    } finally {
-      setActionLoading(null);
-    }
-  }
 
   function formatAmount(amount?: number | null, devise?: string | null) {
     if (amount === null || amount === undefined) return "—";
@@ -394,8 +332,6 @@ export default function OperationsSensiblesPage() {
                       operation.statut === "CLASSEE" ||
                       operation.statut === "TRACFIN_DECLARE";
 
-                    const busy = actionLoading === operation.id;
-
                     return (
                       <tr
                         key={operation.id}
@@ -439,26 +375,11 @@ export default function OperationsSensiblesPage() {
                               Voir
                             </Link>
 
-                            {canManage && !closed && (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => handleClasser(operation.id)}
-                                  className="text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50"
-                                >
-                                  {busy ? "Traitement…" : "Classer"}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => handleTracfin(operation.id)}
-                                  className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
-                                >
-                                  TRACFIN
-                                </button>
-                              </>
+                            {!closed && (
+                              <OperationActions
+                                operation={operation}
+                                onDone={loadOperations}
+                              />
                             )}
                           </div>
                         </td>
@@ -485,8 +406,6 @@ export default function OperationsSensiblesPage() {
                 const closed =
                   operation.statut === "CLASSEE" ||
                   operation.statut === "TRACFIN_DECLARE";
-
-                const busy = actionLoading === operation.id;
 
                 return (
                   <article key={operation.id} className="p-4">
@@ -549,27 +468,11 @@ export default function OperationsSensiblesPage() {
                         Voir le client
                       </Link>
 
-                      {canManage && !closed && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleClasser(operation.id)}
-                            className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
-                          >
-                            Classer
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleTracfin(operation.id)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
-                          >
-                            <IconFileCheck className="size-4" />
-                            TRACFIN
-                          </button>
-                        </>
+                      {!closed && (
+                        <OperationActions
+                          operation={operation}
+                          onDone={loadOperations}
+                        />
                       )}
                     </div>
                   </article>

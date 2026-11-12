@@ -105,21 +105,11 @@ const ADMIN_NAV: NavItem[] = [
   },
 ];
 
-const MODERATEUR_NAV: NavItem[] = [
-  {
-    href: "/dashboard/admin/users",
-    label: "Utilisateurs",
-    icon: IconUsers,
-    iconClass: "text-rose-400",
-  },
-];
-
 const ROLE_LABELS: Record<Role, string> = {
   COLLABORATEUR: "Collaborateur",
   RESPONSABLE: "Responsable",
   EXPERT_COMPTABLE: "Expert-comptable",
   ADMIN: "Administrateur",
-  MODERATEUR: "Modérateur",
 };
 
 function isItemActive(pathname: string, href: string, exact?: boolean) {
@@ -197,21 +187,15 @@ function MobileNav({
     setMenuOpen(false);
   }
 
-  const mainItems: NavItem[] =
-    role === "MODERATEUR"
-      ? [MODERATEUR_NAV[0]]
-      : [NAV[0], NAV[1], NAV[2], CONFORMITE_NAV[3]];
+  const mainItems: NavItem[] = [NAV[0], NAV[1], NAV[2], CONFORMITE_NAV[3]];
 
-  const secondaryItems: NavItem[] =
-    role === "MODERATEUR"
-      ? [PROFIL_NAV_ITEM]
-      : [
-          CONFORMITE_NAV[0],
-          CONFORMITE_NAV[1],
-          CONFORMITE_NAV[2],
-          PROFIL_NAV_ITEM,
-          ...(role === "ADMIN" ? ADMIN_NAV : []),
-        ];
+  const secondaryItems: NavItem[] = [
+    CONFORMITE_NAV[0],
+    CONFORMITE_NAV[1],
+    CONFORMITE_NAV[2],
+    PROFIL_NAV_ITEM,
+    ...(role === "ADMIN" ? ADMIN_NAV : []),
+  ];
 
   return (
     <>
@@ -405,12 +389,7 @@ export function AppSidebar({
           <div className="pointer-events-none absolute -left-10 -top-14 size-36 rounded-full bg-violet-500/20 blur-3xl" />
 
           <div className="relative flex items-center justify-between gap-3">
-            <Link
-              href={
-                role === "MODERATEUR" ? "/dashboard/admin/users" : "/dashboard"
-              }
-              className="flex min-w-0 items-center gap-3"
-            >
+            <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
               <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-violet-950/40">
                 <img
                   src={assetUrl("/logo-qw-conseils.jpg")}
@@ -433,43 +412,33 @@ export function AppSidebar({
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-          {role === "MODERATEUR" ? (
+          <>
             <section>
               <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                Administration
+                Principal
               </p>
 
-              <NavSection items={MODERATEUR_NAV} pathname={pathname} />
+              <NavSection items={NAV} pathname={pathname} />
             </section>
-          ) : (
-            <>
+
+            <section>
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                Conformité
+              </p>
+
+              <NavSection items={CONFORMITE_NAV} pathname={pathname} />
+            </section>
+
+            {role === "ADMIN" && (
               <section>
                 <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  Principal
+                  Administration
                 </p>
 
-                <NavSection items={NAV} pathname={pathname} />
+                <NavSection items={ADMIN_NAV} pathname={pathname} />
               </section>
-
-              <section>
-                <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  Conformité
-                </p>
-
-                <NavSection items={CONFORMITE_NAV} pathname={pathname} />
-              </section>
-
-              {role === "ADMIN" && (
-                <section>
-                  <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                    Administration
-                  </p>
-
-                  <NavSection items={ADMIN_NAV} pathname={pathname} />
-                </section>
-              )}
-            </>
-          )}
+            )}
+          </>
         </nav>
 
         <div className="border-t border-white/10 p-4">

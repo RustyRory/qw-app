@@ -30,7 +30,6 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
   RESPONSABLE: "Peut valider et gérer certaines opérations sensibles.",
   EXPERT_COMPTABLE: "Accès aux validations réservées à l’expert-comptable.",
   ADMIN: "Accès complet, y compris à la gestion des utilisateurs.",
-  MODERATEUR: "Accès exclusif à la gestion des comptes utilisateurs.",
 };
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -38,12 +37,11 @@ const ROLE_LABELS: Record<Role, string> = {
   RESPONSABLE: "Responsable",
   EXPERT_COMPTABLE: "Expert-comptable",
   ADMIN: "Administrateur",
-  MODERATEUR: "Modérateur",
 };
 
 export default function EditUserPage() {
   const { id } = useParams<{ id: string }>();
-  const { ready, payload } = useAuth(["ADMIN", "MODERATEUR"]);
+  const { ready, payload } = useAuth(["ADMIN"]);
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
@@ -108,7 +106,7 @@ export default function EditUserPage() {
   async function handleDelete() {
     if (
       !confirm(
-        `Supprimer définitivement le compte de ${user?.prenom} ${user?.nom} ?`,
+        `Désactiver le compte de ${user?.prenom} ${user?.nom} ? Il ne pourra plus se connecter et ses prospects repasseront « non assignés ». Son historique est conservé.`,
       )
     )
       return;
@@ -120,7 +118,7 @@ export default function EditUserPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Impossible de supprimer cet utilisateur.",
+          : "Impossible de désactiver cet utilisateur.",
       );
     }
   }
@@ -330,7 +328,6 @@ export default function EditUserPage() {
                     <option value="RESPONSABLE">Responsable</option>
                     <option value="EXPERT_COMPTABLE">Expert-comptable</option>
                     <option value="ADMIN">Administrateur</option>
-                    <option value="MODERATEUR">Modérateur</option>
                   </select>
                 </div>
 
@@ -352,8 +349,8 @@ export default function EditUserPage() {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Laisser vide pour conserver l’ancien"
-                    minLength={6}
+                    placeholder="Vide = inchangé · provisoire, à changer au login"
+                    minLength={12}
                     className="h-11 rounded-xl bg-slate-50 pl-10 pr-10 focus:bg-white"
                   />
                   <button
@@ -401,7 +398,7 @@ export default function EditUserPage() {
           </div>
 
           <div className="flex flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            {!isSelf && (
+            {!isSelf && user?.isActive !== false && (
               <Button
                 type="button"
                 variant="destructive"
@@ -410,7 +407,7 @@ export default function EditUserPage() {
                 className="h-11 rounded-xl px-5"
               >
                 <IconTrash className="size-4" />
-                Supprimer l’utilisateur
+                Désactiver l’utilisateur
               </Button>
             )}
 

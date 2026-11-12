@@ -43,6 +43,10 @@ export class BeneficiairesController {
   findByClient(@Param('clientId') clientId: string) {
     return this.svc.findByClient(clientId);
   }
+  @Get('prospect/:prospectId')
+  findByProspect(@Param('prospectId') prospectId: string) {
+    return this.svc.findByProspect(prospectId);
+  }
 
   @Get(':id')
   findOne(@Param('id') id: string) {

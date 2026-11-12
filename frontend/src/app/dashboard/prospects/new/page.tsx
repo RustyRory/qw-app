@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconArrowLeft, IconLoader2, IconSearch } from "@tabler/icons-react";
@@ -10,7 +10,8 @@ import { fetchSirene, type SireneData } from "@/lib/sirene";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import type { Prospect, TypeEntite } from "@/types";
+import { useRole } from "@/hooks/useRole";
+import type { Prospect, TypeEntite, User } from "@/types";
 
 export default function NewProspectPage() {
   const router = useRouter();
@@ -24,6 +25,14 @@ export default function NewProspectPage() {
   const [prefill, setPrefill] = useState<SireneData | null>(null);
 
   const [typeEntite, setTypeEntite] = useState<TypeEntite>("PERSONNE_MORALE");
+  const { userId } = useRole();
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    apiFetch<User[]>("/users")
+      .then((liste) => setUsers(liste.filter((u) => u.isActive)))
+      .catch(() => setUsers([]));
+  }, []);
 
   async function handleSirene() {
     setSireneLoading(true);
@@ -49,13 +58,37 @@ export default function NewProspectPage() {
     setLoading(true);
 
     const form = new FormData(event.currentTarget);
+    const siretNormalise = siret.replace(/\s/g, "");
+    const email = (form.get("email") as string).trim();
+    const telephone = (form.get("telephone") as string).trim();
+
+    // Mêmes règles que le serveur, vérifiées avant l'envoi.
+    if (typeEntite === "PERSONNE_MORALE" && !siretNormalise) {
+      setError("Le SIRET est obligatoire pour une personne morale.");
+      setLoading(false);
+      return;
+    }
+    if (siretNormalise && !/^\d{14}$/.test(siretNormalise)) {
+      setError("Le SIRET doit comporter exactement 14 chiffres.");
+      setLoading(false);
+      return;
+    }
+    if (!email && !telephone) {
+      setError("Renseignez au moins un email ou un téléphone.");
+      setLoading(false);
+      return;
+    }
+    const nombre = (cle: string) => {
+      const v = (form.get(cle) as string | null)?.trim();
+      return v ? Number(v) : undefined;
+    };
 
     const data = {
       nom: form.get("nom") as string,
       typeEntite,
-      email: (form.get("email") as string) || undefined,
-      telephone: (form.get("telephone") as string) || undefined,
-      siret: siret.replace(/\s/g, "") || undefined,
+      email: email || undefined,
+      telephone: telephone || undefined,
+      siret: siretNormalise || undefined,
       formeJuridique: (form.get("formeJuridique") as string) || undefined,
       representantLegal: (form.get("representantLegal") as string) || undefined,
       activite: (form.get("activite") as string) || undefined,
@@ -65,6 +98,9 @@ export default function NewProspectPage() {
       codePostal: (form.get("codePostal") as string) || undefined,
       pays: (form.get("pays") as string) || "France",
       notes: (form.get("notes") as string) || undefined,
+      chiffreAffaires: nombre("chiffreAffaires"),
+      effectif: nombre("effectif"),
+      assignedToId: (form.get("assignedToId") as string) || undefined,
     };
 
     try {
@@ -251,7 +287,10 @@ export default function NewProspectPage() {
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                Contact
+                Contact *
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Au moins un email ou un téléphone.
               </p>
             </div>
 
@@ -396,6 +435,62 @@ export default function NewProspectPage() {
                     ))}
                   </select>
                 </Field>
+              </FieldGroup>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Suivi
+              </p>
+            </div>
+
+            <div className="px-5 py-4">
+              <FieldGroup>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Field>
+                    <FieldLabel htmlFor="assignedToId">Assigné à</FieldLabel>
+                    <select
+                      id="assignedToId"
+                      name="assignedToId"
+                      defaultValue={userId ?? ""}
+                      key={userId ?? "none"}
+                      className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                    >
+                      <option value="">Non assigné</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.prenom} {u.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="chiffreAffaires">
+                      Chiffre d’affaires (€)
+                    </FieldLabel>
+                    <Input
+                      id="chiffreAffaires"
+                      name="chiffreAffaires"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="rounded-xl"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="effectif">Effectif</FieldLabel>
+                    <Input
+                      id="effectif"
+                      name="effectif"
+                      type="number"
+                      min={0}
+                      step={1}
+                      className="rounded-xl"
+                    />
+                  </Field>
+                </div>
               </FieldGroup>
             </div>
           </section>

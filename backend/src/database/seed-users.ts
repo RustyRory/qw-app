@@ -66,19 +66,19 @@ export async function seedUsers(dataSource: DataSource): Promise<SeededUsers> {
   }
 
   let moderateur = await userRepo.findOneBy({
-    email: 'moderateur@qwconseils.fr',
+    email: 'expert@qwconseils.fr',
   });
   if (!moderateur) {
     moderateur = userRepo.create({
-      email: 'moderateur@qwconseils.fr',
-      passwordHash: await hash('Moderateur1234!', 12),
-      role: Role.MODERATEUR,
+      email: 'expert@qwconseils.fr',
+      passwordHash: await hash('Expert1234!', 12),
+      role: Role.EXPERT_COMPTABLE,
       prenom: 'Léa',
       nom: 'Bernard',
       isActive: true,
     });
     await userRepo.save(moderateur);
-    console.log('✓ Modérateur créé');
+    console.log('✓ Expert-comptable créé');
   }
 
   return { admin, responsable, collaborateur, moderateur };
@@ -92,7 +92,7 @@ async function run() {
   console.log('  admin@qwconseils.fr        / Admin1234!');
   console.log('  responsable@qwconseils.fr  / Resp1234!');
   console.log('  collab@qwconseils.fr       / Collab1234!');
-  console.log('  moderateur@qwconseils.fr   / Moderateur1234!');
+  console.log('  expert@qwconseils.fr       / Expert1234!');
 
   await AppDataSource.destroy();
 }

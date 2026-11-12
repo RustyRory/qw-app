@@ -21,10 +21,10 @@ async function seed() {
   });
 
   const moderateur = userRepo.create({
-    email: 'moderateur@qwconseils.fr',
-    passwordHash: await hash('Moderateur1234!', 12),
-    role: Role.MODERATEUR,
-    prenom: 'Modérateur',
+    email: 'expert@qwconseils.fr',
+    passwordHash: await hash('Expert1234!', 12),
+    role: Role.EXPERT_COMPTABLE,
+    prenom: 'Expert',
     nom: '',
     isActive: true,
   });
@@ -34,7 +34,7 @@ async function seed() {
 
   console.log('\nComptes de test :');
   console.log('  admin@qwconseils.fr        / Admin1234!');
-  console.log('  moderateur@qwconseils.fr   / Moderateur1234!');
+  console.log('  expert@qwconseils.fr       / Expert1234!');
 
   await AppDataSource.destroy();
 }

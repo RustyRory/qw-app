@@ -9,7 +9,38 @@ import { Obligation } from './entities/obligation.entity';
 import { Client } from '../clients/entities/client.entity';
 import { Prospect } from '../prospects/entities/prospect.entity';
 import { Document } from '../documents/entities/document.entity';
-import { StatutObligation, StatutKyc, TypeObligation } from '../common/enums';
+import {
+  NiveauRisque,
+  StatutObligation,
+  StatutKyc,
+  TypeDocument,
+  TypeObligation,
+} from '../common/enums';
+import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
+import { ScoreRisque } from '../scoring/entities/score-risque.entity';
+import {
+  QuestionnaireAcceptation,
+  StatutQuestionnaire,
+} from '../questionnaires/entities/questionnaire-acceptation.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Role } from '../common/enums';
+
+// Revue annuelle du dossier client (KYC + questionnaire LAB) : rappel
+// ouvert 30 jours avant la date anniversaire.
+const DUREE_VALIDITE_REVUE_MOIS = 12;
+const RAPPEL_REVUE_JOURS = 30;
+
+function anniversaire(date: Date): Date {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + DUREE_VALIDITE_REVUE_MOIS);
+  return d;
+}
+
+function rappelDu(echeance: Date, maintenant: Date): boolean {
+  const debut = new Date(echeance);
+  debut.setDate(debut.getDate() - RAPPEL_REVUE_JOURS);
+  return maintenant >= debut;
+}
 import { documentsManquants } from '../common/document-checklist';
 import { CreateObligationDto } from './dto/create-obligation.dto';
 
@@ -24,6 +55,13 @@ export class ObligationsService {
     private readonly documentRepo: Repository<Document>,
     @InjectRepository(Client)
     private readonly clientRepo: Repository<Client>,
+    @InjectRepository(BeneficiaireEffectif)
+    private readonly beneficiaireRepo: Repository<BeneficiaireEffectif>,
+    @InjectRepository(ScoreRisque)
+    private readonly scoreRepo: Repository<ScoreRisque>,
+    @InjectRepository(QuestionnaireAcceptation)
+    private readonly questionnaireRepo: Repository<QuestionnaireAcceptation>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   create(dto: CreateObligationDto): Promise<Obligation> {
@@ -130,25 +168,80 @@ export class ObligationsService {
   async synchroniserPourClient(clientId: string): Promise<void> {
     const client = await this.clientRepo.findOneBy({ id: clientId });
     if (!client) return;
+    const maintenant = new Date();
 
-    const documents = await this.documentRepo.find({
-      where: { client: { id: clientId } },
-    });
-    const manquants = documentsManquants(
-      client.typeEntite,
-      client.ppe,
-      documents.map((d) => d.type),
-    );
-
+    const manquants = await this.piecesManquantes(client);
     await this.syncType(
       clientId,
       TypeObligation.MISE_A_JOUR_DOCS,
       manquants.length > 0,
     );
+
+    // KYC : à (re)faire s'il n'est pas validé, ou 30 jours avant son
+    // expiration (1 an après la validation) ; expiré à la date anniversaire.
+    let kycAOuvrir = client.kycStatut !== StatutKyc.VALIDE;
+    let echeanceKyc: Date | undefined;
+    if (client.kycStatut === StatutKyc.VALIDE && client.kycCompletedAt) {
+      echeanceKyc = anniversaire(client.kycCompletedAt);
+      if (echeanceKyc <= maintenant) {
+        await this.clientRepo.update(clientId, { kycStatut: StatutKyc.EXPIRE });
+        kycAOuvrir = true;
+      } else if (rappelDu(echeanceKyc, maintenant)) {
+        kycAOuvrir = true;
+      }
+    }
     await this.syncType(
       clientId,
       TypeObligation.KYC_VERIFICATION,
-      client.kycStatut !== StatutKyc.VALIDE,
+      kycAOuvrir,
+      echeanceKyc,
+    );
+
+    // Questionnaire LAB : à refaire chaque année (rouvert depuis la fiche).
+    const questionnaire = await this.questionnaireRepo.findOne({
+      where: [{ client: { id: clientId } }],
+    });
+    let lab = false;
+    let echeanceLab: Date | undefined;
+    if (questionnaire?.statut === StatutQuestionnaire.VALIDE) {
+      if (questionnaire.validatedAt) {
+        echeanceLab = anniversaire(questionnaire.validatedAt);
+        lab = rappelDu(echeanceLab, maintenant);
+      }
+    } else if (questionnaire?.statut === StatutQuestionnaire.EN_COURS) {
+      lab = true; // rouvert pour la revue, pas encore revalidé
+    }
+    await this.syncType(
+      clientId,
+      TypeObligation.EVALUATION_RISQUE,
+      lab,
+      echeanceLab,
+    );
+  }
+
+  // Pièces KYC obligatoires absentes ou expirées pour un client (PPE du
+  // client ou d'un bénéficiaire effectif, risque ÉLEVÉ → pièces en plus).
+  async piecesManquantes(client: Client): Promise<TypeDocument[]> {
+    const [documents, uboPpe, score] = await Promise.all([
+      this.documentRepo.find({
+        where: { client: { id: client.id } },
+        select: { id: true, type: true, dateExpiration: true },
+      }),
+      this.beneficiaireRepo.exists({
+        where: { client: { id: client.id }, ppe: true },
+      }),
+      this.scoreRepo.findOne({
+        where: { client: { id: client.id } },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+    return documentsManquants(
+      {
+        typeEntite: client.typeEntite,
+        ppe: client.ppe || uboPpe,
+        risqueEleve: score?.niveau === NiveauRisque.ELEVE,
+      },
+      documents,
     );
   }
 
@@ -156,6 +249,7 @@ export class ObligationsService {
     clientId: string,
     type: TypeObligation,
     doitEtreOuverte: boolean,
+    echeance?: Date,
   ): Promise<void> {
     const ouverte = await this.repo.findOne({
       where: {
@@ -166,8 +260,12 @@ export class ObligationsService {
     });
 
     if (doitEtreOuverte && !ouverte) {
-      const dateEcheance = new Date();
-      dateEcheance.setDate(dateEcheance.getDate() + DELAI_ECHEANCE_AUTO_JOURS);
+      const dateEcheance = echeance ?? new Date();
+      if (!echeance) {
+        dateEcheance.setDate(
+          dateEcheance.getDate() + DELAI_ECHEANCE_AUTO_JOURS,
+        );
+      }
 
       await this.repo.save(
         this.repo.create({
@@ -183,12 +281,45 @@ export class ObligationsService {
     }
   }
 
-  // Job quotidien : fait passer en retard les obligations dont l'échéance
-  // est dépassée sans avoir été traitées.
+  // Job quotidien : passe en retard les obligations dont l'échéance est
+  // dépassée et prévient le collaborateur en charge, les responsables et
+  // les experts-comptables.
   async marquerEnRetard(): Promise<void> {
-    await this.repo.update(
-      { statut: StatutObligation.A_FAIRE, dateEcheance: LessThan(new Date()) },
-      { statut: StatutObligation.EN_RETARD },
-    );
+    const enRetard = await this.repo.find({
+      where: {
+        statut: StatutObligation.A_FAIRE,
+        dateEcheance: LessThan(new Date()),
+      },
+      relations: [
+        'client',
+        'client.createdBy',
+        'prospect',
+        'prospect.assignedTo',
+        'prospect.createdBy',
+      ],
+    });
+    for (const o of enRetard) {
+      o.statut = StatutObligation.EN_RETARD;
+      await this.repo.save(o);
+
+      const nom = o.prospect?.nom ?? o.client?.raisonSociale ?? '';
+      const lien = o.prospect
+        ? `/dashboard/prospects/${o.prospect.id}`
+        : `/dashboard/clients/${o.client?.id}?tab=obligations`;
+      const titre = 'Obligation en retard';
+      const enCharge =
+        o.prospect?.assignedTo?.id ??
+        o.prospect?.createdBy?.id ??
+        o.client?.createdBy?.id;
+      if (enCharge) {
+        await this.notificationsService.creerPour([enCharge], titre, nom, lien);
+      }
+      await this.notificationsService.creerPourRoles(
+        [Role.RESPONSABLE, Role.EXPERT_COMPTABLE],
+        titre,
+        nom,
+        lien,
+      );
+    }
   }
 }

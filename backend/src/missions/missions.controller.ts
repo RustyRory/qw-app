@@ -31,12 +31,7 @@ export class MissionsController {
   constructor(private readonly svc: MissionsService) {}
 
   @Post()
-  @Roles(
-    Role.COLLABORATEUR,
-    Role.RESPONSABLE,
-    Role.EXPERT_COMPTABLE,
-    Role.ADMIN,
-  )
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   create(@Body() dto: CreateMissionDto, @Req() req: RequestWithUser) {
     return this.svc.create(dto, req.user.id);
   }
@@ -62,35 +57,20 @@ export class MissionsController {
   }
 
   @Patch(':id')
-  @Roles(
-    Role.COLLABORATEUR,
-    Role.RESPONSABLE,
-    Role.EXPERT_COMPTABLE,
-    Role.ADMIN,
-  )
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateMissionDto) {
     return this.svc.update(id, dto);
   }
 
   @Patch(':id/statut')
-  @Roles(
-    Role.COLLABORATEUR,
-    Role.RESPONSABLE,
-    Role.EXPERT_COMPTABLE,
-    Role.ADMIN,
-  )
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   changerStatut(@Param('id') id: string, @Body() dto: UpdateStatutMissionDto) {
     return this.svc.changerStatut(id, dto.statut);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(
-    Role.COLLABORATEUR,
-    Role.RESPONSABLE,
-    Role.EXPERT_COMPTABLE,
-    Role.ADMIN,
-  )
+  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
   remove(@Param('id') id: string) {
     return this.svc.remove(id);
   }
