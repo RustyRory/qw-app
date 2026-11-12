@@ -5,6 +5,8 @@ import { ObligationsService } from './obligations.service';
 import { Obligation } from './entities/obligation.entity';
 import { Document } from '../documents/entities/document.entity';
 import { Client } from '../clients/entities/client.entity';
+import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
+import { ScoreRisque } from '../scoring/entities/score-risque.entity';
 import { StatutObligation, TypeObligation } from '../common/enums';
 
 describe('ObligationsService', () => {
@@ -30,6 +32,14 @@ describe('ObligationsService', () => {
         { provide: getRepositoryToken(Obligation), useValue: repoMock },
         { provide: getRepositoryToken(Document), useValue: documentRepoMock },
         { provide: getRepositoryToken(Client), useValue: clientRepoMock },
+        {
+          provide: getRepositoryToken(BeneficiaireEffectif),
+          useValue: { exists: jest.fn().mockResolvedValue(false) },
+        },
+        {
+          provide: getRepositoryToken(ScoreRisque),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 

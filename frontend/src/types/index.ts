@@ -187,6 +187,7 @@ export interface Client {
   // Prospect d'origine si ce client a été créé par conversion — permet de
   // retrouver le questionnaire d'acceptation rempli avant l'entrée en relation.
   prospect?: { id: string; ref: string } | null;
+  dateFinRelation?: string | null;
   createdAt: string;
   updatedAt: string;
 }

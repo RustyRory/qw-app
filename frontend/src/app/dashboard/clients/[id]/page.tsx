@@ -751,9 +751,17 @@ function TabInfos({
 
 // ─── Onglet KYC ───────────────────────────────────────────────────────────────
 
-// Miroir de backend/src/common/document-checklist.ts — tenu à jour manuellement.
+// Miroir de backend/src/common/document-checklist.ts — tenu à jour
+// manuellement (le justificatif d'origine des fonds, exigé en risque
+// ÉLEVÉ, apparaît dans les conditions de validation renvoyées par l'API).
 const DOCUMENTS_REQUIS: Record<TypeEntite, TypeDocument[]> = {
-  PERSONNE_MORALE: ["KBIS", "STATUTS", "LISTE_UBO"],
+  PERSONNE_MORALE: [
+    "KBIS",
+    "STATUTS",
+    "LISTE_UBO",
+    "PIECE_IDENTITE_DIRIGEANT",
+    "PIECE_IDENTITE_BENEFICIAIRE",
+  ],
   PERSONNE_PHYSIQUE: ["PIECE_IDENTITE", "JUSTIFICATIF_DOMICILE"],
 };
 
@@ -770,6 +778,16 @@ function TabKyc({
   const [uploadType, setUploadType] = useState<TypeDocument>("AUTRE");
   const [uploadExpiration, setUploadExpiration] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [conditionsKyc, setConditionsKyc] = useState<string[] | null>(null);
+  const [kycError, setKycError] = useState<string | null>(null);
+
+  // Conditions de validation du KYC, recalculées à chaque changement de
+  // pièces ou de dossier.
+  useEffect(() => {
+    apiFetch<string[]>(`/clients/${client.id}/conditions-kyc`)
+      .then(setConditionsKyc)
+      .catch(() => setConditionsKyc(null));
+  }, [client, docs]);
   const [showScreeningPicker, setShowScreeningPicker] = useState(false);
   const [screeningSaving, setScreeningSaving] = useState(false);
   const [showPpeEditor, setShowPpeEditor] = useState(false);
@@ -843,7 +861,11 @@ function TabKyc({
     }
   }
 
-  const docsExistants = docs.map((d) => d.type);
+  // Une pièce expirée ne compte plus.
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const docsExistants = docs
+    .filter((d) => !d.dateExpiration || d.dateExpiration >= aujourdhui)
+    .map((d) => d.type);
   const typesRequis = [
     ...DOCUMENTS_REQUIS[client.typeEntite],
     ...(client.ppe ? (["ATTESTATION_PPE"] as TypeDocument[]) : []),
@@ -891,17 +913,35 @@ function TabKyc({
             </div>
           ))}
           {can.validerQuestionnaire && client.kycStatut !== "VALIDE" && (
-            <button
-              onClick={async () => {
-                await apiFetch(`/clients/${client.id}/validate`, {
-                  method: "PATCH",
-                });
-                onRefresh();
-              }}
-              className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-            >
-              [Valider KYC ✓] (RESPONSABLE)
-            </button>
+            <div className="mt-2 space-y-1">
+              <button
+                disabled={!conditionsKyc || conditionsKyc.length > 0}
+                onClick={async () => {
+                  setKycError(null);
+                  try {
+                    await apiFetch(`/clients/${client.id}/validate`, {
+                      method: "PATCH",
+                    });
+                    onRefresh();
+                  } catch (err) {
+                    setKycError(
+                      err instanceof Error ? err.message : String(err),
+                    );
+                  }
+                }}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors disabled:cursor-not-allowed disabled:text-slate-400"
+              >
+                Valider le KYC ✓
+              </button>
+              {conditionsKyc && conditionsKyc.length > 0 && (
+                <ul className="text-xs text-slate-500">
+                  {conditionsKyc.map((c) => (
+                    <li key={c}>• {c}</li>
+                  ))}
+                </ul>
+              )}
+              {kycError && <p className="text-xs text-red-600">{kycError}</p>}
+            </div>
           )}
         </div>
       </div>
@@ -945,12 +985,14 @@ function TabKyc({
             >
               {showPpeEditor ? "[Fermer]" : "[Modifier PPE]"}
             </button>
-            <button
-              onClick={() => setShowScreeningPicker(!showScreeningPicker)}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
-              {showScreeningPicker ? "[Fermer]" : "[Relancer screening]"}
-            </button>
+            {can.validerQuestionnaire && (
+              <button
+                onClick={() => setShowScreeningPicker(!showScreeningPicker)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {showScreeningPicker ? "[Fermer]" : "[Relancer screening]"}
+              </button>
+            )}
           </div>
 
           {showPpeEditor && (
@@ -3662,6 +3704,28 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const activeTab = searchParams.get("tab") ?? "infos";
+  const { can } = useRole();
+
+  async function changerStatut(statut: StatutClient) {
+    if (!client || statut === client.statut) return;
+    if (
+      statut === "RESILIE" &&
+      !window.confirm(
+        "Résilier la relation avec ce client ? Le dossier passera en lecture seule et sera conservé 5 ans (obligation LCB-FT). Cette action est définitive.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await apiFetch(`/clients/${client.id}/statut`, {
+        method: "PATCH",
+        body: JSON.stringify({ statut }),
+      });
+      load();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   const load = useCallback(() => {
     apiFetch<Client>(`/clients/${id}`)
@@ -3721,6 +3785,21 @@ export default function ClientDetailPage() {
   return (
     <div className="min-h-full bg-slate-50 pb-24 md:pb-8">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 md:px-8 md:py-6">
+        {client.statut === "RESILIE" && (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p className="font-semibold">
+              Client résilié — dossier en lecture seule
+            </p>
+            <p className="mt-1">
+              Relation terminée
+              {client.dateFinRelation
+                ? ` le ${new Date(client.dateFinRelation).toLocaleDateString("fr-FR")}`
+                : ""}
+              . Conservation obligatoire 5 ans (LCB-FT).
+            </p>
+          </div>
+        )}
+
         {/* En-tête du dossier */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-800 to-violet-700 p-5 text-white shadow-xl sm:p-7">
           <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-cyan-300/20 blur-3xl" />
@@ -3763,9 +3842,30 @@ export default function ClientDetailPage() {
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1.5 text-xs font-semibold text-emerald-100">
-                    ● {client.statut}
-                  </span>
+                  {can.validerQuestionnaire && client.statut !== "RESILIE" ? (
+                    <select
+                      value={client.statut}
+                      onChange={(e) =>
+                        changerStatut(e.target.value as StatutClient)
+                      }
+                      aria-label="Statut du client"
+                      className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1.5 text-xs font-semibold text-emerald-50"
+                    >
+                      <option value="ACTIF" className="text-slate-800">
+                        ACTIF
+                      </option>
+                      <option value="INACTIF" className="text-slate-800">
+                        INACTIF
+                      </option>
+                      <option value="RESILIE" className="text-slate-800">
+                        RÉSILIÉ
+                      </option>
+                    </select>
+                  ) : (
+                    <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                      ● {client.statut}
+                    </span>
+                  )}
 
                   <span className="rounded-full border border-blue-300/30 bg-blue-400/15 px-3 py-1.5 text-xs font-semibold text-blue-100">
                     ● KYC {client.kycStatut}

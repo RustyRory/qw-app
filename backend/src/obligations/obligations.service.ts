@@ -9,7 +9,15 @@ import { Obligation } from './entities/obligation.entity';
 import { Client } from '../clients/entities/client.entity';
 import { Prospect } from '../prospects/entities/prospect.entity';
 import { Document } from '../documents/entities/document.entity';
-import { StatutObligation, StatutKyc, TypeObligation } from '../common/enums';
+import {
+  NiveauRisque,
+  StatutObligation,
+  StatutKyc,
+  TypeDocument,
+  TypeObligation,
+} from '../common/enums';
+import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
+import { ScoreRisque } from '../scoring/entities/score-risque.entity';
 import { documentsManquants } from '../common/document-checklist';
 import { CreateObligationDto } from './dto/create-obligation.dto';
 
@@ -24,6 +32,10 @@ export class ObligationsService {
     private readonly documentRepo: Repository<Document>,
     @InjectRepository(Client)
     private readonly clientRepo: Repository<Client>,
+    @InjectRepository(BeneficiaireEffectif)
+    private readonly beneficiaireRepo: Repository<BeneficiaireEffectif>,
+    @InjectRepository(ScoreRisque)
+    private readonly scoreRepo: Repository<ScoreRisque>,
   ) {}
 
   create(dto: CreateObligationDto): Promise<Obligation> {
@@ -131,14 +143,7 @@ export class ObligationsService {
     const client = await this.clientRepo.findOneBy({ id: clientId });
     if (!client) return;
 
-    const documents = await this.documentRepo.find({
-      where: { client: { id: clientId } },
-    });
-    const manquants = documentsManquants(
-      client.typeEntite,
-      client.ppe,
-      documents.map((d) => d.type),
-    );
+    const manquants = await this.piecesManquantes(client);
 
     await this.syncType(
       clientId,
@@ -149,6 +154,32 @@ export class ObligationsService {
       clientId,
       TypeObligation.KYC_VERIFICATION,
       client.kycStatut !== StatutKyc.VALIDE,
+    );
+  }
+
+  // Pièces KYC obligatoires absentes ou expirées pour un client (PPE du
+  // client ou d'un bénéficiaire effectif, risque ÉLEVÉ → pièces en plus).
+  async piecesManquantes(client: Client): Promise<TypeDocument[]> {
+    const [documents, uboPpe, score] = await Promise.all([
+      this.documentRepo.find({
+        where: { client: { id: client.id } },
+        select: { id: true, type: true, dateExpiration: true },
+      }),
+      this.beneficiaireRepo.exists({
+        where: { client: { id: client.id }, ppe: true },
+      }),
+      this.scoreRepo.findOne({
+        where: { client: { id: client.id } },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+    return documentsManquants(
+      {
+        typeEntite: client.typeEntite,
+        ppe: client.ppe || uboPpe,
+        risqueEleve: score?.niveau === NiveauRisque.ELEVE,
+      },
+      documents,
     );
   }
 

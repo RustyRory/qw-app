@@ -119,6 +119,11 @@ export class Client {
   @Column({ type: 'enum', enum: StatutClient, default: StatutClient.ACTIF })
   statut: StatutClient;
 
+  // Date de fin de la relation d'affaires (passage en RÉSILIÉ) : point de
+  // départ de la conservation obligatoire de 5 ans (LCB-FT).
+  @Column({ type: 'timestamptz', nullable: true })
+  dateFinRelation: Date | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   sireneUpdatedAt: Date | null;
 

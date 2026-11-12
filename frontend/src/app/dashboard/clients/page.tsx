@@ -9,7 +9,6 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
-  IconPlus,
   IconSearch,
   IconSelector,
   IconShieldCheck,
@@ -337,14 +336,10 @@ export default function ClientsPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => router.push("/dashboard/clients/new")}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-indigo-800 shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-50 sm:w-auto"
-              >
-                <IconPlus className="size-5" />
-                Nouveau client
-              </button>
+              <p className="max-w-xs text-xs text-blue-100">
+                Un client est créé en convertissant un prospect (questionnaire
+                validé et lettre de mission signée).
+              </p>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5 lg:grid-cols-4">
