@@ -22,7 +22,6 @@ const ROLE_LABELS: Record<Role, string> = {
   RESPONSABLE: "Responsable",
   EXPERT_COMPTABLE: "Expert-comptable",
   ADMIN: "Administrateur",
-  MODERATEUR: "Modérateur",
 };
 
 const ROLE_CLASSES: Record<Role, string> = {
@@ -30,7 +29,6 @@ const ROLE_CLASSES: Record<Role, string> = {
   RESPONSABLE: "bg-amber-50 text-amber-700 ring-amber-200",
   EXPERT_COMPTABLE: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   ADMIN: "bg-violet-50 text-violet-700 ring-violet-200",
-  MODERATEUR: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
 const AVATAR_CLASSES: Record<Role, string> = {
@@ -38,11 +36,10 @@ const AVATAR_CLASSES: Record<Role, string> = {
   RESPONSABLE: "from-amber-500 to-orange-500",
   EXPERT_COMPTABLE: "from-emerald-500 to-teal-500",
   ADMIN: "from-violet-600 to-fuchsia-500",
-  MODERATEUR: "from-rose-500 to-pink-500",
 };
 
 export default function UsersPage() {
-  const { ready } = useAuth(["ADMIN", "MODERATEUR"]);
+  const { ready } = useAuth(["ADMIN"]);
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -309,8 +306,6 @@ export default function UsersPage() {
               <option value="EXPERT_COMPTABLE">Experts-comptables</option>
 
               <option value="ADMIN">Administrateurs</option>
-
-              <option value="MODERATEUR">Modérateurs</option>
             </select>
 
             <select

@@ -19,30 +19,31 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateSignatureDto } from './dto/update-signature.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { AutoriseMotDePasseAChanger } from '../common/decorators/mot-de-passe-a-changer.decorator';
 
 interface RequestWithUser {
   user: { id: string; role: Role };
 }
 
-// Auto-gestion (fiche « Paramètres ») : tous les rôles, y compris MODERATEUR
-// qui n'a par ailleurs accès à aucun dossier métier.
+// Auto-gestion (fiche « Paramètres ») : tous les rôles.
 const TOUS_LES_ROLES = [
   Role.COLLABORATEUR,
   Role.RESPONSABLE,
   Role.EXPERT_COMPTABLE,
   Role.ADMIN,
-  Role.MODERATEUR,
 ];
 
+// Gestion des comptes : administrateur uniquement.
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.MODERATEUR)
+@Roles(Role.ADMIN)
 @Controller('api/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  // Liste accessible aux rôles pouvant assigner un prospect/dossier, et au modérateur pour la gestion des comptes.
+  // Liste accessible à tous les rôles : sert à choisir l'assigné d'un
+  // prospect (tout le monde peut assigner).
   @Get()
-  @Roles(Role.COLLABORATEUR, Role.RESPONSABLE, Role.ADMIN, Role.MODERATEUR)
+  @Roles(...TOUS_LES_ROLES)
   findAll() {
     return this.usersService.findAll();
   }
@@ -50,6 +51,7 @@ export class UsersController {
   // Auto-gestion : tout utilisateur authentifié gère son propre profil/signature.
   @Get('me')
   @Roles(...TOUS_LES_ROLES)
+  @AutoriseMotDePasseAChanger()
   getMe(@Req() req: RequestWithUser) {
     return this.usersService.findMe(req.user.id);
   }
@@ -62,6 +64,7 @@ export class UsersController {
 
   @Patch('me/password')
   @Roles(...TOUS_LES_ROLES)
+  @AutoriseMotDePasseAChanger()
   changeMyPassword(
     @Req() req: RequestWithUser,
     @Body() dto: ChangePasswordDto,
@@ -97,8 +100,9 @@ export class UsersController {
     return this.usersService.update(id, dto);
   }
 
+  // Désactive le compte (aucune suppression : historique conservé).
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: RequestWithUser) {
-    return this.usersService.remove(id, req.user.id);
+  desactiver(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.usersService.desactiver(id, req.user.id);
   }
 }

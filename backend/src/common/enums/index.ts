@@ -3,7 +3,6 @@ export enum Role {
   RESPONSABLE = 'RESPONSABLE',
   EXPERT_COMPTABLE = 'EXPERT_COMPTABLE',
   ADMIN = 'ADMIN',
-  MODERATEUR = 'MODERATEUR',
 }
 
 export enum TypeEntite {

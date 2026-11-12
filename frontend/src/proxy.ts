@@ -29,11 +29,10 @@ export function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/dashboard")) {
     if (!isAuthenticated) return redirect("/login");
-    if (
-      payload!.role === "MODERATEUR" &&
-      !pathname.startsWith("/dashboard/admin/users")
-    ) {
-      return redirect("/dashboard/admin/users");
+    // Mot de passe provisoire à changer : seul le profil est accessible
+    // (le backend refuse de toute façon les autres appels).
+    if (payload!.mcp && pathname !== "/dashboard/profil") {
+      return redirect("/dashboard/profil");
     }
     return NextResponse.next();
   }

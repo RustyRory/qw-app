@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  Check,
 } from 'typeorm';
 import { Client } from '../../clients/entities/client.entity';
 import { Prospect } from '../../prospects/entities/prospect.entity';
@@ -20,6 +21,10 @@ import { TypeDocument } from '../../common/enums';
 @Entity('documents')
 @Index('idx_documents_id_client', ['client'])
 @Index('idx_documents_id_prospect', ['prospect'])
+@Check(
+  'CHK_documents_client_xor_prospect',
+  '("id_client" IS NULL) <> ("id_prospect" IS NULL)',
+)
 export class Document {
   @PrimaryGeneratedColumn('uuid')
   id: string;

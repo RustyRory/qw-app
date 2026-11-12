@@ -4,8 +4,7 @@ export type Role =
   | "COLLABORATEUR"
   | "RESPONSABLE"
   | "EXPERT_COMPTABLE"
-  | "ADMIN"
-  | "MODERATEUR";
+  | "ADMIN";
 export type TypeEntite = "PERSONNE_PHYSIQUE" | "PERSONNE_MORALE";
 export type StatutKanban =
   | "PRISE_CONTACT"
@@ -81,6 +80,7 @@ export interface User {
   nom: string;
   role: Role;
   isActive: boolean;
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 
@@ -91,6 +91,7 @@ export interface MonProfil {
   nom: string;
   role: Role;
   signatureDataUri: string | null;
+  mustChangePassword: boolean;
 }
 
 export interface Prospect {

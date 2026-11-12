@@ -26,7 +26,7 @@ export function useRole() {
         role!,
       ),
       signerLettre: (["EXPERT_COMPTABLE", "ADMIN"] as Role[]).includes(role!),
-      gererUtilisateurs: role === "ADMIN" || role === "MODERATEUR",
+      gererUtilisateurs: role === "ADMIN",
       supprimerDossier: role === "ADMIN",
       voirCartographie: (
         ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]

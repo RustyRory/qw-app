@@ -12,6 +12,8 @@ import {
 } from "@tabler/icons-react";
 
 import { apiFetch } from "@/lib/apiFetch";
+import { apiUrl } from "@/lib/api-url";
+import { assetUrl } from "@/lib/asset-url";
 import { SignaturePad } from "@/components/signature-pad";
 import { DossierLocalSection } from "@/components/dossier-local-section";
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,6 @@ const ROLE_LABELS: Record<string, string> = {
   RESPONSABLE: "Responsable",
   EXPERT_COMPTABLE: "Expert-comptable",
   ADMIN: "Administrateur",
-  MODERATEUR: "Modérateur",
 };
 
 export default function ProfilPage() {
@@ -73,10 +74,22 @@ export default function ProfilPage() {
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
             Impossible de charger votre profil.
           </div>
+        ) : profil.mustChangePassword ? (
+          <>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-semibold">Mot de passe provisoire</p>
+              <p className="mt-1">
+                Choisissez votre mot de passe personnel pour accéder à
+                l’application. Le mot de passe actuel est celui qui vous a été
+                communiqué par l’administrateur.
+              </p>
+            </div>
+            <PasswordSection profil={profil} />
+          </>
         ) : (
           <>
             <InfosSection profil={profil} onSaved={setProfil} />
-            <PasswordSection />
+            <PasswordSection profil={profil} />
             <DossierLocalSection userId={profil.id} />
             {/* Seul l'expert-comptable signe réellement une lettre de
                 mission — la validation du responsable ne stampe jamais de
@@ -201,7 +214,22 @@ function InfosSection({
   );
 }
 
-function PasswordSection() {
+// Après changement d'un mot de passe provisoire, le jeton en cours porte
+// encore l'indicateur « à changer » : on se reconnecte avec le nouveau mot
+// de passe pour obtenir un jeton à jour, puis on entre dans l'application.
+async function reconnecter(email: string, password: string): Promise<void> {
+  const res = await fetch(apiUrl("/auth/login"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error("Reconnexion impossible");
+  const { access_token } = (await res.json()) as { access_token: string };
+  document.cookie = `qw_token=${access_token}; path=/; max-age=${60 * 60 * 24}`;
+  window.location.href = assetUrl("/dashboard");
+}
+
+function PasswordSection({ profil }: { profil: MonProfil }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -231,6 +259,10 @@ function PasswordSection() {
           newPassword,
         }),
       });
+      if (profil.mustChangePassword) {
+        await reconnecter(profil.email, newPassword);
+        return;
+      }
       setSuccess(true);
       (e.target as HTMLFormElement).reset();
       setTimeout(() => setSuccess(false), 3000);
@@ -249,7 +281,8 @@ function PasswordSection() {
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
       <p className="mb-1 text-sm font-bold text-slate-900">Mot de passe</p>
       <p className="mb-4 text-xs leading-5 text-slate-500">
-        Renseignez votre mot de passe actuel pour en définir un nouveau.
+        Renseignez votre mot de passe actuel pour en définir un nouveau : au
+        moins 12 caractères, dont une majuscule, une minuscule et un chiffre.
       </p>
 
       {error && (
@@ -307,7 +340,7 @@ function PasswordSection() {
                   id="newPassword"
                   name="newPassword"
                   type={showNew ? "text" : "password"}
-                  minLength={6}
+                  minLength={12}
                   required
                   className="rounded-xl pr-10"
                 />
@@ -335,7 +368,7 @@ function PasswordSection() {
                 id="confirmPassword"
                 name="confirmPassword"
                 type={showNew ? "text" : "password"}
-                minLength={6}
+                minLength={12}
                 required
                 className="rounded-xl"
               />

@@ -14,7 +14,9 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async login(dto: LoginDto): Promise<{ access_token: string }> {
+  async login(
+    dto: LoginDto,
+  ): Promise<{ access_token: string; mustChangePassword: boolean }> {
     const invalid = new UnauthorizedException('Identifiants incorrects');
 
     const user = await this.usersRepo.findOneBy({ email: dto.email });
@@ -27,7 +29,17 @@ export class AuthService {
 
     await this.usersRepo.update(user.id, { lastLoginAt: new Date() });
 
-    const payload = { sub: user.id, role: user.role };
-    return { access_token: this.jwtService.sign(payload) };
+    // `mcp` (must change password) permet au frontend de rediriger vers le
+    // changement de mot de passe ; le backend, lui, relit la valeur en base
+    // à chaque requête (cf. JwtStrategy / JwtAuthGuard).
+    const payload = {
+      sub: user.id,
+      role: user.role,
+      ...(user.mustChangePassword ? { mcp: true } : {}),
+    };
+    return {
+      access_token: this.jwtService.sign(payload),
+      mustChangePassword: user.mustChangePassword,
+    };
   }
 }
