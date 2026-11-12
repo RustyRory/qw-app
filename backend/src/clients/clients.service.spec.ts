@@ -58,6 +58,7 @@ describe('ClientsService', () => {
     where: jest.fn().mockReturnThis(),
     withDeleted: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     getRawOne: jest.fn(),
   };

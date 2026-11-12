@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Prospect } from '../../prospects/entities/prospect.entity';
+import { Client } from '../../clients/entities/client.entity';
 
 export enum StatutQuestionnaire {
   EN_COURS = 'EN_COURS',
@@ -24,6 +25,12 @@ export class QuestionnaireAcceptation {
   @OneToOne(() => Prospect, (p) => p.questionnaire, { nullable: false })
   @JoinColumn({ name: 'id_prospect' })
   prospect: Prospect;
+
+  // Renseigné à la conversion : le questionnaire suit le client (revues
+  // annuelles) tout en gardant son prospect d'origine.
+  @ManyToOne(() => Client, { nullable: true })
+  @JoinColumn({ name: 'id_client' })
+  client: Client | null;
 
   @Column({
     type: 'enum',

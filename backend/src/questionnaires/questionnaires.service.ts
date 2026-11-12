@@ -246,6 +246,8 @@ export class QuestionnairesService {
     // Automatisation : un LAB refusé bascule le prospect en REFUSE dans le
     // kanban, plus besoin d'une action séparée pour que ça se voie.
     if (refuserProspectAuto(q.prospect)) {
+      // Le motif du refus LAB devient le motif de refus du prospect.
+      q.prospect.motifRefus = q.motifRefus;
       await this.prospectRepo.save(q.prospect);
     }
 

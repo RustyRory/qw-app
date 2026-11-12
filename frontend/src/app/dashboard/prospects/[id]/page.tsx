@@ -20,6 +20,13 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { ScoringPanel } from "@/components/scoring-panel";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
+import { DocumentsPanel } from "@/components/documents-panel";
+import { BeneficiairesPanel } from "@/components/beneficiaires-panel";
+import {
+  accederDossierLocal,
+  deplacerFichierLocal,
+  supprimerDossierSiVide,
+} from "@/lib/local-folder";
 import type {
   AssignationTache,
   Mission,
@@ -51,17 +58,15 @@ const KANBAN_LABELS: Record<StatutKanban, string> = {
   REFUSE: "Prospects refusés",
 };
 
-// "CONVERTI" y figure comme un statut kanban normal, librement déplaçable —
-// il ne déclenche pas la vraie conversion (création du dossier Client), qui
-// reste une action distincte via le bouton "Convertir en client". Seule
-// l'existence réelle d'un Client lié (prospect.client) verrouille la fiche.
+// Statuts sélectionnables à la main. « Converti » n'y figure pas : il n'est
+// posé que par le bouton « Convertir en client » (création réelle du
+// client) ; « Refusé » passe par « Refuser le prospect » (motif requis).
 const KANBAN_ACTIFS: StatutKanban[] = [
   "PRISE_CONTACT",
   "PREPARATION_LAB",
   "VALIDATION_LAB",
   "LM_A_FAIRE",
   "LM_ENVOYEE",
-  "CONVERTI",
 ];
 
 export default function ProspectDetailPage() {
@@ -75,6 +80,12 @@ export default function ProspectDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [conditionsConversion, setConditionsConversion] = useState<
+    string[] | null
+  >(null);
+  const [refusOpen, setRefusOpen] = useState(false);
+  const [motifRefus, setMotifRefus] = useState("");
+  const [refusing, setRefusing] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
@@ -108,6 +119,9 @@ export default function ProspectDetailPage() {
       .then(setProspect)
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
+    apiFetch<string[]>(`/prospects/${id}/conditions-conversion`)
+      .then(setConditionsConversion)
+      .catch(() => setConditionsConversion(null));
   }, [id]);
 
   useEffect(() => {
@@ -385,30 +399,42 @@ export default function ProspectDetailPage() {
     e.preventDefault();
     setSaving(true);
     const form = new FormData(e.currentTarget);
+    // Champ vidé → null (effacement), sauf pays (obligatoire, défaut France).
+    const texte = (cle: string) => {
+      const v = form.get(cle);
+      if (v === null) return undefined; // champ absent du formulaire
+      return (v as string).trim() || null;
+    };
+    const nombre = (cle: string) => {
+      const v = texte(cle);
+      return v === undefined || v === null ? v : Number(v);
+    };
+    const siret = texte("siret");
     const data = {
       nom: form.get("nom") as string,
       typeEntite: form.get("typeEntite") as TypeEntite,
-      email: (form.get("email") as string) || undefined,
-      telephone: (form.get("telephone") as string) || undefined,
-      siret: (form.get("siret") as string) || undefined,
-      activite: (form.get("activite") as string) || undefined,
-      codeNaf: (form.get("codeNaf") as string) || undefined,
-      adresse: (form.get("adresse") as string) || undefined,
-      ville: (form.get("ville") as string) || undefined,
-      pays: (form.get("pays") as string) || undefined,
-      notes: (form.get("notes") as string) || undefined,
-      capitalSocial: form.get("capitalSocial")
-        ? Number(form.get("capitalSocial"))
-        : undefined,
-      regimeFiscal: (form.get("regimeFiscal") as string) || undefined,
-      regimeTva: (form.get("regimeTva") as string) || undefined,
-      tvaIntracommunautaire:
-        (form.get("tvaIntracommunautaire") as string) || undefined,
+      email: texte("email"),
+      telephone: texte("telephone"),
+      siret: siret ? siret.replace(/\s/g, "") : siret,
+      formeJuridique: texte("formeJuridique"),
+      representantLegal: texte("representantLegal"),
+      activite: texte("activite"),
+      codeNaf: texte("codeNaf"),
+      adresse: texte("adresse"),
+      ville: texte("ville"),
+      codePostal: texte("codePostal"),
+      pays: texte("pays") ?? undefined,
+      notes: texte("notes"),
+      chiffreAffaires: nombre("chiffreAffaires"),
+      effectif: nombre("effectif"),
+      capitalSocial: nombre("capitalSocial"),
+      regimeFiscal: texte("regimeFiscal"),
+      regimeTva: texte("regimeTva"),
+      tvaIntracommunautaire: texte("tvaIntracommunautaire"),
       existenceSalaries: form.get("existenceSalaries")
         ? form.get("existenceSalaries") === "oui"
         : undefined,
-      conventionCollective:
-        (form.get("conventionCollective") as string) || undefined,
+      conventionCollective: texte("conventionCollective"),
     };
     try {
       await apiFetch(`/prospects/${id}`, {
@@ -471,10 +497,36 @@ export default function ProspectDetailPage() {
     setError(null);
 
     try {
-      const client = await apiFetch<{ id: string }>(
-        `/prospects/${id}/convert`,
-        { method: "POST" },
-      );
+      const client = await apiFetch<{
+        id: string;
+        deplacementsDocuments: { de: string; vers: string }[];
+      }>(`/prospects/${id}/convert`, { method: "POST" });
+
+      // Range les fichiers du dossier local dans Clients/<Réf> <Nom>/.
+      if (userId && client.deplacementsDocuments.length > 0) {
+        let echecs = 0;
+        try {
+          const dossier = await accederDossierLocal(userId, true);
+          for (const d of client.deplacementsDocuments) {
+            const ok = await deplacerFichierLocal(dossier, d.de, d.vers).catch(
+              () => false,
+            );
+            if (!ok) echecs++;
+          }
+          const ancienDossier = client.deplacementsDocuments[0].de
+            .split("/")
+            .slice(0, 2)
+            .join("/");
+          await supprimerDossierSiVide(dossier, ancienDossier);
+        } catch {
+          echecs = client.deplacementsDocuments.length;
+        }
+        if (echecs > 0) {
+          window.alert(
+            `Client créé. ${echecs} fichier(s) n’ont pas pu être rangés dans votre dossier local : utilisez « Synchroniser » dans Mon profil.`,
+          );
+        }
+      }
 
       router.push(`/dashboard/clients/${client.id}`);
     } catch (err) {
@@ -487,13 +539,22 @@ export default function ProspectDetailPage() {
     }
   }
 
-  async function handleRefuse() {
-    if (!confirm("Refuser ce prospect ?")) return;
+  async function handleRefuse(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!motifRefus.trim()) return;
+    setRefusing(true);
     try {
-      await apiFetch(`/prospects/${id}/refuser`, { method: "PATCH" });
+      await apiFetch(`/prospects/${id}/refuser`, {
+        method: "PATCH",
+        body: JSON.stringify({ motif: motifRefus.trim() }),
+      });
+      setRefusOpen(false);
+      setMotifRefus("");
       load();
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setRefusing(false);
     }
   }
 
@@ -652,6 +713,18 @@ export default function ProspectDetailPage() {
       )}
 
       <div className="px-4 -mt-4 space-y-4 pb-6 md:px-8">
+        {prospect.statutKanban === "REFUSE" && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p className="font-semibold">Prospect refusé</p>
+            <p className="mt-1 whitespace-pre-line">
+              {prospect.motifRefus || "Motif non renseigné"}
+            </p>
+            <p className="mt-2 text-xs text-red-600">
+              Archivé automatiquement 7 jours après le refus. Pour le réactiver,
+              changez son statut ci-dessus.
+            </p>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* ── Colonne gauche ── */}
           <div className="space-y-3">
@@ -920,6 +993,94 @@ export default function ProspectDetailPage() {
                         className="rounded-xl"
                       />
                     </Field>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <Field>
+                        <FieldLabel htmlFor="codePostal">
+                          Code postal
+                        </FieldLabel>
+                        <Input
+                          id="codePostal"
+                          name="codePostal"
+                          defaultValue={prospect.codePostal ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="ville">Ville</FieldLabel>
+                        <Input
+                          id="ville"
+                          name="ville"
+                          defaultValue={prospect.ville ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="pays">Pays</FieldLabel>
+                        <Input
+                          id="pays"
+                          name="pays"
+                          defaultValue={prospect.pays ?? "France"}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="formeJuridique">
+                          Forme juridique
+                        </FieldLabel>
+                        <Input
+                          id="formeJuridique"
+                          name="formeJuridique"
+                          defaultValue={prospect.formeJuridique ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="representantLegal">
+                          Représentant légal
+                        </FieldLabel>
+                        <Input
+                          id="representantLegal"
+                          name="representantLegal"
+                          defaultValue={prospect.representantLegal ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="codeNaf">Code NAF</FieldLabel>
+                        <Input
+                          id="codeNaf"
+                          name="codeNaf"
+                          defaultValue={prospect.codeNaf ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="chiffreAffaires">
+                          Chiffre d’affaires (€)
+                        </FieldLabel>
+                        <Input
+                          id="chiffreAffaires"
+                          name="chiffreAffaires"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          defaultValue={prospect.chiffreAffaires ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="effectif">Effectif</FieldLabel>
+                        <Input
+                          id="effectif"
+                          name="effectif"
+                          type="number"
+                          min={0}
+                          step={1}
+                          defaultValue={prospect.effectif ?? ""}
+                          className="rounded-xl"
+                        />
+                      </Field>
+                    </div>
                   </FieldGroup>
                 </div>
 
@@ -1714,6 +1875,65 @@ export default function ProspectDetailPage() {
           </div>
         </div>
 
+        {/* ── Pièces et bénéficiaires (transférés au client à la conversion) ── */}
+        {!hasClient && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <DocumentsPanel
+              cible="prospect"
+              cibleId={prospect.id}
+              lectureSeule={!peutTraiter}
+            />
+            {prospect.typeEntite === "PERSONNE_MORALE" && (
+              <BeneficiairesPanel
+                cible="prospect"
+                cibleId={prospect.id}
+                lectureSeule={!peutTraiter}
+                onChange={load}
+              />
+            )}
+          </div>
+        )}
+
+        {refusOpen && (
+          <form
+            onSubmit={handleRefuse}
+            className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4"
+          >
+            <label
+              htmlFor="motif-refus"
+              className="block text-sm font-semibold text-amber-900"
+            >
+              Motif du refus *
+            </label>
+            <textarea
+              id="motif-refus"
+              value={motifRefus}
+              onChange={(e) => setMotifRefus(e.target.value)}
+              required
+              rows={3}
+              placeholder="Conservé dans le dossier (obligation LCB-FT)"
+              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRefusOpen(false)}
+                className="rounded-xl"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                disabled={refusing || !motifRefus.trim()}
+                className="rounded-xl bg-amber-600 text-white hover:bg-amber-700"
+              >
+                {refusing ? "Refus…" : "Confirmer le refus"}
+              </Button>
+            </div>
+          </form>
+        )}
+
         {/* ── Actions bas ── */}
         {!isArchived && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-3">
@@ -1731,7 +1951,7 @@ export default function ProspectDetailPage() {
               )}
               {peutRefuser && (
                 <button
-                  onClick={handleRefuse}
+                  onClick={() => setRefusOpen(true)}
                   className="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors"
                 >
                   Refuser le prospect
@@ -1744,17 +1964,25 @@ export default function ProspectDetailPage() {
               )}
             </div>
             {can.convertirProspect && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-end gap-1">
                 <Button
                   onClick={handleConvert}
-                  disabled={converting}
+                  disabled={
+                    converting ||
+                    !conditionsConversion ||
+                    conditionsConversion.length > 0
+                  }
                   className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                 >
                   {converting ? "Conversion…" : "Convertir en client →"}
                 </Button>
-                <span className="text-xs text-slate-400">
-                  (EXPERT_COMPTABLE)
-                </span>
+                {conditionsConversion && conditionsConversion.length > 0 && (
+                  <ul className="text-right text-xs text-slate-500">
+                    {conditionsConversion.map((c) => (
+                      <li key={c}>• {c}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

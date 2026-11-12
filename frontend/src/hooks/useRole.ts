@@ -19,9 +19,9 @@ export function useRole() {
       validerQuestionnaire: (
         ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
       ).includes(role!),
-      convertirProspect: (["EXPERT_COMPTABLE", "ADMIN"] as Role[]).includes(
-        role!,
-      ),
+      convertirProspect: (
+        ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
+      ).includes(role!),
       validerLettreMission: (["RESPONSABLE", "ADMIN"] as Role[]).includes(
         role!,
       ),

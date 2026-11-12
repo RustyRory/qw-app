@@ -14,7 +14,10 @@ export async function generateNextRef<T extends ObjectLiteral>(
     .select('e.ref', 'ref')
     .where('e.ref LIKE :pattern', { pattern: `${prefix}%` })
     .withDeleted()
-    .orderBy('e.ref', 'DESC')
+    // Tri par longueur d'abord : un tri purement alphabétique classerait
+    // « …-1000 » avant « …-999 » et ferait regénérer une ref existante.
+    .orderBy('LENGTH(e.ref)', 'DESC')
+    .addOrderBy('e.ref', 'DESC')
     .limit(1)
     .getRawOne<{ ref: string }>();
 
