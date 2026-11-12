@@ -21,6 +21,14 @@ import { ScoringPanel } from "@/components/scoring-panel";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
 import { DocumentsPanel } from "@/components/documents-panel";
+import { RepartitionEditor } from "@/components/repartition-editor";
+import { LettreMissionActions } from "@/components/lettre-mission-actions";
+import {
+  MISSION_TYPE_LABELS,
+  repartitionInitiale,
+  repartitionVersApi,
+  type RepartitionEtat,
+} from "@/lib/missions";
 import { BeneficiairesPanel } from "@/components/beneficiaires-panel";
 import {
   accederDossierLocal,
@@ -28,7 +36,6 @@ import {
   supprimerDossierSiVide,
 } from "@/lib/local-folder";
 import type {
-  AssignationTache,
   Mission,
   Obligation,
   PlanningEtape,
@@ -39,14 +46,6 @@ import type {
   TypeMission,
   User,
 } from "@/types";
-
-const MISSION_TYPE_LABELS: Record<TypeMission, string> = {
-  COMPTABILITE: "Comptabilité",
-  AUDIT: "Audit",
-  CONSEIL: "Conseil",
-  JURIDIQUE: "Juridique",
-  AUTRE: "Autre",
-};
 
 const KANBAN_LABELS: Record<StatutKanban, string> = {
   PRISE_CONTACT: "Prise de contact",
@@ -93,14 +92,12 @@ export default function ProspectDetailPage() {
   const [sireneError, setSireneError] = useState<string | null>(null);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [missionsLoading, setMissionsLoading] = useState(true);
-  const [missionType, setMissionType] = useState<TypeMission>("COMPTABILITE");
+  const [missionType, setMissionType] =
+    useState<TypeMission>("COMPTES_ANNUELS");
   const [creatingMission, setCreatingMission] = useState(false);
   const [missionError, setMissionError] = useState<string | null>(null);
-  const [signingLettre, setSigningLettre] = useState(false);
   const [catalogue, setCatalogue] = useState<RepartitionTravauxCategorie[]>([]);
-  const [repartition, setRepartition] = useState<
-    Record<string, AssignationTache>
-  >({});
+  const [repartition, setRepartition] = useState<RepartitionEtat>({});
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(
     null,
   );
@@ -150,7 +147,10 @@ export default function ProspectDetailPage() {
 
   useEffect(() => {
     apiFetch<RepartitionTravauxCategorie[]>("/missions/repartition-catalogue")
-      .then(setCatalogue)
+      .then((cat) => {
+        setCatalogue(cat);
+        setRepartition(repartitionInitiale(cat));
+      })
       .catch(() => setCatalogue([]));
   }, []);
 
@@ -172,17 +172,8 @@ export default function ProspectDetailPage() {
     setCreatingMission(true);
     setMissionError(null);
     const form = new FormData(e.currentTarget);
-    // Chaque ligne non touchée par le collaborateur reste à "N/A" (pas de
-    // présomption Cabinet/Client par défaut).
     const repartitionTravaux =
-      catalogue.length > 0
-        ? catalogue.flatMap((cat) =>
-            cat.lignes.map((ligne) => ({
-              id: ligne.id,
-              assignation: repartition[ligne.id] ?? "NA",
-            })),
-          )
-        : undefined;
+      catalogue.length > 0 ? repartitionVersApi(repartition) : undefined;
     try {
       await apiFetch<Mission>("/missions", {
         method: "POST",
@@ -197,7 +188,7 @@ export default function ProspectDetailPage() {
           repartitionTravaux,
         }),
       });
-      setRepartition({});
+      setRepartition(repartitionInitiale(catalogue));
       loadMissions();
     } catch (err) {
       setMissionError(
@@ -247,44 +238,6 @@ export default function ProspectDetailPage() {
     setPreviewLettre(null);
   }
 
-  async function handleValiderLettre(lettreId: string) {
-    setSigningLettre(true);
-    setMissionError(null);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/valider`, {
-        method: "PATCH",
-      });
-      loadMissions();
-    } catch (err) {
-      setMissionError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de valider la lettre de mission.",
-      );
-    } finally {
-      setSigningLettre(false);
-    }
-  }
-
-  async function handleSignerLettre(lettreId: string) {
-    setSigningLettre(true);
-    setMissionError(null);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/signer`, {
-        method: "PATCH",
-      });
-      loadMissions();
-    } catch (err) {
-      setMissionError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de signer la lettre de mission.",
-      );
-    } finally {
-      setSigningLettre(false);
-    }
-  }
-
   async function handleDeleteMission(missionId: string) {
     if (
       !confirm(
@@ -312,11 +265,7 @@ export default function ProspectDetailPage() {
   function openEditMission(m: Mission) {
     setEditingMissionId(m.id);
     setMissionError(null);
-    setRepartition(
-      Object.fromEntries(
-        (m.repartitionTravaux ?? []).map((a) => [a.id, a.assignation]),
-      ),
-    );
+    setRepartition(repartitionInitiale(catalogue, m.repartitionTravaux));
   }
 
   async function handleUpdateMission(
@@ -328,14 +277,7 @@ export default function ProspectDetailPage() {
     setMissionError(null);
     const form = new FormData(e.currentTarget);
     const repartitionTravaux =
-      catalogue.length > 0
-        ? catalogue.flatMap((cat) =>
-            cat.lignes.map((ligne) => ({
-              id: ligne.id,
-              assignation: repartition[ligne.id] ?? "NA",
-            })),
-          )
-        : undefined;
+      catalogue.length > 0 ? repartitionVersApi(repartition) : undefined;
     try {
       await apiFetch<Mission>(`/missions/${m.id}`, {
         method: "PATCH",
@@ -349,7 +291,7 @@ export default function ProspectDetailPage() {
         }),
       });
       setEditingMissionId(null);
-      setRepartition({});
+      setRepartition(repartitionInitiale(catalogue));
       loadMissions();
     } catch (err) {
       setMissionError(
@@ -1344,6 +1286,11 @@ export default function ProspectDetailPage() {
 
                   {missionsLoading ? (
                     <p className="text-xs text-slate-400">Chargement…</p>
+                  ) : missions.length === 0 && !can.gererMissions ? (
+                    <p className="text-xs text-slate-400">
+                      La lettre de mission sera préparée par un responsable ou
+                      l’expert-comptable.
+                    </p>
                   ) : missions.length === 0 ? (
                     <form
                       onSubmit={handleCreateMission}
@@ -1391,81 +1338,11 @@ export default function ProspectDetailPage() {
                       />
 
                       {catalogue.length > 0 && (
-                        <div className="space-y-3">
-                          <p className="text-xs font-semibold text-slate-600">
-                            Répartition des travaux
-                            <span className="ml-1 font-normal text-slate-400">
-                              — à défaut : N/A pour toutes les tâches
-                            </span>
-                          </p>
-                          {catalogue.map((cat) => (
-                            <div key={cat.titre}>
-                              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                {cat.titre}
-                              </p>
-                              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                                <table className="w-full min-w-[360px] text-xs">
-                                  <thead className="bg-slate-50 text-slate-500">
-                                    <tr>
-                                      <th className="px-2 py-1.5 text-left font-semibold">
-                                        Tâche
-                                      </th>
-                                      <th className="px-2 py-1.5 text-center font-semibold">
-                                        Cabinet
-                                      </th>
-                                      <th className="px-2 py-1.5 text-center font-semibold">
-                                        Client
-                                      </th>
-                                      <th className="px-2 py-1.5 text-center font-semibold">
-                                        N/A
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {cat.lignes.map((ligne) => {
-                                      const value =
-                                        repartition[ligne.id] ?? "NA";
-                                      return (
-                                        <tr key={ligne.id}>
-                                          <td className="px-2 py-1.5 text-slate-700">
-                                            {ligne.tache}
-                                          </td>
-                                          {(
-                                            [
-                                              "CABINET",
-                                              "CLIENT",
-                                              "NA",
-                                            ] as AssignationTache[]
-                                          ).map((option) => (
-                                            <td
-                                              key={option}
-                                              className="px-2 py-1.5"
-                                            >
-                                              <div className="flex items-center justify-center">
-                                                <input
-                                                  type="checkbox"
-                                                  name={`repartition-${ligne.id}`}
-                                                  checked={value === option}
-                                                  onChange={() =>
-                                                    setRepartition((prev) => ({
-                                                      ...prev,
-                                                      [ligne.id]: option,
-                                                    }))
-                                                  }
-                                                  className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
-                                                />
-                                              </div>
-                                            </td>
-                                          ))}
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <RepartitionEditor
+                          catalogue={catalogue}
+                          value={repartition}
+                          onChange={setRepartition}
+                        />
                       )}
 
                       <Button
@@ -1481,11 +1358,11 @@ export default function ProspectDetailPage() {
                     </form>
                   ) : (
                     missions.map((m) => {
-                      const lettre = m.lettresMission?.[0];
-                      // Signée par l'expert seul reste réversible (erreur
-                      // humaine) — seul un envoi effectif en signature au
-                      // client (DocuSign) verrouille définitivement.
-                      const verrouillee = !!lettre?.docusignEnvelopeId;
+                      // Une version signée interdit la suppression ; une
+                      // modification crée alors un avenant.
+                      const signee = (m.lettresMission ?? []).some(
+                        (l) => l.signeeParExpert,
+                      );
 
                       if (editingMissionId === m.id) {
                         return (
@@ -1521,83 +1398,11 @@ export default function ProspectDetailPage() {
                             />
 
                             {catalogue.length > 0 && (
-                              <div className="space-y-3">
-                                <p className="text-xs font-semibold text-slate-600">
-                                  Répartition des travaux
-                                </p>
-                                {catalogue.map((cat) => (
-                                  <div key={cat.titre}>
-                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                      {cat.titre}
-                                    </p>
-                                    <div className="overflow-x-auto rounded-lg border border-slate-200">
-                                      <table className="w-full min-w-[360px] text-xs">
-                                        <thead className="bg-slate-50 text-slate-500">
-                                          <tr>
-                                            <th className="px-2 py-1.5 text-left font-semibold">
-                                              Tâche
-                                            </th>
-                                            <th className="px-2 py-1.5 text-center font-semibold">
-                                              Cabinet
-                                            </th>
-                                            <th className="px-2 py-1.5 text-center font-semibold">
-                                              Client
-                                            </th>
-                                            <th className="px-2 py-1.5 text-center font-semibold">
-                                              N/A
-                                            </th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                          {cat.lignes.map((ligne) => {
-                                            const value =
-                                              repartition[ligne.id] ?? "NA";
-                                            return (
-                                              <tr key={ligne.id}>
-                                                <td className="px-2 py-1.5 text-slate-700">
-                                                  {ligne.tache}
-                                                </td>
-                                                {(
-                                                  [
-                                                    "CABINET",
-                                                    "CLIENT",
-                                                    "NA",
-                                                  ] as AssignationTache[]
-                                                ).map((option) => (
-                                                  <td
-                                                    key={option}
-                                                    className="px-2 py-1.5"
-                                                  >
-                                                    <div className="flex items-center justify-center">
-                                                      <input
-                                                        type="checkbox"
-                                                        name={`repartition-edit-${ligne.id}`}
-                                                        checked={
-                                                          value === option
-                                                        }
-                                                        onChange={() =>
-                                                          setRepartition(
-                                                            (prev) => ({
-                                                              ...prev,
-                                                              [ligne.id]:
-                                                                option,
-                                                            }),
-                                                          )
-                                                        }
-                                                        className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
-                                                      />
-                                                    </div>
-                                                  </td>
-                                                ))}
-                                              </tr>
-                                            );
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                              <RepartitionEditor
+                                catalogue={catalogue}
+                                value={repartition}
+                                onChange={setRepartition}
+                              />
                             )}
 
                             <div className="flex items-center gap-2">
@@ -1630,94 +1435,32 @@ export default function ProspectDetailPage() {
 
                       return (
                         <div key={m.id} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-slate-700">
-                              {MISSION_TYPE_LABELS[m.type]}
-                            </p>
-                            {lettre && (
-                              <span
-                                className={`text-xs font-semibold ${
-                                  lettre.signeeParExpert
-                                    ? "text-emerald-600"
-                                    : lettre.valideeParResponsable
-                                      ? "text-blue-600"
-                                      : "text-amber-600"
-                                }`}
-                              >
-                                {lettre.signeeParExpert
-                                  ? "Signée (expert) ✓"
-                                  : lettre.valideeParResponsable
-                                    ? "Validée (responsable) ✓"
-                                    : "Brouillon — en attente de validation"}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 flex-wrap">
-                            {lettre && (
+                          <p className="text-sm font-medium text-slate-700">
+                            {MISSION_TYPE_LABELS[m.type]}
+                          </p>
+                          <LettreMissionActions
+                            lettres={m.lettresMission ?? []}
+                            onChange={() => {
+                              loadMissions();
+                              load();
+                            }}
+                            onPreview={handlePreviewLettre}
+                          />
+                          {can.gererMissions && (
+                            <div className="flex items-center gap-3">
                               <button
                                 type="button"
-                                disabled={previewLoading === lettre.id}
-                                onClick={() => handlePreviewLettre(lettre.id)}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                onClick={() => openEditMission(m)}
+                                className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                                title={
+                                  signee
+                                    ? "La lettre étant signée, la modification créera un avenant"
+                                    : undefined
+                                }
                               >
-                                <IconEye className="size-3.5" />
-                                {previewLoading === lettre.id
-                                  ? "Chargement…"
-                                  : "Aperçu"}
+                                {signee ? "Modifier (avenant)" : "Modifier"}
                               </button>
-                            )}
-                            {/* Téléchargement réservé à l'expert-comptable,
-                                et seulement une fois le client signataire
-                                (DocuSign) — l'aperçu ci-dessus reste ouvert
-                                à tous pour suivre l'avancement du brouillon. */}
-                            {lettre &&
-                              (role === "EXPERT_COMPTABLE" ||
-                                role === "ADMIN") &&
-                              lettre.docusignStatut === "SIGNE" && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleDownloadLettre(lettre.id)
-                                  }
-                                  className="text-xs font-medium text-blue-600 hover:text-blue-800"
-                                >
-                                  Télécharger le PDF
-                                </button>
-                              )}
-                            {lettre &&
-                              can.validerLettreMission &&
-                              !lettre.valideeParResponsable && (
-                                <button
-                                  type="button"
-                                  disabled={signingLettre}
-                                  onClick={() => handleValiderLettre(lettre.id)}
-                                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                                >
-                                  Valider (responsable)
-                                </button>
-                              )}
-                            {lettre &&
-                              can.signerLettre &&
-                              lettre.valideeParResponsable &&
-                              !lettre.signeeParExpert && (
-                                <button
-                                  type="button"
-                                  disabled={signingLettre}
-                                  onClick={() => handleSignerLettre(lettre.id)}
-                                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
-                                >
-                                  Signer (expert-comptable)
-                                </button>
-                              )}
-                            {!verrouillee && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => openEditMission(m)}
-                                  className="text-xs font-medium text-slate-500 hover:text-slate-800"
-                                >
-                                  Modifier
-                                </button>
+                              {!signee && (
                                 <button
                                   type="button"
                                   disabled={deletingMissionId === m.id}
@@ -1728,9 +1471,9 @@ export default function ProspectDetailPage() {
                                     ? "Suppression…"
                                     : "Supprimer"}
                                 </button>
-                              </>
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -2007,7 +1750,7 @@ export default function ProspectDetailPage() {
             .find((l) => l.id === previewLettre.id);
           const peutTelechargerPreview =
             (role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
-            previewLettreObj?.docusignStatut === "SIGNE";
+            previewLettreObj?.signeeParExpert === true;
 
           return (
             <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">

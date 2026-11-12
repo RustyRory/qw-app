@@ -33,10 +33,13 @@ export type TypeDocument =
   | "ANNEXE"
   | "AUTRE";
 export type TypeMission =
-  | "COMPTABILITE"
-  | "AUDIT"
-  | "CONSEIL"
+  | "TENUE_COMPTABLE"
+  | "COMPTES_ANNUELS"
+  | "SOCIAL_PAIE"
+  | "FISCAL"
   | "JURIDIQUE"
+  | "CONSEIL"
+  | "AUDIT_EXAMEN"
   | "AUTRE";
 export type StatutMission = "EN_COURS" | "SUSPENDUE" | "TERMINEE" | "RESILIEE";
 export type TypeObligation =
@@ -253,9 +256,11 @@ export interface ScoreRisque {
 
 export type AssignationTache = "CABINET" | "CLIENT" | "NA";
 
+// Tâche cochée côté cabinet, côté client, les deux (partagée) ou aucun (N/A).
 export interface RepartitionTravauxAssignation {
   id: string;
-  assignation: AssignationTache;
+  cabinet: boolean;
+  client: boolean;
 }
 
 export interface RepartitionTravauxLigneCatalogue {
@@ -284,13 +289,6 @@ export interface Mission {
   updatedAt: string;
 }
 
-export type DocusignStatutEnvelope =
-  | "ENVOYE"
-  | "LIVRE"
-  | "SIGNE"
-  | "REFUSE"
-  | "ANNULE";
-
 export interface LettreMission {
   id: string;
   version: number;
@@ -302,12 +300,9 @@ export interface LettreMission {
   signeeAt?: string | null;
   signataire?: User | null;
   cheminStockage?: string | null;
+  cheminRelatif?: string | null;
   signeeParClientAt?: string | null;
-  docusignEnvelopeId?: string | null;
-  docusignStatut?: DocusignStatutEnvelope | null;
-  docusignDestinataireEmail?: string | null;
-  docusignDestinataireNom?: string | null;
-  docusignEnvoyeAt?: string | null;
+  documentSigneClient?: Document | null;
   createdAt: string;
 }
 

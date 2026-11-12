@@ -21,17 +21,14 @@ import {
 } from '../common/enums';
 import { CreateEtapeDto } from './dto/create-etape.dto';
 import { ObligationsService } from '../obligations/obligations.service';
+import { TYPES_MISSION } from '../common/types-mission';
 import type { EcheanceCalendrier } from './echeance-calendrier.interface';
 
 const RENOUVELLEMENT_FENETRE_JOURS = 60;
 
-const TYPE_MISSION_LABELS: Record<string, string> = {
-  COMPTABILITE: 'Comptabilité',
-  AUDIT: 'Audit',
-  CONSEIL: 'Conseil',
-  JURIDIQUE: 'Juridique',
-  AUTRE: 'Autre',
-};
+const TYPE_MISSION_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(TYPES_MISSION).map(([k, v]) => [k, v.libelle]),
+);
 
 const TYPE_OBLIGATION_LABELS: Record<string, string> = {
   KYC_VERIFICATION: 'Vérification KYC',

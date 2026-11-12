@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   IconArrowRight,
+  IconBuilding,
   IconSettings,
   IconShieldCheck,
   IconUsers,
@@ -86,6 +87,29 @@ export default function AdminPage() {
 
               <div className="mt-5 flex items-center gap-2 text-sm font-medium text-violet-700">
                 Gérer les utilisateurs
+                <IconArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/admin/cabinet"
+            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-violet-200 hover:shadow-md"
+          >
+            <div className="absolute right-0 top-0 size-24 rounded-bl-full bg-violet-50 transition-transform group-hover:scale-110" />
+            <div className="relative">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-violet-100">
+                <IconBuilding className="size-6 text-violet-700" />
+              </div>
+              <h2 className="mt-5 text-lg font-semibold text-slate-900">
+                Cabinet
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Coordonnées et logo repris dans l’en-tête et le pied de page des
+                lettres de mission.
+              </p>
+              <div className="mt-5 flex items-center gap-2 text-sm font-medium text-violet-700">
+                Modifier les coordonnées
                 <IconArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
               </div>
             </div>

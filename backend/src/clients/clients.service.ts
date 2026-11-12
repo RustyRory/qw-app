@@ -11,6 +11,7 @@ import { ScreeningDto } from './dto/screening.dto';
 import { generateNextRef } from '../common/generate-ref';
 import { ScoringService } from '../scoring/scoring.service';
 import { ObligationsService } from '../obligations/obligations.service';
+import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
 
 type AuthUser = { id: string; role: Role };
 
@@ -24,6 +25,7 @@ export class ClientsService {
     private readonly dataSource: DataSource,
     private readonly scoringService: ScoringService,
     private readonly obligationsService: ObligationsService,
+    private readonly lettresMissionService: LettresMissionService,
   ) {}
 
   async create(dto: CreateClientDto, authUser: AuthUser): Promise<Client> {
@@ -105,6 +107,8 @@ export class ClientsService {
 
     await this.scoringService.recalculateForClient(id, authUser.id);
     await this.obligationsService.synchroniserPourClient(id);
+    // Les lettres de mission non signées reprennent les nouvelles données.
+    await this.lettresMissionService.apresModificationDossier({ clientId: id });
 
     return saved;
   }

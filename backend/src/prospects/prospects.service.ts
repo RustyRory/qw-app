@@ -38,6 +38,7 @@ import { nomDossier } from '../common/storage';
 import { ScoringService } from '../scoring/scoring.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ObligationsService } from '../obligations/obligations.service';
+import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
 
 type AuthUser = { id: string; role: Role };
 
@@ -90,6 +91,7 @@ export class ProspectsService {
     private readonly scoringService: ScoringService,
     private readonly notificationsService: NotificationsService,
     private readonly obligationsService: ObligationsService,
+    private readonly lettresMissionService: LettresMissionService,
   ) {}
 
   private audit(
@@ -321,6 +323,12 @@ export class ProspectsService {
         saved.nom,
         `/dashboard/prospects/${saved.id}`,
       );
+    }
+    // Les lettres de mission non signées reprennent les nouvelles données.
+    if (CHAMPS_MODIFIABLES.some((c) => dto[c] !== undefined)) {
+      await this.lettresMissionService.apresModificationDossier({
+        prospectId: id,
+      });
     }
     return saved;
   }
@@ -555,6 +563,26 @@ export class ProspectsService {
           if (ancien && nouveau && !doc.deletedAt) {
             deplacements.push({ de: ancien, vers: nouveau });
           }
+        }
+
+        // PDF de lettres de mission signés : même rangement.
+        const lettres = await manager
+          .getRepository(LettreMission)
+          .createQueryBuilder('l')
+          .innerJoin('l.mission', 'm')
+          .where('m.id_client = :clientId', { clientId: client.id })
+          .andWhere('l.cheminRelatif IS NOT NULL')
+          .getMany();
+        for (const l of lettres) {
+          const ancien = l.cheminRelatif!;
+          if (!ancien.startsWith('Prospects/')) continue;
+          const nouveau = [
+            'Clients',
+            dossierClient,
+            ...ancien.split('/').slice(2),
+          ].join('/');
+          await manager.update(LettreMission, l.id, { cheminRelatif: nouveau });
+          deplacements.push({ de: ancien, vers: nouveau });
         }
 
         await manager.update(Prospect, id, {

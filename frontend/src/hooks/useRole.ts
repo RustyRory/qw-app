@@ -22,9 +22,12 @@ export function useRole() {
       convertirProspect: (
         ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
       ).includes(role!),
-      validerLettreMission: (["RESPONSABLE", "ADMIN"] as Role[]).includes(
-        role!,
-      ),
+      validerLettreMission: (
+        ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
+      ).includes(role!),
+      gererMissions: (
+        ["RESPONSABLE", "EXPERT_COMPTABLE", "ADMIN"] as Role[]
+      ).includes(role!),
       signerLettre: (["EXPERT_COMPTABLE", "ADMIN"] as Role[]).includes(role!),
       gererUtilisateurs: role === "ADMIN",
       supprimerDossier: role === "ADMIN",

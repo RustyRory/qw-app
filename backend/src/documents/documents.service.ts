@@ -99,6 +99,7 @@ export class DocumentsService {
     file: FichierRecu | undefined,
     authUser: AuthUser,
     dto: UploadDocumentDto,
+    options: { libelleType?: string } = {},
   ): Promise<Document> {
     if (!file) throw new BadRequestException('Aucun fichier reçu');
     const extension = path.extname(file.originalname).toLowerCase();
@@ -118,7 +119,7 @@ export class DocumentsService {
       cible,
       ref,
       nom,
-      libelleType: TYPE_DOCUMENT_FICHIER[type],
+      libelleType: options.libelleType ?? TYPE_DOCUMENT_FICHIER[type],
       extension,
     });
 

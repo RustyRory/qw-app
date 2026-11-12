@@ -62,10 +62,13 @@ export enum TypeDocument {
 }
 
 export enum TypeMission {
-  COMPTABILITE = 'COMPTABILITE',
-  AUDIT = 'AUDIT',
-  CONSEIL = 'CONSEIL',
+  TENUE_COMPTABLE = 'TENUE_COMPTABLE',
+  COMPTES_ANNUELS = 'COMPTES_ANNUELS',
+  SOCIAL_PAIE = 'SOCIAL_PAIE',
+  FISCAL = 'FISCAL',
   JURIDIQUE = 'JURIDIQUE',
+  CONSEIL = 'CONSEIL',
+  AUDIT_EXAMEN = 'AUDIT_EXAMEN',
   AUTRE = 'AUTRE',
 }
 
@@ -128,12 +131,4 @@ export enum StatutPlanningEtape {
   EN_COURS = 'EN_COURS',
   FAIT = 'FAIT',
   ANNULEE = 'ANNULEE',
-}
-
-export enum DocusignStatutEnvelope {
-  ENVOYE = 'ENVOYE',
-  LIVRE = 'LIVRE',
-  SIGNE = 'SIGNE',
-  REFUSE = 'REFUSE',
-  ANNULE = 'ANNULE',
 }

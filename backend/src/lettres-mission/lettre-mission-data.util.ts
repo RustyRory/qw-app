@@ -1,29 +1,34 @@
 import { Mission } from '../missions/entities/mission.entity';
 import { TypeMission } from '../common/enums';
+import { TYPES_MISSION } from '../common/types-mission';
+import { ParametresCabinet } from '../cabinet/cabinet.entity';
 import { RepartitionTravauxAssignation } from '../common/repartition-travaux';
 
-export const MISSION_TYPE_LABELS: Record<TypeMission, string> = {
-  [TypeMission.COMPTABILITE]: 'présentation des comptes annuels',
-  [TypeMission.AUDIT]: "d'audit",
-  [TypeMission.CONSEIL]: 'de conseil',
-  [TypeMission.JURIDIQUE]: 'd’assistance juridique',
-  [TypeMission.AUTRE]: '',
-};
+export const MISSION_TYPE_LABELS: Record<TypeMission, string> =
+  Object.fromEntries(
+    Object.entries(TYPES_MISSION).map(([k, v]) => [k, v.phrase]),
+  ) as Record<TypeMission, string>;
 
-export const CABINET_INFOS = {
-  nom: 'QW CONSEILS',
-  raisonSociale: 'SAS QW CONSEILS',
-  ville: 'Paris',
-  adresse: '29 Rue du Colisée – 75008 PARIS',
-  formeJuridique: "SAS d'expertise-comptable",
-  capitalSocial: '10 000 €',
-  siret: '952 244 887 00016',
-  codeApe: '6920 Z',
-  tvaIntracommunautaire: 'FR89 952 244 887',
-};
+// Instantané des coordonnées du cabinet au moment de la génération (cf.
+// ParametresCabinet). Les lettres plus anciennes n'ont pas codePostal,
+// email ni telephone : le gabarit les traite comme facultatifs.
+export interface CabinetLettre {
+  nom: string;
+  raisonSociale: string;
+  ville: string;
+  adresse: string;
+  codePostal?: string;
+  formeJuridique: string;
+  capitalSocial: string;
+  siret: string;
+  codeApe: string;
+  tvaIntracommunautaire: string;
+  email?: string | null;
+  telephone?: string | null;
+}
 
 export interface LettreMissionContenu {
-  cabinet: typeof CABINET_INFOS;
+  cabinet: CabinetLettre;
   client: {
     raisonSociale: string;
     formeJuridique: string;
@@ -150,11 +155,25 @@ function entiteFromMission(mission: Mission): LettreMissionContenu['client'] {
 
 export function buildLettreMissionContenu(
   mission: Mission,
+  cabinet: ParametresCabinet,
 ): LettreMissionContenu {
   const now = new Date();
 
   return {
-    cabinet: CABINET_INFOS,
+    cabinet: {
+      nom: cabinet.nom,
+      raisonSociale: cabinet.raisonSociale,
+      ville: cabinet.ville,
+      adresse: cabinet.adresse,
+      codePostal: cabinet.codePostal,
+      formeJuridique: cabinet.formeJuridique,
+      capitalSocial: cabinet.capitalSocial,
+      siret: cabinet.siret,
+      codeApe: cabinet.codeApe,
+      tvaIntracommunautaire: cabinet.tvaIntracommunautaire,
+      email: cabinet.email,
+      telephone: cabinet.telephone,
+    },
     client: entiteFromMission(mission),
     mission: {
       type: mission.type,

@@ -19,6 +19,7 @@ import { Obligation } from './obligations/entities/obligation.entity';
 import { OperationSensible } from './operations-sensibles/entities/operation-sensible.entity';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { Notification } from './notifications/entities/notification.entity';
+import { ParametresCabinet } from './cabinet/cabinet.entity';
 
 const ALL_ENTITIES = [
   User,
@@ -36,6 +37,7 @@ const ALL_ENTITIES = [
   OperationSensible,
   AuditLog,
   Notification,
+  ParametresCabinet,
 ];
 
 export const AppDataSource = new DataSource({

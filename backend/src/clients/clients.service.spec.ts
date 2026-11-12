@@ -14,6 +14,7 @@ import {
 } from '../common/enums';
 import { ScoringService } from '../scoring/scoring.service';
 import { ObligationsService } from '../obligations/obligations.service';
+import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
 
 const COLLAB: { id: string; role: Role } = {
   id: 'user-1',
@@ -92,6 +93,10 @@ describe('ClientsService', () => {
         { provide: DataSource, useValue: dataSourceMock },
         { provide: ScoringService, useValue: scoringServiceMock },
         { provide: ObligationsService, useValue: obligationsServiceMock },
+        {
+          provide: LettresMissionService,
+          useValue: { apresModificationDossier: jest.fn() },
+        },
       ],
     }).compile();
 

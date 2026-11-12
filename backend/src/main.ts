@@ -15,10 +15,7 @@ function messagesValidation(errors: ValidationError[]): string[] {
 }
 
 async function bootstrap() {
-  // rawBody: true expose req.rawBody, nécessaire pour vérifier la signature
-  // HMAC du webhook DocuSign (DOCUSIGN_WEBHOOK_HMAC_KEY) sans perturber le
-  // parsing JSON normal des autres routes.
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

@@ -8,8 +8,13 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Mission } from '../../missions/entities/mission.entity';
-import { DocusignStatutEnvelope } from '../../common/enums';
+import { Document } from '../../documents/entities/document.entity';
 
+// Circuit : générée → validée (responsable / EC / admin) → signée par
+// l'expert-comptable → envoyée au client par l'utilisateur (mail perso) →
+// PDF signé par le client déposé par l'EC / l'admin.
+// Toute modification d'une version signée crée une nouvelle version
+// (avenant) ; les versions précédentes restent consultables.
 @Entity('lettre_mission')
 export class LettreMission {
   @PrimaryGeneratedColumn('uuid')
@@ -21,9 +26,6 @@ export class LettreMission {
   @Column({ type: 'jsonb' })
   contenu: Record<string, unknown>;
 
-  // Étape intermédiaire obligatoire avant la signature de l'expert-comptable :
-  // le responsable valide le contenu (répartition des travaux, honoraires…)
-  // préparé par le collaborateur.
   @Column({ type: 'boolean', default: false })
   valideeParResponsable: boolean;
 
@@ -40,30 +42,22 @@ export class LettreMission {
   @Column({ type: 'timestamptz', nullable: true })
   signeeAt: Date | null;
 
+  // PDF généré (signé par l'EC une fois la signature apposée), côté serveur.
   @Column({ type: 'varchar', length: 500, nullable: true })
   cheminStockage: string | null;
 
+  // Emplacement du PDF signé par l'EC dans le dossier local de l'utilisateur
+  // (Clients|Prospects/<Réf> <Nom>/<Nom>-LettreMission-<Type>-<Date>.pdf).
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  cheminRelatif: string | null;
+
+  // Signature du client : date d'enregistrement du PDF signé déposé.
   @Column({ type: 'timestamptz', nullable: true })
   signeeParClientAt: Date | null;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  docusignEnvelopeId: string | null;
-
-  @Column({
-    type: 'enum',
-    enum: DocusignStatutEnvelope,
-    nullable: true,
-  })
-  docusignStatut: DocusignStatutEnvelope | null;
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  docusignDestinataireEmail: string | null;
-
-  @Column({ type: 'varchar', length: 200, nullable: true })
-  docusignDestinataireNom: string | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  docusignEnvoyeAt: Date | null;
+  @ManyToOne(() => Document, { nullable: true })
+  @JoinColumn({ name: 'id_document_signe_client' })
+  documentSigneClient: Document | null;
 
   @ManyToOne(() => Mission, (mission) => mission.lettresMission, {
     nullable: false,

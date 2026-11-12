@@ -28,6 +28,14 @@ import {
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
+import { RepartitionEditor } from "@/components/repartition-editor";
+import { LettreMissionActions } from "@/components/lettre-mission-actions";
+import {
+  MISSION_TYPE_LABELS,
+  repartitionInitiale,
+  repartitionVersApi,
+  type RepartitionEtat,
+} from "@/lib/missions";
 import {
   DOCUMENT_ACCEPT,
   DOCUMENT_TYPE_LABELS,
@@ -61,7 +69,6 @@ import type {
   TypeDocument,
   TypeEntite,
   User,
-  AssignationTache,
   RepartitionTravauxCategorie,
 } from "@/types";
 
@@ -2141,13 +2148,7 @@ function TabContacts({ clientId }: { clientId: string }) {
 
 // ─── Onglet Scoring ───────────────────────────────────────────────────────────
 // ─── Onglet Missions ──────────────────────────────────────────────────────────
-const MISSION_LABELS: Record<TypeMission, string> = {
-  COMPTABILITE: "Comptabilité",
-  AUDIT: "Audit",
-  CONSEIL: "Conseil",
-  JURIDIQUE: "Juridique",
-  AUTRE: "Autre",
-};
+const MISSION_LABELS = MISSION_TYPE_LABELS;
 
 function TabMissions({ clientId }: { clientId: string }) {
   const { can, role } = useRole();
@@ -2164,17 +2165,10 @@ function TabMissions({ clientId }: { clientId: string }) {
     url: string;
   } | null>(null);
   const [catalogue, setCatalogue] = useState<RepartitionTravauxCategorie[]>([]);
-  const [selectedType, setSelectedType] = useState<TypeMission>("COMPTABILITE");
-  const [repartition, setRepartition] = useState<
-    Record<string, AssignationTache>
-  >({});
+  const [selectedType, setSelectedType] =
+    useState<TypeMission>("COMPTES_ANNUELS");
+  const [repartition, setRepartition] = useState<RepartitionEtat>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [docusignBusy, setDocusignBusy] = useState<string | null>(null);
-  const [docusignModalLettre, setDocusignModalLettre] = useState<string | null>(
-    null,
-  );
-  const [docusignEmail, setDocusignEmail] = useState("");
-  const [docusignNom, setDocusignNom] = useState("");
   const [docsOpenId, setDocsOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -2206,8 +2200,8 @@ function TabMissions({ clientId }: { clientId: string }) {
   function openCreate() {
     setEditing(null);
     setError(null);
-    setSelectedType("COMPTABILITE");
-    setRepartition({});
+    setSelectedType("COMPTES_ANNUELS");
+    setRepartition(repartitionInitiale(catalogue));
     setFormOpen(true);
   }
 
@@ -2215,7 +2209,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     setEditing(item);
     setError(null);
     setSelectedType(item.type);
-    setRepartition({});
+    setRepartition(repartitionInitiale(catalogue, item.repartitionTravaux));
     setFormOpen(true);
   }
 
@@ -2227,18 +2221,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     const form = new FormData(event.currentTarget);
 
     const repartitionTravaux =
-      catalogue.length > 0
-        ? catalogue.flatMap((cat) =>
-            cat.lignes.map((ligne) => ({
-              id: ligne.id,
-              assignation:
-                repartition[ligne.id] ??
-                editing?.repartitionTravaux?.find((a) => a.id === ligne.id)
-                  ?.assignation ??
-                ligne.defaut,
-            })),
-          )
-        : undefined;
+      catalogue.length > 0 ? repartitionVersApi(repartition) : undefined;
 
     const payload = editing
       ? {
@@ -2358,88 +2341,6 @@ function TabMissions({ clientId }: { clientId: string }) {
     setPreviewLettre(null);
   }
 
-  async function handleValiderLettre(lettreId: string) {
-    setBusy(lettreId);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/valider`, {
-        method: "PATCH",
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de valider la lettre de mission.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleSignerLettre(lettreId: string) {
-    setBusy(lettreId);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/signer`, {
-        method: "PATCH",
-      });
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de signer la lettre de mission.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleEnvoyerDocusign(
-    lettreId: string,
-    email: string,
-    nom: string,
-  ) {
-    setDocusignBusy(lettreId);
-    setError(null);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/docusign/envoyer`, {
-        method: "POST",
-        body: JSON.stringify({ email, nom }),
-      });
-      setDocusignModalLettre(null);
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible d'envoyer la lettre de mission via DocuSign.",
-      );
-    } finally {
-      setDocusignBusy(null);
-    }
-  }
-
-  async function handleRafraichirStatutDocusign(lettreId: string) {
-    setDocusignBusy(lettreId);
-    setError(null);
-    try {
-      await apiFetch(`/lettres-mission/${lettreId}/docusign/statut`);
-      setLoading(true);
-      load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de vérifier le statut DocuSign.",
-      );
-    } finally {
-      setDocusignBusy(null);
-    }
-  }
-
   return (
     <>
       <section className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
@@ -2453,14 +2354,16 @@ function TabMissions({ clientId }: { clientId: string }) {
             </p>
           </div>
 
-          <Button
-            size="sm"
-            onClick={openCreate}
-            className="w-full rounded-xl bg-indigo-700 text-white sm:w-auto"
-          >
-            <IconPlus className="size-4" />
-            Créer une mission
-          </Button>
+          {can.gererMissions && (
+            <Button
+              size="sm"
+              onClick={openCreate}
+              className="w-full rounded-xl bg-indigo-700 text-white sm:w-auto"
+            >
+              <IconPlus className="size-4" />
+              Créer une mission
+            </Button>
+          )}
         </div>
 
         {error && !formOpen && (
@@ -2525,6 +2428,7 @@ function TabMissions({ clientId }: { clientId: string }) {
 
                     <button
                       type="button"
+                      hidden={!can.gererMissions}
                       onClick={() => openEdit(item)}
                       className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700"
                     >
@@ -2536,6 +2440,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                     {!closed && item.statut !== "SUSPENDUE" && (
                       <button
                         disabled={busy === item.id}
+                        hidden={!can.gererMissions}
                         onClick={() => changeStatus(item.id, "SUSPENDUE")}
                         className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
                       >
@@ -2546,6 +2451,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                     {!closed && item.statut === "SUSPENDUE" && (
                       <button
                         disabled={busy === item.id}
+                        hidden={!can.gererMissions}
                         onClick={() => changeStatus(item.id, "EN_COURS")}
                         className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50"
                       >
@@ -2557,6 +2463,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                       <>
                         <button
                           disabled={busy === item.id}
+                          hidden={!can.gererMissions}
                           onClick={() => changeStatus(item.id, "TERMINEE")}
                           className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
                         >
@@ -2564,6 +2471,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                         </button>
                         <button
                           disabled={busy === item.id}
+                          hidden={!can.gererMissions}
                           onClick={() => changeStatus(item.id, "RESILIEE")}
                           className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
                         >
@@ -2585,6 +2493,7 @@ function TabMissions({ clientId }: { clientId: string }) {
 
                     <button
                       disabled={busy === item.id}
+                      hidden={!can.gererMissions}
                       onClick={() => remove(item.id)}
                       className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"
                     >
@@ -2601,158 +2510,18 @@ function TabMissions({ clientId }: { clientId: string }) {
                     />
                   )}
 
-                  {item.lettresMission &&
-                    item.lettresMission.length > 0 &&
-                    (() => {
-                      const lettre = item.lettresMission![0];
-                      return (
-                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Lettre de mission
-                          </span>
-                          <button
-                            disabled={previewLoading === lettre.id}
-                            onClick={() => handlePreviewLettre(lettre.id)}
-                            className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                          >
-                            <IconEye className="size-4" />
-                            {previewLoading === lettre.id
-                              ? "Chargement…"
-                              : "Aperçu"}
-                          </button>
-                          {/* Réservé à l'expert-comptable, une fois le
-                              client signataire (DocuSign) — l'aperçu
-                              ci-dessus reste ouvert à tous. */}
-                          {(role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
-                            lettre.docusignStatut === "SIGNE" && (
-                              <button
-                                onClick={() => handleDownloadLettre(lettre.id)}
-                                className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700"
-                              >
-                                Télécharger le PDF
-                              </button>
-                            )}
-                          {lettre.signeeParExpert ? (
-                            <span className="text-xs text-emerald-600">
-                              Signée le{" "}
-                              {lettre.signeeAt
-                                ? new Date(lettre.signeeAt).toLocaleDateString(
-                                    "fr-FR",
-                                  )
-                                : ""}
-                              {lettre.signataire
-                                ? ` par ${lettre.signataire.prenom} ${lettre.signataire.nom}`
-                                : ""}
-                            </span>
-                          ) : lettre.valideeParResponsable ? (
-                            can.signerLettre ? (
-                              <button
-                                disabled={busy === lettre.id}
-                                onClick={() => handleSignerLettre(lettre.id)}
-                                className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50"
-                              >
-                                Signer
-                              </button>
-                            ) : (
-                              <span className="text-xs text-blue-600">
-                                Validée — en attente de signature
-                              </span>
-                            )
-                          ) : can.validerLettreMission ? (
-                            <button
-                              disabled={busy === lettre.id}
-                              onClick={() => handleValiderLettre(lettre.id)}
-                              className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50"
-                            >
-                              Valider (responsable)
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400">
-                              Non validée
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                  {item.lettresMission &&
-                    item.lettresMission.length > 0 &&
-                    item.lettresMission[0].signeeParExpert &&
-                    (() => {
-                      const lettre = item.lettresMission![0];
-                      const statut = lettre.docusignStatut;
-                      return (
-                        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Signature client (DocuSign)
-                          </span>
-
-                          {(!statut ||
-                            statut === "REFUSE" ||
-                            statut === "ANNULE") &&
-                            can.signerLettre && (
-                              <>
-                                {statut === "REFUSE" && (
-                                  <span className="text-xs text-red-600">
-                                    Refusée par le client —
-                                  </span>
-                                )}
-                                {statut === "ANNULE" && (
-                                  <span className="text-xs text-slate-400">
-                                    Annulée —
-                                  </span>
-                                )}
-                                <button
-                                  disabled={docusignBusy === lettre.id}
-                                  onClick={() => {
-                                    setDocusignModalLettre(lettre.id);
-                                    setDocusignEmail("");
-                                    setDocusignNom("");
-                                  }}
-                                  className="rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 disabled:opacity-50"
-                                >
-                                  Envoyer au client (DocuSign)
-                                </button>
-                              </>
-                            )}
-
-                          {(statut === "ENVOYE" || statut === "LIVRE") && (
-                            <>
-                              <span className="text-xs text-amber-600">
-                                {statut === "ENVOYE"
-                                  ? "Envoyée"
-                                  : "Reçue par le client"}
-                                {lettre.docusignDestinataireEmail
-                                  ? ` à ${lettre.docusignDestinataireEmail}`
-                                  : ""}
-                              </span>
-                              <button
-                                disabled={docusignBusy === lettre.id}
-                                onClick={() =>
-                                  handleRafraichirStatutDocusign(lettre.id)
-                                }
-                                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
-                              >
-                                {docusignBusy === lettre.id
-                                  ? "Vérification…"
-                                  : "Vérifier le statut"}
-                              </button>
-                            </>
-                          )}
-
-                          {statut === "SIGNE" && (
-                            <span className="text-xs text-emerald-600">
-                              Signée par le client
-                              {lettre.signeeParClientAt
-                                ? ` le ${new Date(
-                                    lettre.signeeParClientAt,
-                                  ).toLocaleDateString("fr-FR")}`
-                                : ""}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                  {(item.lettresMission?.length ?? 0) > 0 && (
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Lettre de mission
+                      </p>
+                      <LettreMissionActions
+                        lettres={item.lettresMission ?? []}
+                        onChange={load}
+                        onPreview={handlePreviewLettre}
+                      />
+                    </div>
+                  )}
                 </article>
               );
             })}
@@ -2862,80 +2631,11 @@ function TabMissions({ clientId }: { clientId: string }) {
               </div>
 
               {catalogue.length > 0 && (
-                <Field>
-                  <FieldLabel>Répartition des travaux</FieldLabel>
-                  <div className="space-y-4">
-                    {catalogue.map((cat) => (
-                      <div key={cat.titre}>
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          {cat.titre}
-                        </p>
-                        <div className="overflow-x-auto rounded-xl border border-slate-200">
-                          <table className="w-full min-w-[420px] text-xs">
-                            <thead className="bg-slate-50 text-slate-500">
-                              <tr>
-                                <th className="px-3 py-2 text-left font-semibold">
-                                  Tâche
-                                </th>
-                                <th className="px-2 py-2 text-center font-semibold">
-                                  Cabinet
-                                </th>
-                                <th className="px-2 py-2 text-center font-semibold">
-                                  Client
-                                </th>
-                                <th className="px-2 py-2 text-center font-semibold">
-                                  N.A.
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {cat.lignes.map((ligne) => {
-                                const value =
-                                  repartition[ligne.id] ??
-                                  editing?.repartitionTravaux?.find(
-                                    (a) => a.id === ligne.id,
-                                  )?.assignation ??
-                                  ligne.defaut;
-
-                                return (
-                                  <tr key={ligne.id}>
-                                    <td className="px-3 py-2 text-slate-700">
-                                      {ligne.tache}
-                                    </td>
-                                    {(
-                                      [
-                                        "CABINET",
-                                        "CLIENT",
-                                        "NA",
-                                      ] as AssignationTache[]
-                                    ).map((option) => (
-                                      <td key={option} className="px-2 py-2">
-                                        <div className="flex items-center justify-center">
-                                          <input
-                                            type="checkbox"
-                                            name={`repartition-${ligne.id}`}
-                                            checked={value === option}
-                                            onChange={() =>
-                                              setRepartition((prev) => ({
-                                                ...prev,
-                                                [ligne.id]: option,
-                                              }))
-                                            }
-                                            className="size-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
-                                          />
-                                        </div>
-                                      </td>
-                                    ))}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Field>
+                <RepartitionEditor
+                  catalogue={catalogue}
+                  value={repartition}
+                  onChange={setRepartition}
+                />
               )}
             </FieldGroup>
 
@@ -2957,8 +2657,7 @@ function TabMissions({ clientId }: { clientId: string }) {
             .flatMap((m) => m.lettresMission ?? [])
             .find((l) => l.id === previewLettre.id);
           const peutTelechargerPreview =
-            (role === "EXPERT_COMPTABLE" || role === "ADMIN") &&
-            previewLettreObj?.docusignStatut === "SIGNE";
+            previewLettreObj?.signeeParExpert === true;
 
           return (
             <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 sm:p-4">
@@ -3004,102 +2703,6 @@ function TabMissions({ clientId }: { clientId: string }) {
             </div>
           );
         })()}
-
-      {docusignModalLettre && (
-        <Modal
-          title="Envoyer la lettre au client pour signature"
-          description="Le client recevra un email DocuSign pour signer électroniquement la lettre de mission."
-          onClose={() => setDocusignModalLettre(null)}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!docusignEmail.trim() || !docusignNom.trim()) return;
-              handleEnvoyerDocusign(
-                docusignModalLettre,
-                docusignEmail.trim(),
-                docusignNom.trim(),
-              );
-            }}
-          >
-            {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <FieldGroup>
-              {contacts.some((c) => c.email) && (
-                <Field>
-                  <FieldLabel htmlFor="docusign-contact">
-                    Contact du client
-                  </FieldLabel>
-                  <select
-                    id="docusign-contact"
-                    defaultValue=""
-                    onChange={(e) => {
-                      const contact = contacts.find(
-                        (c) => c.id === e.target.value,
-                      );
-                      if (!contact) return;
-                      setDocusignEmail(contact.email ?? "");
-                      setDocusignNom(
-                        `${contact.prenom ?? ""} ${contact.nom}`.trim(),
-                      );
-                    }}
-                    className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">— Sélectionner un contact —</option>
-                    {[...contacts]
-                      .filter((c) => c.email)
-                      .sort((a) => (a.type === "INTERVENANT" ? -1 : 0))
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.prenom ? `${c.prenom} ` : ""}
-                          {c.nom} ({c.email})
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-              )}
-
-              <Field>
-                <FieldLabel htmlFor="docusign-email">
-                  Email du signataire *
-                </FieldLabel>
-                <Input
-                  id="docusign-email"
-                  type="email"
-                  required
-                  value={docusignEmail}
-                  onChange={(e) => setDocusignEmail(e.target.value)}
-                  className="h-11 rounded-xl"
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="docusign-nom">
-                  Nom du signataire *
-                </FieldLabel>
-                <Input
-                  id="docusign-nom"
-                  type="text"
-                  required
-                  value={docusignNom}
-                  onChange={(e) => setDocusignNom(e.target.value)}
-                  className="h-11 rounded-xl"
-                />
-              </Field>
-            </FieldGroup>
-
-            <FormActions
-              saving={docusignBusy === docusignModalLettre}
-              submitLabel="Envoyer"
-              onCancel={() => setDocusignModalLettre(null)}
-            />
-          </form>
-        </Modal>
-      )}
     </>
   );
 }

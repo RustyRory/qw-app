@@ -5,6 +5,7 @@ import { AuditLog } from '../audit/entities/audit-log.entity';
 import { ScoringModule } from '../scoring/scoring.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ObligationsModule } from '../obligations/obligations.module';
+import { LettresMissionModule } from '../lettres-mission/lettres-mission.module';
 import { ProspectsService } from './prospects.service';
 import { ProspectsController } from './prospects.controller';
 
@@ -14,6 +15,7 @@ import { ProspectsController } from './prospects.controller';
     ScoringModule,
     NotificationsModule,
     ObligationsModule,
+    LettresMissionModule,
   ],
   controllers: [ProspectsController],
   providers: [ProspectsService],

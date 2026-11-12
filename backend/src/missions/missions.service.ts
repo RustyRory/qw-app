@@ -57,7 +57,7 @@ export class MissionsService {
   findByClient(clientId: string): Promise<Mission[]> {
     return this.repo.find({
       where: { client: { id: clientId } },
-      relations: ['lettresMission'],
+      relations: ['lettresMission', 'lettresMission.documentSigneClient'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -65,7 +65,7 @@ export class MissionsService {
   findByProspect(prospectId: string): Promise<Mission[]> {
     return this.repo.find({
       where: { prospect: { id: prospectId } },
-      relations: ['lettresMission'],
+      relations: ['lettresMission', 'lettresMission.documentSigneClient'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -79,6 +79,8 @@ export class MissionsService {
     return m;
   }
 
+  // Toute modification met la lettre de mission à jour : version non
+  // signée régénérée (validation annulée), version signée → avenant.
   async update(id: string, dto: UpdateMissionDto): Promise<Mission> {
     const m = await this.repo.findOneBy({ id });
     if (!m) throw new NotFoundException('Mission introuvable');
@@ -90,17 +92,14 @@ export class MissionsService {
       m.repartitionTravaux = dto.repartitionTravaux;
     const saved = await this.repo.save(m);
 
-    if (dto.repartitionTravaux !== undefined) {
-      try {
-        await this.lettresMissionService.regenerateLatestForMission(saved.id);
-      } catch (err) {
-        this.logger.error(
-          `Échec de régénération de la lettre de mission pour la mission ${saved.id}`,
-          err instanceof Error ? err.stack : String(err),
-        );
-      }
+    try {
+      await this.lettresMissionService.apresModificationMission(saved.id);
+    } catch (err) {
+      this.logger.error(
+        `Échec de mise à jour de la lettre de mission pour la mission ${saved.id}`,
+        err instanceof Error ? err.stack : String(err),
+      );
     }
-
     return saved;
   }
 
