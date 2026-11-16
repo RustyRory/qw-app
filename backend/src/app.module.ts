@@ -43,6 +43,7 @@ import { ParametresCabinet } from './cabinet/cabinet.entity';
 import { CabinetModule } from './cabinet/cabinet.module';
 import { AcceptationMission } from './acceptations/entities/acceptation-mission.entity';
 import { AcceptationsModule } from './acceptations/acceptations.module';
+import { CartographieModule } from './cartographie/cartographie.module';
 
 const ALL_ENTITIES = [
   User,
@@ -94,6 +95,7 @@ const ALL_ENTITIES = [
     NotificationsModule,
     CabinetModule,
     AcceptationsModule,
+    CartographieModule,
   ],
   controllers: [AppController],
   providers: [AppService],
