@@ -22,6 +22,10 @@ import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { RepartitionEditor } from "@/components/repartition-editor";
+import {
+  ParametresLettreFields,
+  lireParametresLettre,
+} from "@/components/parametres-lettre-fields";
 import { LettreMissionActions } from "@/components/lettre-mission-actions";
 import {
   MISSION_TYPE_LABELS,
@@ -186,6 +190,7 @@ export default function ProspectDetailPage() {
             ? Number(form.get("honoraires"))
             : undefined,
           repartitionTravaux,
+          ...lireParametresLettre(form),
         }),
       });
       setRepartition(repartitionInitiale(catalogue));
@@ -288,6 +293,7 @@ export default function ProspectDetailPage() {
             ? Number(form.get("honoraires"))
             : undefined,
           repartitionTravaux,
+          ...lireParametresLettre(form),
         }),
       });
       setEditingMissionId(null);
@@ -373,6 +379,7 @@ export default function ProspectDetailPage() {
       regimeFiscal: texte("regimeFiscal"),
       regimeTva: texte("regimeTva"),
       tvaIntracommunautaire: texte("tvaIntracommunautaire"),
+      euid: texte("euid"),
       existenceSalaries: form.get("existenceSalaries")
         ? form.get("existenceSalaries") === "oui"
         : undefined,
@@ -554,6 +561,9 @@ export default function ProspectDetailPage() {
     !prospect.regimeFiscal && "Régime fiscal",
     !prospect.regimeTva && "Régime TVA",
     !prospect.tvaIntracommunautaire && "N° TVA intracommunautaire",
+    prospect.typeEntite === "PERSONNE_MORALE" &&
+      !prospect.euid &&
+      "Numéro EUID",
     prospect.existenceSalaries == null && "Existence de salariés",
     prospect.existenceSalaries !== false &&
       !prospect.conventionCollective &&
@@ -1082,6 +1092,25 @@ export default function ProspectDetailPage() {
                         />
                       </Field>
                       <Field>
+                        <FieldLabel htmlFor="euid">Numéro EUID</FieldLabel>
+                        <Input
+                          id="euid"
+                          name="euid"
+                          defaultValue={
+                            prospect.euid ??
+                            (prospect.siret
+                              ? `FR.${prospect.siret.slice(0, 9)}`
+                              : "")
+                          }
+                          placeholder="FR7501.123456789"
+                          className="rounded-xl font-mono"
+                        />
+                        <p className="mt-1 text-xs text-slate-400">
+                          FR + code du greffe (4 chiffres, sur le Kbis) + . +
+                          SIREN
+                        </p>
+                      </Field>
+                      <Field>
                         <FieldLabel htmlFor="existenceSalaries">
                           Existence de salariés
                         </FieldLabel>
@@ -1169,7 +1198,7 @@ export default function ProspectDetailPage() {
             <div className="bg-amber-50 rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
               <div className="px-4 py-2.5 border-b border-amber-200">
                 <p className="text-xs font-bold uppercase tracking-widest text-amber-700">
-                  Questionnaire d&apos;acceptation{" "}
+                  Questionnaires LAB et acceptation de la mission
                 </p>
               </div>
               <div className="px-4 py-4 space-y-3">
@@ -1202,10 +1231,17 @@ export default function ProspectDetailPage() {
                     href={`/dashboard/prospects/${id}/questionnaire`}
                     className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
                   >
-                    Voir le questionnaire →
+                    Voir le questionnaire LAB →
+                  </Link>
+                  <Link
+                    href={`/dashboard/prospects/${id}/acceptation`}
+                    className="rounded-lg border border-amber-600 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                  >
+                    Acceptation et choix de la mission →
                   </Link>
                   <span className="text-xs text-slate-400">
-                    (RESPONSABLE/EXPERT)
+                    (décision de l’expert-comptable avant la signature de la
+                    lettre)
                   </span>
                 </div>
               </div>
@@ -1337,6 +1373,8 @@ export default function ProspectDetailPage() {
                         className="w-full resize-none rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                       />
 
+                      <ParametresLettreFields />
+
                       {catalogue.length > 0 && (
                         <RepartitionEditor
                           catalogue={catalogue}
@@ -1396,6 +1434,8 @@ export default function ProspectDetailPage() {
                               placeholder="Description (facultatif)"
                               className="w-full resize-none rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                             />
+
+                            <ParametresLettreFields mission={m} />
 
                             {catalogue.length > 0 && (
                               <RepartitionEditor

@@ -45,6 +45,32 @@ export class Mission {
   @Column({ type: 'jsonb', nullable: true })
   repartitionTravaux: RepartitionTravauxAssignation[] | null;
 
+  // ── Paramètres de la lettre de mission ──────────────────────────────
+  @Column({ type: 'varchar', length: 30, default: 'Madame, Monsieur,' })
+  formuleAppel: string;
+
+  // Jusqu'à 3 lignes : associé et détention (parts ou %).
+  @Column({ type: 'jsonb', nullable: true })
+  repartitionCapital: { associe: string; detention: string }[] | null;
+
+  @Column({ type: 'date', nullable: true })
+  dateClotureExercice: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  dateEffet: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  periodeHonoraires: string | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 5 })
+  fraisDeboursPct: number;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  rythmeFacturation: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  rythmePaiement: string | null;
+
   // Exactement un des deux doit être renseigné : une mission « brouillon »
   // préparée dès la validation LAB d'un prospect (avant conversion), ou une
   // mission d'un client déjà converti. Voir contrainte CHK_missions_client_xor_prospect.

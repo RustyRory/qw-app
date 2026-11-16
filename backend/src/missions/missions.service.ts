@@ -9,9 +9,34 @@ import { Repository } from 'typeorm';
 import { Mission } from './entities/mission.entity';
 import { User } from '../users/entities/user.entity';
 import { StatutMission } from '../common/enums';
+import { ParametresLettreDto } from './dto/parametres-lettre.dto';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
 import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
+
+// Paramètres de lettre fournis (les champs absents ne sont pas touchés ;
+// une chaîne vide efface la valeur).
+function parametresLettre(dto: ParametresLettreDto): Partial<Mission> {
+  const p: Partial<Mission> = {};
+  if (dto.formuleAppel !== undefined) p.formuleAppel = dto.formuleAppel;
+  if (dto.repartitionCapital !== undefined) {
+    p.repartitionCapital = dto.repartitionCapital.filter(
+      (l) => l.associe.trim() || l.detention.trim(),
+    );
+  }
+  if (dto.dateClotureExercice !== undefined)
+    p.dateClotureExercice = dto.dateClotureExercice || null;
+  if (dto.dateEffet !== undefined) p.dateEffet = dto.dateEffet || null;
+  if (dto.periodeHonoraires !== undefined)
+    p.periodeHonoraires = dto.periodeHonoraires?.trim() || null;
+  if (dto.fraisDeboursPct !== undefined)
+    p.fraisDeboursPct = dto.fraisDeboursPct;
+  if (dto.rythmeFacturation !== undefined)
+    p.rythmeFacturation = dto.rythmeFacturation?.trim() || null;
+  if (dto.rythmePaiement !== undefined)
+    p.rythmePaiement = dto.rythmePaiement?.trim() || null;
+  return p;
+}
 
 @Injectable()
 export class MissionsService {
@@ -38,6 +63,7 @@ export class MissionsService {
       dateFin: dto.dateFin ? new Date(dto.dateFin) : null,
       honoraires: dto.honoraires ?? null,
       repartitionTravaux: dto.repartitionTravaux ?? null,
+      ...parametresLettre(dto),
       createdBy: { id: userId } as User,
     });
     const saved = await this.repo.save(m);
@@ -90,6 +116,7 @@ export class MissionsService {
     if (dto.honoraires !== undefined) m.honoraires = dto.honoraires;
     if (dto.repartitionTravaux !== undefined)
       m.repartitionTravaux = dto.repartitionTravaux;
+    Object.assign(m, parametresLettre(dto));
     const saved = await this.repo.save(m);
 
     try {

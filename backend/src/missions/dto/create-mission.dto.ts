@@ -1,3 +1,4 @@
+import { ParametresLettreDto } from './parametres-lettre.dto';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -12,7 +13,7 @@ import {
 import { TypeMission } from '../../common/enums';
 import { RepartitionTravauxLigneDto } from './repartition-travaux-ligne.dto';
 
-export class CreateMissionDto {
+export class CreateMissionDto extends ParametresLettreDto {
   // Exactement un des deux doit être fourni : clientId pour une mission
   // classique, prospectId pour préparer une lettre de mission avant
   // conversion (validé côté service).
