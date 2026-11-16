@@ -55,6 +55,12 @@ const ENTITY_BADGE_CLASS: Record<EntityKind, string> = {
 
 const RISK_LEVELS: NiveauRisque[] = ["FAIBLE", "MOYEN", "ELEVE"];
 
+const SEUILS: Record<NiveauRisque, string> = {
+  FAIBLE: "score 0 à 33",
+  MOYEN: "34 à 66",
+  ELEVE: "67 et plus, ou d’office",
+};
+
 const RISK_LABELS: Record<NiveauRisque, string> = {
   FAIBLE: "Faible",
   MOYEN: "Moyen",
@@ -326,8 +332,9 @@ export default function CartographiePage() {
                   </h1>
 
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
-                    Visualisez la répartition du portefeuille selon le niveau de
-                    risque de chaque client et prospect.
+                    Scoring LAB : chaque dossier selon son niveau de risque.
+                    Critères : les 13 risques du cabinet (probabilité × impact)
+                    et les dossiers concernés par chacun.
                   </p>
                 </div>
               </div>
@@ -389,8 +396,8 @@ export default function CartographiePage() {
         <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 text-sm shadow-sm">
           {(
             [
-              ["portefeuille", "Portefeuille clients"],
-              ["cabinet", "Cartographie des risques du cabinet"],
+              ["portefeuille", "Cartographie scoring LAB"],
+              ["cabinet", "Cartographie critères"],
             ] as const
           ).map(([o, label]) => (
             <button
@@ -414,70 +421,132 @@ export default function CartographiePage() {
               </div>
             )}
 
-            {/* Cartes de risque */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            {/* Colonnes par niveau de scoring LAB */}
+            <div className="grid gap-4 md:grid-cols-3">
               {RISK_LEVELS.map((niveau) => {
                 const styles = CARD_STYLES[niveau];
                 const percentage = getPercentage(niveau);
+                const dossiers = rows
+                  .filter(({ score }) => score?.niveau === niveau)
+                  .sort(
+                    (a, b) => (b.score?.score ?? 0) - (a.score?.score ?? 0),
+                  );
+                const visibles = dossiers.slice(0, 8);
 
                 return (
-                  <button
+                  <div
                     key={niveau}
-                    type="button"
-                    onClick={() =>
-                      setRiskFilter((current) =>
-                        current === niveau ? "TOUS" : niveau,
-                      )
-                    }
-                    className={`rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md ${styles.container} ${
+                    className={`flex flex-col rounded-2xl border p-4 shadow-sm ${styles.container} ${
                       riskFilter === niveau ? "ring-2 ring-blue-500/20" : ""
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRiskFilter((current) =>
+                          current === niveau ? "TOUS" : niveau,
+                        )
+                      }
+                      title="Filtrer le tableau sur ce niveau"
+                      className="flex items-start justify-between gap-3 text-left"
+                    >
                       <div>
                         <p
                           className={`text-xs font-bold uppercase tracking-wide ${styles.title}`}
                         >
-                          Risque {RISK_LABELS[niveau]}
+                          Risque {RISK_LABELS[niveau]}{" "}
+                          <span className="font-normal normal-case tracking-normal text-slate-500">
+                            ({SEUILS[niveau]})
+                          </span>
                         </p>
-
                         <p
-                          className={`mt-2 text-3xl font-bold ${styles.value}`}
+                          className={`mt-1 text-3xl font-bold ${styles.value}`}
                         >
                           {loading ? "—" : counts[niveau]}
                         </p>
-
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="text-xs text-slate-500">
                           {percentage}% des dossiers évalués
                         </p>
                       </div>
-
                       <div
-                        className={`flex size-11 items-center justify-center rounded-xl ${styles.iconContainer}`}
+                        className={`flex size-10 items-center justify-center rounded-xl ${styles.iconContainer}`}
                       >
                         {niveau === "FAIBLE" ? (
                           <IconShieldCheck
-                            className={`size-6 ${styles.icon}`}
+                            className={`size-5 ${styles.icon}`}
                           />
                         ) : niveau === "MOYEN" ? (
-                          <IconMapPin className={`size-6 ${styles.icon}`} />
+                          <IconMapPin className={`size-5 ${styles.icon}`} />
                         ) : (
                           <IconAlertTriangle
-                            className={`size-6 ${styles.icon}`}
+                            className={`size-5 ${styles.icon}`}
                           />
                         )}
                       </div>
-                    </div>
+                    </button>
 
-                    <div className="mt-5 h-2 overflow-hidden rounded-full bg-white">
-                      <div
-                        className={`h-full rounded-full ${styles.progress}`}
-                        style={{
-                          width: `${percentage}%`,
-                        }}
-                      />
-                    </div>
-                  </button>
+                    <ul className="mt-4 flex-1 space-y-1.5">
+                      {visibles.map((row) => {
+                        const dOffice = row.score?.reponses?.eleveDOffice ?? [];
+                        const ajuste = !!row.score?.reponses?.ajustementManuel;
+                        return (
+                          <li key={`${row.kind}-${row.id}`}>
+                            <Link
+                              href={
+                                row.kind === "client"
+                                  ? `/dashboard/clients/${row.id}`
+                                  : `/dashboard/prospects/${row.id}`
+                              }
+                              className="flex items-center gap-2 rounded-lg bg-white/80 px-2.5 py-1.5 text-sm shadow-sm transition hover:bg-white hover:ring-1 hover:ring-slate-200"
+                            >
+                              <span
+                                className={`shrink-0 rounded px-1.5 text-[10px] font-semibold ${ENTITY_BADGE_CLASS[row.kind]}`}
+                              >
+                                {row.kind === "client" ? "C" : "P"}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
+                                {row.nom}
+                              </span>
+                              {dOffice.length > 0 && (
+                                <span
+                                  title={`Élevé d’office : ${dOffice.join(", ")}`}
+                                  className="shrink-0 text-xs font-semibold text-red-700"
+                                >
+                                  ⚑ d’office
+                                </span>
+                              )}
+                              {ajuste && (
+                                <span
+                                  title="Niveau ajusté manuellement par l’expert-comptable"
+                                  className="shrink-0 text-xs text-slate-500"
+                                >
+                                  ajusté
+                                </span>
+                              )}
+                              <span className="shrink-0 font-mono text-xs text-slate-500">
+                                {row.score?.score}
+                              </span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                      {!loading && dossiers.length === 0 && (
+                        <li className="text-xs text-slate-400">
+                          Aucun dossier.
+                        </li>
+                      )}
+                    </ul>
+                    {dossiers.length > visibles.length && (
+                      <button
+                        type="button"
+                        onClick={() => setRiskFilter(niveau)}
+                        className="mt-2 text-left text-xs font-medium text-blue-700 hover:underline"
+                      >
+                        + {dossiers.length - visibles.length} autres (voir le
+                        tableau)
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
