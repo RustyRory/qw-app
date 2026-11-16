@@ -120,7 +120,11 @@ export class UsersService {
   }
 
   async changeMyPassword(id: string, dto: ChangePasswordDto): Promise<void> {
-    const user = await this.repo.findOneBy({ id });
+    const user = await this.repo
+      .createQueryBuilder('u')
+      .addSelect('u.passwordHash')
+      .where('u.id = :id', { id })
+      .getOne();
     if (!user) throw new NotFoundException('Utilisateur introuvable');
 
     const match = await compare(dto.currentPassword, user.passwordHash);

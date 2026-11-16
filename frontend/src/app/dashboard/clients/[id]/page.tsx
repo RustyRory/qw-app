@@ -50,6 +50,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
+import { ScreeningPanel } from "@/components/screening-panel";
 import { ScoringPanel } from "@/components/scoring-panel";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -785,8 +786,6 @@ function TabKyc({
       .then(setConditionsKyc)
       .catch(() => setConditionsKyc(null));
   }, [client, docs]);
-  const [showScreeningPicker, setShowScreeningPicker] = useState(false);
-  const [screeningSaving, setScreeningSaving] = useState(false);
   const [showPpeEditor, setShowPpeEditor] = useState(false);
   const [ppeSaving, setPpeSaving] = useState(false);
 
@@ -795,20 +794,6 @@ function TabKyc({
       .then(setDocs)
       .catch(() => {});
   }, [client.id]);
-
-  async function handleScreening(statut: "OK" | "ALERTE") {
-    setScreeningSaving(true);
-    try {
-      await apiFetch(`/clients/${client.id}/screening`, {
-        method: "PATCH",
-        body: JSON.stringify({ statut }),
-      });
-      setShowScreeningPicker(false);
-      onRefresh();
-    } finally {
-      setScreeningSaving(false);
-    }
-  }
 
   async function handleSavePpe(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -871,7 +856,7 @@ function TabKyc({
   const kycItems = [
     { label: "PPE vérifié", ok: true },
     {
-      label: `Screening : ${client.screeningStatut === "OK" ? "✅ OK" : "⚠️ " + client.screeningStatut}`,
+      label: `Registre des gels : ${client.screeningStatut === "OK" ? "aucune correspondance" : client.screeningStatut === "ALERTE" ? "alerte" : "contrôle en attente"}`,
       ok: client.screeningStatut === "OK",
     },
     { label: "Bénéficiaires effectifs saisis", ok: client.uboSaisi },
@@ -1000,21 +985,6 @@ function TabKyc({
             </span>
             <span className="text-slate-300">|</span>
             <span className="text-slate-600">
-              Screening :{" "}
-              <span
-                className={
-                  client.screeningStatut === "OK"
-                    ? "text-emerald-600 font-semibold"
-                    : "text-amber-600 font-semibold"
-                }
-              >
-                ● {client.screeningStatut}
-                {client.screeningDate &&
-                  ` (${new Date(client.screeningDate).toLocaleDateString("fr-FR")})`}
-              </span>
-            </span>
-            <span className="text-slate-300">|</span>
-            <span className="text-slate-600">
               UBO saisi : <strong>{client.uboSaisi ? "Oui" : "Non"}</strong>
             </span>
           </div>
@@ -1025,14 +995,6 @@ function TabKyc({
             >
               {showPpeEditor ? "[Fermer]" : "[Modifier PPE]"}
             </button>
-            {can.validerQuestionnaire && (
-              <button
-                onClick={() => setShowScreeningPicker(!showScreeningPicker)}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                {showScreeningPicker ? "[Fermer]" : "[Relancer screening]"}
-              </button>
-            )}
           </div>
 
           {showPpeEditor && (
@@ -1078,33 +1040,17 @@ function TabKyc({
               </Button>
             </form>
           )}
-
-          {showScreeningPicker && (
-            <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-              <span className="text-xs text-slate-500">
-                Résultat du screening :
-              </span>
-              <button
-                onClick={() => handleScreening("OK")}
-                disabled={screeningSaving}
-                className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
-              >
-                OK
-              </button>
-              <button
-                onClick={() => handleScreening("ALERTE")}
-                disabled={screeningSaving}
-                className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                Alerte
-              </button>
-              {screeningSaving && (
-                <span className="text-xs text-slate-400">Enregistrement…</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      <ScreeningPanel
+        cible="client"
+        cibleId={client.id}
+        statut={client.screeningStatut}
+        dateControle={client.screeningDate}
+        registreDu={client.screeningRegistreDu}
+        onChange={onRefresh}
+      />
 
       {/* Documents */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -3881,10 +3827,14 @@ export default function ClientDetailPage() {
               </div>
               <div className="rounded-xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-blue-100">
-                  Screening
+                  Registre des gels
                 </p>
                 <p className="mt-1 text-sm font-semibold text-white">
-                  {client.screeningStatut}
+                  {client.screeningStatut === "OK"
+                    ? "RAS"
+                    : client.screeningStatut === "ALERTE"
+                      ? "Alerte"
+                      : "En attente"}
                 </p>
               </div>
               <div className="rounded-xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">

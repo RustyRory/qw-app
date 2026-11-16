@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { ScoringPanel } from "@/components/scoring-panel";
+import { ScreeningPanel } from "@/components/screening-panel";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
 import { DocumentsPanel } from "@/components/documents-panel";
@@ -1524,6 +1525,15 @@ export default function ProspectDetailPage() {
 
             {/* Score de risque */}
             <ScoringPanel entityType="prospect" entityId={prospect.id} />
+
+            <ScreeningPanel
+              cible="prospect"
+              cibleId={prospect.id}
+              statut={prospect.screeningStatut}
+              dateControle={prospect.screeningDate}
+              registreDu={prospect.screeningRegistreDu}
+              onChange={load}
+            />
 
             {/* Step visuel */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">

@@ -154,6 +154,10 @@ export class Client {
   @Column({ type: 'timestamptz', nullable: true })
   screeningDate: Date | null;
 
+  // Date de publication du registre des gels utilisé au dernier contrôle.
+  @Column({ type: 'timestamptz', nullable: true })
+  screeningRegistreDu: Date | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   kycCompletedAt: Date | null;
 

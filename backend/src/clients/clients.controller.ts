@@ -18,7 +18,6 @@ import { Role } from '../common/enums';
 import { ClientsService } from './clients.service';
 import { ChangerStatutClientDto } from './dto/changer-statut-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
-import { ScreeningDto } from './dto/screening.dto';
 
 interface RequestWithUser {
   user: { id: string; role: Role };
@@ -69,16 +68,6 @@ export class ClientsController {
     @Req() req: RequestWithUser,
   ) {
     return this.clientsService.changerStatut(id, dto.statut, req.user);
-  }
-
-  @Patch(':id/screening')
-  @Roles(Role.RESPONSABLE, Role.EXPERT_COMPTABLE, Role.ADMIN)
-  updateScreening(
-    @Param('id') id: string,
-    @Body() dto: ScreeningDto,
-    @Req() req: RequestWithUser,
-  ) {
-    return this.clientsService.updateScreening(id, dto, req.user);
   }
 
   @Delete(':id')

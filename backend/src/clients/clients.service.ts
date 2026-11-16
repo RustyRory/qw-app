@@ -18,10 +18,10 @@ import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
 import { UpdateClientDto } from './dto/update-client.dto';
-import { ScreeningDto } from './dto/screening.dto';
 import { ScoringService } from '../scoring/scoring.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
+import { ScreeningService } from '../screening/screening.service';
 
 type AuthUser = { id: string; role: Role };
 
@@ -58,6 +58,7 @@ export class ClientsService {
     private readonly scoringService: ScoringService,
     private readonly obligationsService: ObligationsService,
     private readonly lettresMissionService: LettresMissionService,
+    private readonly screeningService: ScreeningService,
   ) {}
 
   private audit(
@@ -136,6 +137,9 @@ export class ClientsService {
     await this.obligationsService.synchroniserPourClient(id);
     // Les lettres de mission non signées reprennent les nouvelles données.
     await this.lettresMissionService.apresModificationDossier({ clientId: id });
+    this.screeningService
+      .controler('client', id, authUser.id)
+      .catch(() => undefined);
     return saved;
   }
 
@@ -155,7 +159,13 @@ export class ClientsService {
       );
     }
     if (client.screeningStatut === ScreeningStatut.NON_EFFECTUE) {
-      manquants.push('Le screening (listes de sanctions) n’a pas été effectué');
+      manquants.push(
+        'Le contrôle sur le registre des gels n’a pas encore été effectué',
+      );
+    } else if (client.screeningStatut === ScreeningStatut.ALERTE) {
+      manquants.push(
+        'Correspondance avec le registre des gels à vérifier ou confirmée',
+      );
     }
     if (client.typeEntite === TypeEntite.PERSONNE_MORALE) {
       const ubos = await this.beneficiaireRepo.count({
@@ -183,30 +193,6 @@ export class ClientsService {
     const saved = await this.clientsRepo.save(client);
 
     await this.audit(AuditAction.VALIDATE, id, null, authUser.id);
-    await this.obligationsService.synchroniserPourClient(id);
-    return saved;
-  }
-
-  // Résultat d'un screening (listes de sanctions / PPE) : saisie manuelle,
-  // faute d'API de listes de sanctions intégrée.
-  async updateScreening(
-    id: string,
-    dto: ScreeningDto,
-    authUser: AuthUser,
-  ): Promise<Client> {
-    const client = await this.getOrFail(id);
-    this.assertModifiable(client);
-    client.screeningStatut = dto.statut;
-    client.screeningDate = new Date();
-    const saved = await this.clientsRepo.save(client);
-
-    await this.audit(
-      AuditAction.VALIDATE,
-      id,
-      { screeningStatut: dto.statut },
-      authUser.id,
-    );
-    await this.scoringService.recalculateForClient(id, authUser.id);
     await this.obligationsService.synchroniserPourClient(id);
     return saved;
   }

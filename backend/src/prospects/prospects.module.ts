@@ -1,3 +1,4 @@
+import { ScreeningModule } from '../screening/screening.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Prospect } from './entities/prospect.entity';
@@ -11,6 +12,7 @@ import { ProspectsController } from './prospects.controller';
 
 @Module({
   imports: [
+    ScreeningModule,
     TypeOrmModule.forFeature([Prospect, AuditLog]),
     ScoringModule,
     NotificationsModule,

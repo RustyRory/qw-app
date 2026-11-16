@@ -47,6 +47,8 @@ import { ScoringService } from '../scoring/scoring.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
+import { ScreeningService } from '../screening/screening.service';
+import { ScreeningCorrespondance } from '../screening/entities/screening-correspondance.entity';
 
 type AuthUser = { id: string; role: Role };
 
@@ -101,6 +103,7 @@ export class ProspectsService {
     private readonly notificationsService: NotificationsService,
     private readonly obligationsService: ObligationsService,
     private readonly lettresMissionService: LettresMissionService,
+    private readonly screeningService: ScreeningService,
   ) {}
 
   private audit(
@@ -209,6 +212,9 @@ export class ProspectsService {
       );
     }
     await this.obligationsService.synchroniserPourProspect(saved.id);
+    this.screeningService
+      .controler('prospect', saved.id, authUser.id)
+      .catch(() => undefined);
     return saved;
   }
 
@@ -335,6 +341,9 @@ export class ProspectsService {
       );
     }
     await this.obligationsService.synchroniserPourProspect(id);
+    this.screeningService
+      .controler('prospect', id, authUser.id)
+      .catch(() => undefined);
     // Les lettres de mission non signées reprennent les nouvelles données.
     if (CHAMPS_MODIFIABLES.some((c) => dto[c] !== undefined)) {
       await this.lettresMissionService.apresModificationDossier({
@@ -518,6 +527,9 @@ export class ProspectsService {
             conventionCollective: prospect.conventionCollective,
             notes: prospect.notes,
             niveauRisqueManuel: prospect.niveauRisqueManuel,
+            screeningStatut: prospect.screeningStatut,
+            screeningDate: prospect.screeningDate,
+            screeningRegistreDu: prospect.screeningRegistreDu,
             justificationNiveauManuel: prospect.justificationNiveauManuel,
             niveauManuelAt: prospect.niveauManuelAt,
             ppe,
@@ -533,6 +545,7 @@ export class ProspectsService {
           PlanningEtape,
           Obligation,
           BeneficiaireEffectif,
+          ScreeningCorrespondance,
         ]) {
           await manager
             .createQueryBuilder()
