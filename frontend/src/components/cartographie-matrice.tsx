@@ -147,11 +147,22 @@ export function CartographieMatrice() {
 
   const risqueSel = data.risques.find((r) => r.numero === selection) ?? null;
 
+  // Chaque dossier est placé une seule fois, sur la case de son risque le
+  // plus élevé (probabilité × impact) ; sans risque, il n'est pas placé.
+  const places = data.dossiers.flatMap((d) => {
+    const pire = data.risques
+      .filter((r) => d.risques.includes(r.numero))
+      .sort((a, b) => b.score - a.score || b.impact - a.impact)[0];
+    return pire ? [{ ...d, pire }] : [];
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          Cliquez sur un risque pour voir sa règle et les dossiers concernés.
+          Chaque dossier est placé sur la case de son risque le plus élevé.
+          Cliquez sur un risque pour voir sa règle et tous les dossiers
+          concernés.
         </p>
         <div className="flex flex-wrap gap-3 text-xs">
           {(["FAIBLE", "MODERE", "ELEVE"] as Niveau[]).map((n) => (
@@ -165,23 +176,57 @@ export function CartographieMatrice() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <Matrice
-          contenu={(p, i) => (
-            <div className="flex flex-wrap gap-1.5 pb-4">
-              {data.risques
-                .filter((r) => r.probabilite === p && r.impact === i)
-                .map((r) => (
-                  <button
-                    key={r.numero}
-                    type="button"
-                    onClick={() => setSelection(r.numero)}
-                    title={r.libelle}
-                    className={`rounded-lg border border-slate-300 bg-white px-2 py-1 text-left text-[11px] font-medium leading-tight text-slate-800 shadow-sm hover:ring-2 hover:ring-indigo-300 ${selection === r.numero ? "ring-2 ring-indigo-500" : ""}`}
-                  >
-                    {court(r)}
-                  </button>
-                ))}
-            </div>
-          )}
+          contenu={(p, i) => {
+            const ici = places.filter(
+              (d) => d.pire.probabilite === p && d.pire.impact === i,
+            );
+            return (
+              <div className="space-y-2 pb-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {data.risques
+                    .filter((r) => r.probabilite === p && r.impact === i)
+                    .map((r) => (
+                      <button
+                        key={r.numero}
+                        type="button"
+                        onClick={() => setSelection(r.numero)}
+                        title={r.libelle}
+                        className={`rounded-lg border border-slate-300 bg-white px-2 py-1 text-left text-[11px] font-medium leading-tight text-slate-800 shadow-sm hover:ring-2 hover:ring-indigo-300 ${selection === r.numero ? "ring-2 ring-indigo-500" : ""}`}
+                      >
+                        {court(r)}
+                      </button>
+                    ))}
+                </div>
+                {ici.length > 0 && (
+                  <ul className="space-y-0.5 text-xs">
+                    {ici.slice(0, 6).map((d) => (
+                      <li key={`${d.type}-${d.id}`} className="truncate">
+                        <Link
+                          href={lienDossier(d)}
+                          title={`${d.nom} (${d.type === "client" ? "client" : "prospect"}) — ${d.risques
+                            .map((n) => {
+                              const r = data.risques.find(
+                                (x) => x.numero === n,
+                              );
+                              return r ? court(r) : n;
+                            })
+                            .join(", ")}`}
+                          className={`font-semibold text-slate-900 hover:underline ${selection !== null && d.risques.includes(selection) ? "rounded bg-indigo-100 px-1" : ""}`}
+                        >
+                          • {d.nom}
+                        </Link>
+                      </li>
+                    ))}
+                    {ici.length > 6 && (
+                      <li className="text-slate-500">
+                        + {ici.length - 6} autres
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            );
+          }}
         />
       </div>
 
