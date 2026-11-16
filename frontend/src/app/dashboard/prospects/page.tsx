@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -320,6 +320,10 @@ function ProspectCard({
     transition,
     isDragging,
   } = useSortable({ id: prospect.id });
+  const router = useRouter();
+  // Position au moment de l'appui : un clic sans déplacement ouvre la fiche,
+  // un déplacement reste un glisser-déposer.
+  const appui = useRef<{ x: number; y: number } | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -333,11 +337,21 @@ function ProspectCard({
       ref={overlay ? undefined : setNodeRef}
       style={overlay ? undefined : style}
       {...(overlay ? {} : { ...attributes, ...listeners })}
+      onPointerDown={(e) => {
+        appui.current = { x: e.clientX, y: e.clientY };
+        listeners?.onPointerDown?.(e);
+      }}
+      onClick={(e) => {
+        if (overlay) return;
+        const a = appui.current;
+        if (a && Math.hypot(e.clientX - a.x, e.clientY - a.y) > 5) return;
+        router.push(`/dashboard/prospects/${prospect.id}`);
+      }}
       className={`bg-white rounded-xl border border-slate-200 p-3 select-none
         ${
           overlay
             ? "shadow-2xl rotate-2 scale-105 cursor-grabbing"
-            : "cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200 transition-all"
+            : "cursor-pointer active:cursor-grabbing hover:shadow-md hover:border-blue-200 transition-all"
         }`}
     >
       <div className="flex items-start gap-2 mb-2">
