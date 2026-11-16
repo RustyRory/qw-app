@@ -34,16 +34,6 @@ export interface CartographieRisques {
     deductible: boolean;
     dossiers: DossierCartographie[];
   }[];
-  // Chaque dossier placé sur la case de son risque le plus élevé (Rare ×
-  // Mineur s'il n'en présente aucun).
-  dossiers: (DossierCartographie & {
-    probabilite: number;
-    impact: number;
-    score: number;
-    niveau: NiveauCartographie;
-    vigilanceRenforcee: boolean;
-    risques: number[];
-  })[];
 }
 
 @Injectable()
@@ -150,30 +140,6 @@ export class CartographieService {
       };
     });
 
-    const dossiers = entrees.map(({ dossier, donnees }) => {
-      const concernes = RISQUES_CABINET.filter(
-        (r) => r.concerne && r.concerne(donnees),
-      );
-      const pire = concernes.reduce<(typeof concernes)[number] | null>(
-        (max, r) =>
-          !max || r.probabilite * r.impact > max.probabilite * max.impact
-            ? r
-            : max,
-        null,
-      );
-      const probabilite = pire?.probabilite ?? 1;
-      const impact = pire?.impact ?? 1;
-      return {
-        ...dossier,
-        probabilite,
-        impact,
-        score: probabilite * impact,
-        niveau: niveauCartographie(probabilite * impact),
-        vigilanceRenforcee: concernes.some((r) => r.vigilanceRenforcee),
-        risques: concernes.map((r) => r.numero),
-      };
-    });
-
-    return { risques, dossiers };
+    return { risques };
   }
 }
