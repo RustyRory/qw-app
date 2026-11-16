@@ -189,13 +189,17 @@ function TabInfos({
   score,
   audit,
   onRefresh,
+  editing,
+  setEditing,
 }: {
   client: Client;
   score?: ScoreRisque | null;
   audit: AuditLog[];
   onRefresh: () => void;
+  // Mode édition piloté par le bouton « Éditer » de l'en-tête de la fiche.
+  editing: boolean;
+  setEditing: (v: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sireneLoading, setSireneLoading] = useState(false);
   const [sireneError, setSireneError] = useState<string | null>(null);
@@ -503,15 +507,6 @@ function TabInfos({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button
-          onClick={() => setEditing(true)}
-          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors"
-        >
-          <IconPencil className="size-3.5" /> Modifier
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Identification */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -3673,6 +3668,8 @@ export default function ClientDetailPage() {
     load();
   }, [load]);
 
+  const [editionInfos, setEditionInfos] = useState(false);
+
   function setTab(tab: string) {
     router.push(`/dashboard/clients/${id}?tab=${tab}`, { scroll: false });
   }
@@ -3809,7 +3806,10 @@ export default function ClientDetailPage() {
 
                 <button
                   type="button"
-                  onClick={() => setTab("infos")}
+                  onClick={() => {
+                    setTab("infos");
+                    setEditionInfos(true);
+                  }}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-800 shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-50 sm:w-auto"
                 >
                   <IconPencil className="size-4" />
@@ -3894,6 +3894,8 @@ export default function ClientDetailPage() {
               score={score}
               audit={audit}
               onRefresh={load}
+              editing={editionInfos}
+              setEditing={setEditionInfos}
             />
           )}
           {activeTab === "kyc" && <TabKyc client={client} onRefresh={load} />}
