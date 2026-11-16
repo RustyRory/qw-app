@@ -28,7 +28,28 @@ interface Risque {
 
 interface Cartographie {
   risques: Risque[];
+  dossiers: (Dossier & { risques: number[] })[];
 }
+
+// Libellé court affiché dans la matrice (le libellé complet est au survol
+// et dans la liste).
+const LIBELLE_COURT: Record<number, string> = {
+  1: "Espèces",
+  2: "Société récente / holding",
+  3: "PPE",
+  4: "Associations",
+  5: "Secteurs sensibles",
+  6: "Création, domiciliation",
+  7: "Opérations exceptionnelles",
+  8: "Tenue seule",
+  9: "Pays à haut risque",
+  10: "Paradis fiscaux",
+  11: "Client non rencontré",
+  12: "Apporteur inconnu",
+  13: "Formation interne",
+};
+const court = (r: { numero: number; libelle: string }) =>
+  LIBELLE_COURT[r.numero] ?? r.libelle;
 
 const PROBABILITES = ["Rare", "Possible", "Probable", "Très probable"];
 const IMPACTS = ["Mineur", "Modéré", "Grave", "Critique"];
@@ -130,7 +151,7 @@ export function CartographieMatrice() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          Cliquez sur un risque pour voir les dossiers concernés.
+          Cliquez sur un risque pour voir sa règle et les dossiers concernés.
         </p>
         <div className="flex flex-wrap gap-3 text-xs">
           {(["FAIBLE", "MODERE", "ELEVE"] as Niveau[]).map((n) => (
@@ -145,7 +166,7 @@ export function CartographieMatrice() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <Matrice
           contenu={(p, i) => (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 pb-4">
               {data.risques
                 .filter((r) => r.probabilite === p && r.impact === i)
                 .map((r) => (
@@ -153,15 +174,10 @@ export function CartographieMatrice() {
                     key={r.numero}
                     type="button"
                     onClick={() => setSelection(r.numero)}
-                    title={`${r.libelle} — ${r.dossiers.length} dossier(s)`}
-                    className={`relative flex size-8 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-sm hover:ring-2 hover:ring-indigo-300 ${selection === r.numero ? "ring-2 ring-indigo-500" : ""}`}
+                    title={r.libelle}
+                    className={`rounded-lg border border-slate-300 bg-white px-2 py-1 text-left text-[11px] font-medium leading-tight text-slate-800 shadow-sm hover:ring-2 hover:ring-indigo-300 ${selection === r.numero ? "ring-2 ring-indigo-500" : ""}`}
                   >
-                    {r.numero}
-                    {r.dossiers.length > 0 && (
-                      <span className="absolute -right-1.5 -top-1.5 rounded-full bg-indigo-600 px-1 text-[10px] text-white">
-                        {r.dossiers.length}
-                      </span>
-                    )}
+                    {court(r)}
                   </button>
                 ))}
             </div>
@@ -244,6 +260,93 @@ export function CartographieMatrice() {
               de rattachement.
             </p>
           )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Tous les dossiers ({data.dossiers.length})
+          </p>
+          {risqueSel && (
+            <button
+              type="button"
+              onClick={() => setSelection(null)}
+              className="text-xs font-medium text-blue-700 hover:underline"
+            >
+              Ne plus surligner « {court(risqueSel)} »
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-slate-500">
+              <tr className="border-b border-slate-100">
+                <th className="px-4 py-2 font-medium">Dossier</th>
+                <th className="px-4 py-2 font-medium">Type</th>
+                <th className="px-4 py-2 font-medium">Risques concernés</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[...data.dossiers]
+                .sort(
+                  (a, b) =>
+                    b.risques.length - a.risques.length ||
+                    a.nom.localeCompare(b.nom, "fr"),
+                )
+                .map((d) => {
+                  const surligne =
+                    selection !== null && d.risques.includes(selection);
+                  return (
+                    <tr
+                      key={`${d.type}-${d.id}`}
+                      className={surligne ? "bg-indigo-50" : undefined}
+                    >
+                      <td className="px-4 py-2">
+                        <Link
+                          href={lienDossier(d)}
+                          className="font-medium text-blue-700 hover:underline"
+                        >
+                          {d.nom}
+                        </Link>
+                        <span className="ml-2 font-mono text-xs text-slate-400">
+                          {d.ref}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-500">
+                        {d.type === "client" ? "Client" : "Prospect"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {d.risques.length === 0 ? (
+                          <span className="text-xs text-slate-400">
+                            Aucun risque identifié
+                          </span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {d.risques.map((n) => {
+                              const r = data.risques.find(
+                                (x) => x.numero === n,
+                              );
+                              return (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() => setSelection(n)}
+                                  title={r?.libelle}
+                                  className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${r ? CASE[r.niveau] : ""} border`}
+                                >
+                                  {r ? court(r) : n}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

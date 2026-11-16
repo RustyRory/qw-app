@@ -34,6 +34,9 @@ export interface CartographieRisques {
     deductible: boolean;
     dossiers: DossierCartographie[];
   }[];
+  // Tous les dossiers actifs, avec les numéros des risques qui les
+  // concernent (liste vide si aucun).
+  dossiers: (DossierCartographie & { risques: number[] })[];
 }
 
 @Injectable()
@@ -140,6 +143,13 @@ export class CartographieService {
       };
     });
 
-    return { risques };
+    const dossiers = entrees.map(({ dossier, donnees }) => ({
+      ...dossier,
+      risques: RISQUES_CABINET.filter((r) => r.concerne?.(donnees)).map(
+        (r) => r.numero,
+      ),
+    }));
+
+    return { risques, dossiers };
   }
 }
