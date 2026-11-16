@@ -136,6 +136,9 @@ export interface Prospect {
   createdAt: string;
   updatedAt: string;
   euid?: string | null;
+  screeningStatut: ScreeningStatut;
+  screeningDate?: string | null;
+  screeningRegistreDu?: string | null;
 }
 
 export interface QuestionnaireAcceptation {
@@ -187,6 +190,7 @@ export interface Client {
   uboSaisi: boolean;
   screeningStatut: ScreeningStatut;
   screeningDate?: string | null;
+  screeningRegistreDu?: string | null;
   kycCompletedAt?: string | null;
   kycValidatedBy?: User | null;
   createdBy?: User;

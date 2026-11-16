@@ -19,7 +19,11 @@ export class AuthService {
   ): Promise<{ access_token: string; mustChangePassword: boolean }> {
     const invalid = new UnauthorizedException('Identifiants incorrects');
 
-    const user = await this.usersRepo.findOneBy({ email: dto.email });
+    const user = await this.usersRepo
+      .createQueryBuilder('u')
+      .addSelect('u.passwordHash')
+      .where('u.email = :email', { email: dto.email })
+      .getOne();
     if (!user) throw invalid;
 
     if (!user.isActive) throw new UnauthorizedException('Compte désactivé');

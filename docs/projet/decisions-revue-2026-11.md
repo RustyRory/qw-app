@@ -91,9 +91,9 @@ Rôles : COLLAB = collaborateur, RESP = responsable, EC = expert-comptable.
 | Création directe | **Interdite** : tout client vient d'une conversion |
 | Visibilité | Tout le monde voit tous les clients |
 | Modification | Tous les rôles métier ; PPE, statut KYC et screening uniquement via leurs actions dédiées |
-| Validation KYC | Conditions : pièces obligatoires présentes et non expirées + screening effectué + UBO saisis (société) |
+| Validation KYC | Conditions : pièces obligatoires présentes et non expirées + contrôle registre des gels effectué sans correspondance ouverte ou confirmée + UBO saisis (société) |
 | Expiration KYC | **1 an** après validation ; rappel 30 jours avant ; questionnaire LAB à refaire chaque année |
-| Screening | RESP, EC, ADMIN |
+| Screening | **Automatique** sur le registre national des gels (DG Trésor) : dossier, représentant légal et bénéficiaires effectifs contrôlés à chaque modification et chaque nuit (5 h). Correspondance éventuelle tranchée par RESP, EC ou ADMIN (homonyme / confirmée, justification obligatoire) ; alerte = niveau de risque ÉLEVÉ d'office |
 | Suppression (archivage) | EC, ADMIN |
 | Client résilié | Lecture seule, conservation **5 ans** après la fin de relation avant toute suppression définitive |
 

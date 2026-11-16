@@ -21,6 +21,7 @@ import { AuditLog } from './audit/entities/audit-log.entity';
 import { Notification } from './notifications/entities/notification.entity';
 import { ParametresCabinet } from './cabinet/cabinet.entity';
 import { AcceptationMission } from './acceptations/entities/acceptation-mission.entity';
+import { ScreeningCorrespondance } from './screening/entities/screening-correspondance.entity';
 
 const ALL_ENTITIES = [
   User,
@@ -40,6 +41,7 @@ const ALL_ENTITIES = [
   Notification,
   ParametresCabinet,
   AcceptationMission,
+  ScreeningCorrespondance,
 ];
 
 export const AppDataSource = new DataSource({

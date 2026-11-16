@@ -14,10 +14,12 @@ import {
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
+import { useBloquerDefilement } from "@/hooks/useBloquerDefilement";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { ScoringPanel } from "@/components/scoring-panel";
+import { ScreeningPanel } from "@/components/screening-panel";
 import { StatusBadge, OBLIGATION_TYPE_LABELS } from "@/lib/status";
 import { fetchSirene } from "@/lib/sirene";
 import { DocumentsPanel } from "@/components/documents-panel";
@@ -111,6 +113,7 @@ export default function ProspectDetailPage() {
     id: string;
     url: string;
   } | null>(null);
+  useBloquerDefilement(!!previewLettre);
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [etapes, setEtapes] = useState<PlanningEtape[]>([]);
 
@@ -1525,6 +1528,15 @@ export default function ProspectDetailPage() {
             {/* Score de risque */}
             <ScoringPanel entityType="prospect" entityId={prospect.id} />
 
+            <ScreeningPanel
+              cible="prospect"
+              cibleId={prospect.id}
+              statut={prospect.screeningStatut}
+              dateControle={prospect.screeningDate}
+              registreDu={prospect.screeningRegistreDu}
+              onChange={load}
+            />
+
             {/* Step visuel */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/80">
@@ -1830,7 +1842,7 @@ export default function ProspectDetailPage() {
                 <iframe
                   src={previewLettre.url}
                   title="Aperçu de la lettre de mission"
-                  className="flex-1 bg-slate-100"
+                  className="block min-h-0 w-full flex-1 border-0 bg-slate-100"
                 />
               </div>
             </div>

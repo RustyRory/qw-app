@@ -44,6 +44,8 @@ import { CabinetModule } from './cabinet/cabinet.module';
 import { AcceptationMission } from './acceptations/entities/acceptation-mission.entity';
 import { AcceptationsModule } from './acceptations/acceptations.module';
 import { CartographieModule } from './cartographie/cartographie.module';
+import { ScreeningCorrespondance } from './screening/entities/screening-correspondance.entity';
+import { ScreeningModule } from './screening/screening.module';
 
 const ALL_ENTITIES = [
   User,
@@ -63,6 +65,7 @@ const ALL_ENTITIES = [
   Notification,
   ParametresCabinet,
   AcceptationMission,
+  ScreeningCorrespondance,
 ];
 
 @Module({
@@ -96,6 +99,7 @@ const ALL_ENTITIES = [
     CabinetModule,
     AcceptationsModule,
     CartographieModule,
+    ScreeningModule,
   ],
   controllers: [AppController],
   providers: [AppService],

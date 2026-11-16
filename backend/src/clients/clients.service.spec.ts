@@ -12,6 +12,7 @@ import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-eff
 import { ScoringService } from '../scoring/scoring.service';
 import { ObligationsService } from '../obligations/obligations.service';
 import { LettresMissionService } from '../lettres-mission/lettres-mission.service';
+import { ScreeningService } from '../screening/screening.service';
 import {
   Role,
   ScreeningStatut,
@@ -71,6 +72,10 @@ describe('ClientsService', () => {
         { provide: ScoringService, useValue: scoringService },
         { provide: ObligationsService, useValue: obligationsService },
         { provide: LettresMissionService, useValue: lettresMissionService },
+        {
+          provide: ScreeningService,
+          useValue: { controler: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
     service = module.get(ClientsService);
@@ -128,7 +133,7 @@ describe('ClientsService', () => {
 
       expect(manquants).toEqual([
         'Pièces manquantes ou expirées : Kbis',
-        'Le screening (listes de sanctions) n’a pas été effectué',
+        'Le contrôle sur le registre des gels n’a pas encore été effectué',
         'Aucun bénéficiaire effectif saisi',
       ]);
     });

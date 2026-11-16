@@ -197,16 +197,13 @@ function renderRepartitionSection(contenu: LettreMissionContenu): string {
 }
 
 function renderSignatureBlock(
-  contenu: LettreMissionContenu,
+  _contenu: LettreMissionContenu,
   signature: LettreMissionSignature,
 ): string {
-  const { cabinet } = contenu;
-
   return `
 <div class="signatures">
   <div class="signature-block">
     <div class="titre">L'expert-comptable</div>
-    <div class="sous-titre">${escapeHtml(cabinet.raisonSociale)}</div>
     ${
       signature.signee
         ? `${
@@ -214,14 +211,13 @@ function renderSignatureBlock(
               ? `<img class="signee-image" src="${signature.imageDataUri}" alt="Signature de ${escapeHtml(signature.nom ?? '')}" />`
               : ''
           }
-           <div class="signee">${escapeHtml(signature.nom ?? '')}, expert-comptable</div>
-           <div class="note">Signé électroniquement le ${escapeHtml(signature.date ?? '')}</div>`
+           <div class="signee-nom">${escapeHtml(signature.nom ?? '')}</div>
+           <div class="note">Le ${escapeHtml(signature.date ?? '')}</div>`
         : ''
     }
   </div>
   <div class="signature-block">
     <div class="titre">Le Client</div>
-    <div class="sous-titre">&nbsp;</div>
     <div class="note">(signature précédée de la mention : Lu et approuvé)</div>
   </div>
 </div>`;
@@ -366,6 +362,7 @@ export function renderLettreMissionHtml(
     color: #1e3a8a;
   }
   .signature-block .signee-image { max-height: 44px; max-width: 180px; object-fit: contain; }
+  .signature-block .signee-nom { font-size: 9.5px; color: #1a1a1a; margin-top: 2px; }
   .signature-block .note { font-size: 9px; color: #777; margin-top: 4px; }
   .annexe ol { padding-left: 18px; }
   .annexe li { margin-bottom: 9px; text-align: justify; }

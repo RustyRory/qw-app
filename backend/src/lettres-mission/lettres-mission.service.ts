@@ -61,9 +61,20 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+// Initiales de l'expert-comptable signataire : « Anne Dupont » → « A.D. »,
+// « Jean-Pierre Martin » → « J.P.M. ».
+export function initiales(prenom: string, nom: string): string {
+  return `${prenom} ${nom}`
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .map((mot) => `${mot.charAt(0).toUpperCase()}.`)
+    .join('');
+}
+
 // Pied de page de chaque page : mentions du cabinet + deux cases de
-// paraphe visibles (cabinet, rempli à la signature de l'EC ; client, vide).
-function buildFooterTemplate(
+// paraphe visibles (cabinet : initiales de l'EC à la signature ; client,
+// vide).
+export function buildFooterTemplate(
   contenu: LettreMissionContenu,
   parapheCabinet: string | null,
 ): string {
@@ -87,7 +98,7 @@ function buildFooterTemplate(
       ${caseParaphe(
         'Paraphe cabinet',
         parapheCabinet
-          ? `<img src="${parapheCabinet}" style="max-height:8mm;max-width:27mm;object-fit:contain;" />`
+          ? `<span style="font-size:11px;font-weight:700;color:#1e3a8a;">${escapeHtml(parapheCabinet)}</span>`
           : '',
       )}
       ${caseParaphe('Paraphe client', '')}
@@ -173,7 +184,12 @@ export class LettresMissionService {
     );
     const buffer = await this.renderPdf(
       html,
-      buildFooterTemplate(contenu, l.signeeParExpert ? signatureImage : null),
+      buildFooterTemplate(
+        contenu,
+        l.signeeParExpert && l.signataire
+          ? initiales(l.signataire.prenom, l.signataire.nom)
+          : null,
+      ),
     );
     const chemin = l.cheminStockage ?? this.cheminPdf(l.mission.id, l.version);
     fs.writeFileSync(chemin, buffer);

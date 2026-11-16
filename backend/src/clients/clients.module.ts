@@ -1,3 +1,4 @@
+import { ScreeningModule } from '../screening/screening.module';
 import { Module } from '@nestjs/common';
 import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,6 +12,7 @@ import { ClientsService } from './clients.service';
 
 @Module({
   imports: [
+    ScreeningModule,
     TypeOrmModule.forFeature([Client, AuditLog, BeneficiaireEffectif]),
     ScoringModule,
     ObligationsModule,
