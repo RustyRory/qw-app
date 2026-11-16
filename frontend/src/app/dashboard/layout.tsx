@@ -29,7 +29,9 @@ export default function DashboardLayout({
       <div className="fixed right-4 top-4 z-50 rounded-xl bg-white shadow-md md:hidden">
         <NotificationBell {...notifications} dark={false} />
       </div>
-      <main className="flex-1 overflow-auto pb-16 md:pb-0">{children}</main>
+      <main className="relative flex-1 overflow-auto pb-16 md:pb-0">
+        {children}
+      </main>
     </div>
   );
 }
