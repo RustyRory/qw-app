@@ -335,11 +335,6 @@ export default function ClientsPage() {
                   </p>
                 </div>
               </div>
-
-              <p className="max-w-xs text-xs text-blue-100">
-                Un client est créé en convertissant un prospect (questionnaire
-                validé et lettre de mission signée).
-              </p>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5 lg:grid-cols-4">
