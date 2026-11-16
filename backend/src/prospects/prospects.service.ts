@@ -17,7 +17,14 @@ import {
 } from 'typeorm';
 import { Prospect } from './entities/prospect.entity';
 import { Client } from '../clients/entities/client.entity';
-import { Role, StatutClient, StatutKanban, TypeEntite } from '../common/enums';
+import {
+  Role,
+  StatutClient,
+  StatutKanban,
+  StatutObligation,
+  TypeEntite,
+  TypeObligation,
+} from '../common/enums';
 import { AuditAction, AuditLog } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { Mission } from '../missions/entities/mission.entity';
@@ -31,6 +38,7 @@ import {
   StatutQuestionnaire,
 } from '../questionnaires/entities/questionnaire-acceptation.entity';
 import { ScoreRisque } from '../scoring/entities/score-risque.entity';
+import { AcceptationMission } from '../acceptations/entities/acceptation-mission.entity';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
 import { generateNextRef } from '../common/generate-ref';
@@ -76,6 +84,7 @@ const CHAMPS_MODIFIABLES = [
   'regimeFiscal',
   'regimeTva',
   'tvaIntracommunautaire',
+  'euid',
   'existenceSalaries',
   'conventionCollective',
 ] as const;
@@ -199,6 +208,7 @@ export class ProspectsService {
         `/dashboard/prospects/${saved.id}`,
       );
     }
+    await this.obligationsService.synchroniserPourProspect(saved.id);
     return saved;
   }
 
@@ -324,6 +334,7 @@ export class ProspectsService {
         `/dashboard/prospects/${saved.id}`,
       );
     }
+    await this.obligationsService.synchroniserPourProspect(id);
     // Les lettres de mission non signées reprennent les nouvelles données.
     if (CHAMPS_MODIFIABLES.some((c) => dto[c] !== undefined)) {
       await this.lettresMissionService.apresModificationDossier({
@@ -502,6 +513,7 @@ export class ProspectsService {
             regimeFiscal: prospect.regimeFiscal,
             regimeTva: prospect.regimeTva,
             tvaIntracommunautaire: prospect.tvaIntracommunautaire,
+            euid: prospect.euid,
             existenceSalaries: prospect.existenceSalaries,
             conventionCollective: prospect.conventionCollective,
             notes: prospect.notes,
@@ -530,7 +542,25 @@ export class ProspectsService {
             .execute();
         }
         // Historique conservé côté prospect, rattaché en plus au client.
-        for (const entite of [QuestionnaireAcceptation, ScoreRisque]) {
+        // Questionnaires terminés (condition de conversion) : l'obligation
+        // « questionnaires à compléter » du prospect est close.
+        await manager
+          .createQueryBuilder()
+          .update(Obligation)
+          .set({ statut: StatutObligation.FAIT, completedAt: new Date() })
+          .where('id_prospect = :id', { id })
+          .andWhere('type = :type', {
+            type: TypeObligation.QUESTIONNAIRES_A_COMPLETER,
+          })
+          .andWhere('statut IN (:...ouvertes)', {
+            ouvertes: [StatutObligation.A_FAIRE, StatutObligation.EN_RETARD],
+          })
+          .execute();
+        for (const entite of [
+          QuestionnaireAcceptation,
+          ScoreRisque,
+          AcceptationMission,
+        ]) {
           await manager
             .createQueryBuilder()
             .update(entite)

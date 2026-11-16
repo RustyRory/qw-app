@@ -29,8 +29,13 @@ import {
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
 import { RepartitionEditor } from "@/components/repartition-editor";
+import {
+  ParametresLettreFields,
+  lireParametresLettre,
+} from "@/components/parametres-lettre-fields";
 import { LettreMissionActions } from "@/components/lettre-mission-actions";
 import { OperationActions } from "@/components/operation-actions";
+import { OriginePropect } from "@/components/origine-prospect";
 import {
   MISSION_TYPE_LABELS,
   repartitionInitiale,
@@ -251,6 +256,7 @@ function TabInfos({
         ? Number(form.get("capitalSocial"))
         : undefined,
       regimeFiscal: (form.get("regimeFiscal") as string) || undefined,
+      euid: (form.get("euid") as string) || undefined,
       regimeTva: (form.get("regimeTva") as string) || undefined,
       tvaIntracommunautaire:
         (form.get("tvaIntracommunautaire") as string) || undefined,
@@ -412,6 +418,21 @@ function TabInfos({
                 />
               </Field>
               <Field>
+                <FieldLabel htmlFor="euid">Numéro EUID</FieldLabel>
+                <Input
+                  id="euid"
+                  name="euid"
+                  defaultValue={
+                    client.euid ?? (client.siren ? `FR.${client.siren}` : "")
+                  }
+                  placeholder="FR7501.123456789"
+                  className="rounded-xl font-mono"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  FR + code du greffe (4 chiffres, sur le Kbis) + . + SIREN
+                </p>
+              </Field>
+              <Field>
                 <FieldLabel htmlFor="existenceSalaries">
                   Existence de salariés
                 </FieldLabel>
@@ -529,36 +550,6 @@ function TabInfos({
                 <dd className="text-sm text-slate-800">{value}</dd>
               </div>
             ))}
-            {client.prospect && (
-              <>
-                <div className="flex items-center justify-between px-4 py-2.5">
-                  <dt className="text-xs text-slate-400">
-                    Prospect d&apos;origine
-                  </dt>
-                  <dd>
-                    <Link
-                      href={`/dashboard/prospects/${client.prospect.id}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                    >
-                      Voir le prospect d&apos;origine →
-                    </Link>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between px-4 py-2.5">
-                  <dt className="text-xs text-slate-400">
-                    Questionnaire d&apos;acceptation
-                  </dt>
-                  <dd>
-                    <Link
-                      href={`/dashboard/prospects/${client.prospect.id}/questionnaire`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                    >
-                      Voir le questionnaire →
-                    </Link>
-                  </dd>
-                </div>
-              </>
-            )}
           </dl>
         </div>
 
@@ -646,6 +637,7 @@ function TabInfos({
                   ["Régime fiscal", client.regimeFiscal],
                   ["Régime TVA", client.regimeTva],
                   ["N° TVA intracommunautaire", client.tvaIntracommunautaire],
+                  ["Numéro EUID", client.euid ?? null],
                   [
                     "Existence de salariés",
                     client.existenceSalaries == null
@@ -746,6 +738,7 @@ function TabInfos({
           </div>
         </div>
       )}
+      <OriginePropect clientId={client.id} prospect={client.prospect} />
     </div>
   );
 }
@@ -757,8 +750,11 @@ function TabInfos({
 // ÉLEVÉ, apparaît dans les conditions de validation renvoyées par l'API).
 const DOCUMENTS_REQUIS: Record<TypeEntite, TypeDocument[]> = {
   PERSONNE_MORALE: [
-    "KBIS",
     "STATUTS",
+    "KBIS",
+    "EXTRAIT_INPI",
+    "AVIS_SIRENE",
+    "LISTE_ACTIONNAIRES",
     "LISTE_UBO",
     "PIECE_IDENTITE_DIRIGEANT",
     "PIECE_IDENTITE_BENEFICIAIRE",
@@ -882,8 +878,34 @@ function TabKyc({
     ...typesRequis.map((type) => ({
       label: DOCUMENT_TYPE_LABELS[type],
       ok: docsExistants.includes(type),
+      type,
     })),
   ];
+
+  // Dépôt direct depuis une ligne de la checklist (type déjà connu).
+  async function deposerPour(type: TypeDocument, file: File) {
+    if (!userId) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await deposerDocument({
+        userId,
+        cible: "client",
+        cibleId: client.id,
+        file,
+        type,
+      });
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Impossible d’envoyer le fichier.",
+      );
+    } finally {
+      apiFetch<Document[]>(`/documents/client/${client.id}`)
+        .then(setDocs)
+        .catch(() => {});
+      setUploading(false);
+    }
+  }
   const okCount = kycItems.filter((i) => i.ok).length;
 
   return (
@@ -907,12 +929,29 @@ function TabKyc({
           </div>
         </div>
         <div className="px-4 py-4 space-y-2">
-          {kycItems.map(({ label, ok }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className="text-base">{ok ? "✅" : "❌"}</span>
-              <span className="text-sm text-slate-700">{label}</span>
+          {kycItems.map((item) => (
+            <div key={item.label} className="flex flex-wrap items-center gap-2">
+              <span className="text-base">{item.ok ? "✅" : "❌"}</span>
+              <span className="text-sm text-slate-700">{item.label}</span>
+              {"type" in item && item.type && (
+                <label className="ml-auto cursor-pointer rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                  {uploading ? "Envoi…" : item.ok ? "Remplacer" : "Déposer"}
+                  <input
+                    type="file"
+                    accept={DOCUMENT_ACCEPT}
+                    className="sr-only"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) deposerPour(item.type!, file);
+                    }}
+                  />
+                </label>
+              )}
             </div>
           ))}
+          {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
           {can.validerQuestionnaire && client.kycStatut !== "VALIDE" && (
             <div className="mt-2 space-y-1">
               <button
@@ -2276,6 +2315,7 @@ function TabMissions({ clientId }: { clientId: string }) {
               ? Number(form.get("honoraires"))
               : undefined,
           repartitionTravaux,
+          ...lireParametresLettre(form),
         }
       : {
           clientId,
@@ -2289,6 +2329,7 @@ function TabMissions({ clientId }: { clientId: string }) {
               ? Number(form.get("honoraires"))
               : undefined,
           repartitionTravaux,
+          ...lireParametresLettre(form),
         };
 
     try {
@@ -2672,6 +2713,8 @@ function TabMissions({ clientId }: { clientId: string }) {
                   />
                 </Field>
               </div>
+
+              <ParametresLettreFields mission={editing} />
 
               {catalogue.length > 0 && (
                 <RepartitionEditor
@@ -3096,6 +3139,8 @@ const OBLIGATION_TAB: Record<TypeObligation, string> = {
   LETTRE_MISSION: "missions",
   VALIDATION_LETTRE_MISSION: "missions",
   SIGNATURE_LETTRE_MISSION: "missions",
+  INFORMATIONS_A_COMPLETER: "infos",
+  QUESTIONNAIRES_A_COMPLETER: "infos",
 };
 
 function TabObligations({ clientId }: { clientId: string }) {

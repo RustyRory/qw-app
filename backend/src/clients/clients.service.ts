@@ -35,6 +35,9 @@ const LIBELLES_PIECES: Record<string, string> = {
   PIECE_IDENTITE_BENEFICIAIRE: 'pièce d’identité des bénéficiaires',
   JUSTIFICATIF_DOMICILE: 'justificatif de domicile',
   KBIS: 'Kbis',
+  EXTRAIT_INPI: 'extrait INPI',
+  AVIS_SIRENE: 'avis de situation Sirene',
+  LISTE_ACTIONNAIRES: 'liste des actionnaires',
   STATUTS: 'statuts',
   LISTE_UBO: 'liste des bénéficiaires effectifs',
   ATTESTATION_PPE: 'attestation PPE',
@@ -91,6 +94,8 @@ export class ClientsService {
         'createdBy',
         'kycValidatedBy',
         'prospect',
+        'prospect.assignedTo',
+        'prospect.createdBy',
       ],
     });
     if (!client) throw new NotFoundException('Client introuvable');

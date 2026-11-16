@@ -38,8 +38,31 @@ function fieldRequis(label: string, value: string): string {
   return `
     <div class="field">
       <span class="field-label">${escapeHtml(label)}</span>
-      <span class="field-value${safe ? '' : ' missing'}">${safe || '⚠ À compléter'}</span>
+      <span class="field-value${safe ? '' : ' missing'}">${safe || 'À compléter'}</span>
     </div>`;
+}
+
+// Répartition du capital social : toujours 3 lignes (vides si non
+// renseignées, à compléter par le client).
+function renderRepartitionCapital(
+  lignes: { associe: string; detention: string }[] | undefined,
+): string {
+  const rows = [0, 1, 2].map(
+    (i) => lignes?.[i] ?? { associe: '', detention: '' },
+  );
+  return `
+<h3>Répartition du capital social</h3>
+<table class="repartition">
+  <thead><tr><th>Associé</th><th style="width:35%">Parts / %</th></tr></thead>
+  <tbody>
+    ${rows
+      .map(
+        (r) =>
+          `<tr><td>${escapeHtml(r.associe) || '&nbsp;'}</td><td>${escapeHtml(r.detention) || '&nbsp;'}</td></tr>`,
+      )
+      .join('')}
+  </tbody>
+</table>`;
 }
 
 function checkbox(checked: boolean): string {
@@ -189,8 +212,9 @@ function renderSignatureBlock(
         ? `${
             signature.imageDataUri
               ? `<img class="signee-image" src="${signature.imageDataUri}" alt="Signature de ${escapeHtml(signature.nom ?? '')}" />`
-              : `<div class="signee">${escapeHtml(signature.nom ?? '')}</div>`
+              : ''
           }
+           <div class="signee">${escapeHtml(signature.nom ?? '')}, expert-comptable</div>
            <div class="note">Signé électroniquement le ${escapeHtml(signature.date ?? '')}</div>`
         : ''
     }
@@ -316,12 +340,16 @@ export function renderLettreMissionHtml(
     border-radius: 2px;
     position: relative;
   }
+  /* Coche dessinée en CSS : le caractère ✓ n'existe pas dans les polices
+     du serveur (Chromium Alpine) et n'apparaissait pas sur le PDF. */
   .chk.checked::after {
-    content: '\\2713';
-    font-size: 9px;
-    line-height: 1;
-    font-weight: 700;
-    color: #1e293b;
+    content: '';
+    width: 3px;
+    height: 6px;
+    margin-top: -2px;
+    border: solid #1e293b;
+    border-width: 0 1.6px 1.6px 0;
+    transform: rotate(45deg);
   }
   .signatures {
     display: flex;
@@ -374,7 +402,7 @@ export function renderLettreMissionHtml(
 
 <div class="objet">Objet : Lettre de mission</div>
 
-<p>Madame, Monsieur,</p>
+<p>${escapeHtml(mission.formuleAppel || 'Madame, Monsieur,')}</p>
 
 <p>
   Nous vous remercions de la confiance que vous nous avez témoignée en envisageant de nous
@@ -394,6 +422,9 @@ export function renderLettreMissionHtml(
 <div class="fields-grid">
   ${field('Raison sociale', client.raisonSociale)}
   ${field('Forme juridique', client.formeJuridique)}
+  ${field('Numéro EUID', client.euid ?? '')}
+  ${field('Date de clôture de l’exercice', mission.dateCloture ?? '')}
+  ${field('Date d’effet du contrat', mission.dateEffet ?? mission.dateDebut)}
   ${field('Siège social', client.adresse)}
   ${fieldRequis('Capital social', client.capitalSocial)}
   ${field('Gérant', client.gerant)}
@@ -416,6 +447,7 @@ export function renderLettreMissionHtml(
         )
   }
 </div>
+${renderRepartitionCapital(mission.repartitionCapital)}
 
 <h2>2. Notre mission</h2>
 <p>
@@ -494,11 +526,11 @@ ${renderRepartitionSection(contenu)}
   confiée, de l'expérience et des compétences requises des intervenants sur la mission.
 </p>
 <p>
-  Pour ${exerciceLabel}, ils sont fixés comme suit :
+  Pour ${mission.periodeHonoraires ? escapeHtml(mission.periodeHonoraires) : exerciceLabel}, ils sont fixés comme suit :
 </p>
 <div class="fields-grid">
   ${field(`Mission ${mission.typeLabel || 'confiée'}`, mission.honoraires)}
-  ${field('Frais de débours en sus', '5% HT')}
+  ${field('Frais de débours en sus', mission.fraisDeboursPct ?? '5 % HT')}
 </div>
 <p>
   Nous attirons votre attention sur le fait que toute mission sortant du cadre de nos travaux
@@ -512,8 +544,8 @@ ${renderRepartitionSection(contenu)}
 
 <h3>4.2. Facturation et règlement des honoraires</h3>
 <p>
-  Nous vous proposons d'établir une facture annuelle. Nous vous proposons de régler les
-  honoraires au comptant, par virement bancaire.
+  Rythme de facturation : ${escapeHtml(mission.rythmeFacturation || 'nous vous proposons d’établir une facture annuelle')}.
+  Rythme et mode de paiement : ${escapeHtml(mission.rythmePaiement || 'règlement des honoraires au comptant, par virement bancaire')}.
 </p>
 
 <h3>4.3. Signatures</h3>
@@ -524,7 +556,7 @@ ${renderRepartitionSection(contenu)}
 </p>
 <p>
   En vous remerciant de la confiance que vous nous témoignez, nous vous prions d'agréer,
-  Madame, Monsieur, l'expression de nos meilleurs sentiments.
+  ${escapeHtml((mission.formuleAppel || 'Madame, Monsieur,').replace(/,\s*$/, ''))}, l'expression de nos meilleurs sentiments.
 </p>
 <p>
   Fait à ${escapeHtml(cabinet.ville)}, le ${escapeHtml(contenu.dateGenerationLong)}, en deux

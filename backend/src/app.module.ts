@@ -41,6 +41,8 @@ import { AuditModule } from './audit/audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ParametresCabinet } from './cabinet/cabinet.entity';
 import { CabinetModule } from './cabinet/cabinet.module';
+import { AcceptationMission } from './acceptations/entities/acceptation-mission.entity';
+import { AcceptationsModule } from './acceptations/acceptations.module';
 
 const ALL_ENTITIES = [
   User,
@@ -59,6 +61,7 @@ const ALL_ENTITIES = [
   AuditLog,
   Notification,
   ParametresCabinet,
+  AcceptationMission,
 ];
 
 @Module({
@@ -90,6 +93,7 @@ const ALL_ENTITIES = [
     AuditModule,
     NotificationsModule,
     CabinetModule,
+    AcceptationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

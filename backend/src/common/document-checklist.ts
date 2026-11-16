@@ -3,8 +3,11 @@ import { TypeDocument, TypeEntite } from './enums';
 // Pièces KYC obligatoires (cf. docs/projet/decisions-revue-2026-11.md §4).
 export const DOCUMENTS_REQUIS: Record<TypeEntite, TypeDocument[]> = {
   [TypeEntite.PERSONNE_MORALE]: [
-    TypeDocument.KBIS,
     TypeDocument.STATUTS,
+    TypeDocument.KBIS,
+    TypeDocument.EXTRAIT_INPI,
+    TypeDocument.AVIS_SIRENE,
+    TypeDocument.LISTE_ACTIONNAIRES,
     TypeDocument.LISTE_UBO,
     TypeDocument.PIECE_IDENTITE_DIRIGEANT,
     TypeDocument.PIECE_IDENTITE_BENEFICIAIRE,

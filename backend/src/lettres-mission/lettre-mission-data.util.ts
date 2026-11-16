@@ -42,6 +42,8 @@ export interface LettreMissionContenu {
     regimeFiscal: string;
     regimeTva: string;
     tvaIntracommunautaire: string;
+    // Champs ajoutés en nov. 2026 : absents des lettres plus anciennes.
+    euid?: string;
     existenceSalaries: string;
     conventionCollective: string;
   };
@@ -55,6 +57,15 @@ export interface LettreMissionContenu {
     dateFinLong: string;
     honoraires: string;
     repartitionTravaux: RepartitionTravauxAssignation[] | null;
+    // Paramètres de lettre (facultatifs pour les lettres plus anciennes).
+    formuleAppel?: string;
+    repartitionCapital?: { associe: string; detention: string }[];
+    dateCloture?: string;
+    dateEffet?: string;
+    periodeHonoraires?: string;
+    fraisDeboursPct?: string;
+    rythmeFacturation?: string;
+    rythmePaiement?: string;
   };
   dateGeneration: string;
   dateGenerationLong: string;
@@ -121,6 +132,7 @@ function entiteFromMission(mission: Mission): LettreMissionContenu['client'] {
       regimeFiscal: client.regimeFiscal ?? '',
       regimeTva: client.regimeTva ?? '',
       tvaIntracommunautaire: client.tvaIntracommunautaire ?? '',
+      euid: client.euid ?? '',
       existenceSalaries: formatExistenceSalaries(client.existenceSalaries),
       conventionCollective: client.conventionCollective ?? '',
     };
@@ -145,6 +157,7 @@ function entiteFromMission(mission: Mission): LettreMissionContenu['client'] {
       regimeFiscal: prospect.regimeFiscal ?? '',
       regimeTva: prospect.regimeTva ?? '',
       tvaIntracommunautaire: prospect.tvaIntracommunautaire ?? '',
+      euid: prospect.euid ?? '',
       existenceSalaries: formatExistenceSalaries(prospect.existenceSalaries),
       conventionCollective: prospect.conventionCollective ?? '',
     };
@@ -188,6 +201,14 @@ export function buildLettreMissionContenu(
           ? `${Number(mission.honoraires).toLocaleString('fr-FR')} € HT`
           : '',
       repartitionTravaux: mission.repartitionTravaux ?? null,
+      formuleAppel: mission.formuleAppel || 'Madame, Monsieur,',
+      repartitionCapital: mission.repartitionCapital ?? [],
+      dateCloture: formatDate(mission.dateClotureExercice),
+      dateEffet: formatDate(mission.dateEffet ?? mission.dateDebut),
+      periodeHonoraires: mission.periodeHonoraires ?? '',
+      fraisDeboursPct: `${Number(mission.fraisDeboursPct ?? 5).toLocaleString('fr-FR')} % HT`,
+      rythmeFacturation: mission.rythmeFacturation ?? '',
+      rythmePaiement: mission.rythmePaiement ?? '',
     },
     dateGeneration: formatDate(now),
     dateGenerationLong: formatDateLong(now),

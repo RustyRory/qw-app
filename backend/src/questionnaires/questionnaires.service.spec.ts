@@ -48,6 +48,8 @@ describe('QuestionnairesService', () => {
     fermerEtapePourProspect: jest.fn(),
   };
   const obligationsServiceMock = {
+    synchroniserPourProspect: jest.fn(),
+    synchroniserPourClient: jest.fn(),
     ouvrirPourProspect: jest.fn(),
     cloturerPourProspect: jest.fn(),
   };

@@ -32,7 +32,10 @@ const TYPE_MISSION_LABELS: Record<string, string> = Object.fromEntries(
 
 const TYPE_OBLIGATION_LABELS: Record<string, string> = {
   KYC_VERIFICATION: 'Vérification KYC (revue annuelle)',
-  EVALUATION_RISQUE: 'Questionnaire LAB à refaire (revue annuelle)',
+  EVALUATION_RISQUE:
+    'Questionnaires de maintien de mission (LAB + acceptation) à compléter par le collaborateur',
+  INFORMATIONS_A_COMPLETER: 'Informations légales à compléter',
+  QUESTIONNAIRES_A_COMPLETER: 'Questionnaires LAB et d’acceptation à remplir',
   MISE_A_JOUR_DOCS: 'Mise à jour des documents',
   VALIDATION_RELATION: 'Questionnaire à valider',
   LETTRE_MISSION: 'Lettre de mission à faire',

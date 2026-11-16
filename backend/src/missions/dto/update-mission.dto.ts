@@ -1,3 +1,4 @@
+import { ParametresLettreDto } from './parametres-lettre.dto';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -9,7 +10,7 @@ import {
 } from 'class-validator';
 import { RepartitionTravauxLigneDto } from './repartition-travaux-ligne.dto';
 
-export class UpdateMissionDto {
+export class UpdateMissionDto extends ParametresLettreDto {
   @IsOptional()
   @IsString()
   description?: string;

@@ -11,6 +11,7 @@ import { ObligationsService } from '../obligations/obligations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CabinetService, CABINET_PAR_DEFAUT } from '../cabinet/cabinet.service';
 import { DocumentsService } from '../documents/documents.service';
+import { AcceptationsService } from '../acceptations/acceptations.service';
 import { Role, StatutKanban, TypeMission } from '../common/enums';
 import { buildLettreMissionContenu } from './lettre-mission-data.util';
 import { ParametresCabinet } from '../cabinet/cabinet.entity';
@@ -94,6 +95,9 @@ describe('LettresMissionService', () => {
     get: jest.fn().mockResolvedValue(CABINET_PAR_DEFAUT),
   };
   const documentsServiceMock = { upload: jest.fn() };
+  const acceptationsServiceMock = {
+    estAcceptee: jest.fn().mockResolvedValue(true),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -108,6 +112,7 @@ describe('LettresMissionService', () => {
         { provide: NotificationsService, useValue: notificationsServiceMock },
         { provide: CabinetService, useValue: cabinetServiceMock },
         { provide: DocumentsService, useValue: documentsServiceMock },
+        { provide: AcceptationsService, useValue: acceptationsServiceMock },
       ],
     }).compile();
     service = module.get(LettresMissionService);
@@ -173,6 +178,16 @@ describe('LettresMissionService', () => {
   });
 
   describe('signer', () => {
+    it('refuse de signer tant que la mission n’est pas acceptée par l’EC', async () => {
+      repoMock.findOne.mockResolvedValue(
+        lettre({ valideeParResponsable: true }),
+      );
+      acceptationsServiceMock.estAcceptee.mockResolvedValueOnce(false);
+      await expect(service.signer('l-1', EC.id)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it("refuse de signer une lettre qui n'est pas validée", async () => {
       repoMock.findOne.mockResolvedValue(lettre());
       await expect(service.signer('l-1', EC.id)).rejects.toThrow(
