@@ -15,7 +15,7 @@ import {
   IconShieldCheck,
 } from "@tabler/icons-react";
 
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, downloadFile } from "@/lib/apiFetch";
 import { CartographieMatrice } from "@/components/cartographie-matrice";
 import { RiskBadge } from "@/lib/status";
 
@@ -303,8 +303,26 @@ export default function CartographiePage() {
     return Math.round((counts[niveau] / totalScoredClients) * 100);
   }
 
-  function handleExportPdf() {
-    window.print();
+  const [exportEnCours, setExportEnCours] = useState(false);
+
+  // Rapport PDF détaillé généré par le serveur (synthèse, matrice des 13
+  // risques, liste et fiche de chaque client actif / prospect en cours).
+  async function handleExportPdf() {
+    setExportEnCours(true);
+    setError(null);
+    try {
+      const jour = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        "/cartographie/rapport",
+        `Cartographie-risques-${jour}.pdf`,
+      );
+    } catch (err) {
+      setError(
+        `Export impossible : ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setExportEnCours(false);
+    }
   }
 
   return (
@@ -342,10 +360,13 @@ export default function CartographiePage() {
               <button
                 type="button"
                 onClick={handleExportPdf}
+                disabled={exportEnCours}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-blue-900 shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-50 sm:w-auto"
               >
                 <IconDownload className="size-5" />
-                Exporter PDF
+                {exportEnCours
+                  ? "Génération du rapport…"
+                  : "Exporter le rapport PDF"}
               </button>
             </div>
 
