@@ -10,6 +10,7 @@ import { ObligationsModule } from '../obligations/obligations.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CabinetModule } from '../cabinet/cabinet.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { AcceptationsModule } from '../acceptations/acceptations.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { DocumentsModule } from '../documents/documents.module';
     NotificationsModule,
     CabinetModule,
     DocumentsModule,
+    AcceptationsModule,
   ],
   controllers: [LettresMissionController],
   providers: [LettresMissionService],

@@ -121,6 +121,11 @@ export class CreateProspectDto {
   tvaIntracommunautaire?: string | null;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  euid?: string | null;
+
+  @IsOptional()
   @IsBoolean()
   existenceSalaries?: boolean | null;
 

@@ -115,6 +115,11 @@ export class CreateClientDto {
   tvaIntracommunautaire?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  euid?: string;
+
+  @IsOptional()
   @IsBoolean()
   existenceSalaries?: boolean;
 

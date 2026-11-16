@@ -25,6 +25,7 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { ObligationsService } from '../obligations/obligations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CabinetService } from '../cabinet/cabinet.service';
+import { AcceptationsService } from '../acceptations/acceptations.service';
 import { DocumentsService, FichierRecu } from '../documents/documents.service';
 import {
   Role,
@@ -110,6 +111,7 @@ export class LettresMissionService {
     private readonly notificationsService: NotificationsService,
     private readonly cabinetService: CabinetService,
     private readonly documentsService: DocumentsService,
+    private readonly acceptationsService: AcceptationsService,
   ) {}
 
   private async renderPdf(
@@ -388,6 +390,15 @@ export class LettresMissionService {
     }
     if (l.signeeParExpert) {
       throw new BadRequestException('Cette lettre de mission est déjà signée');
+    }
+    const acceptee = await this.acceptationsService.estAcceptee({
+      prospectId: l.mission.prospect?.id,
+      clientId: l.mission.client?.id,
+    });
+    if (!acceptee) {
+      throw new BadRequestException(
+        'L’expert-comptable doit d’abord accepter la mission (questionnaire d’acceptation de la mission)',
+      );
     }
     l.signeeParExpert = true;
     l.signeeAt = new Date();

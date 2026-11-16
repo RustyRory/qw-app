@@ -113,6 +113,10 @@ export class Prospect {
   @Column({ type: 'varchar', length: 50, nullable: true })
   tvaIntracommunautaire: string | null;
 
+  // Identifiant européen des sociétés (EUID) : FR + code greffe + . + SIREN.
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  euid: string | null;
+
   // null = pas encore renseigné (distinct de false = « pas de salarié »).
   @Column({ type: 'boolean', nullable: true })
   existenceSalaries: boolean | null;

@@ -7,8 +7,11 @@ const PM = {
   risqueEleve: false,
 };
 const tousPm = [
-  TypeDocument.KBIS,
   TypeDocument.STATUTS,
+  TypeDocument.KBIS,
+  TypeDocument.EXTRAIT_INPI,
+  TypeDocument.AVIS_SIRENE,
+  TypeDocument.LISTE_ACTIONNAIRES,
   TypeDocument.LISTE_UBO,
   TypeDocument.PIECE_IDENTITE_DIRIGEANT,
   TypeDocument.PIECE_IDENTITE_BENEFICIAIRE,
@@ -17,8 +20,11 @@ const tousPm = [
 describe('documentsManquants', () => {
   it('exige les pièces du dirigeant et des bénéficiaires pour une société', () => {
     expect(documentsManquants(PM, [])).toEqual([
-      TypeDocument.KBIS,
       TypeDocument.STATUTS,
+      TypeDocument.KBIS,
+      TypeDocument.EXTRAIT_INPI,
+      TypeDocument.AVIS_SIRENE,
+      TypeDocument.LISTE_ACTIONNAIRES,
       TypeDocument.LISTE_UBO,
       TypeDocument.PIECE_IDENTITE_DIRIGEANT,
       TypeDocument.PIECE_IDENTITE_BENEFICIAIRE,

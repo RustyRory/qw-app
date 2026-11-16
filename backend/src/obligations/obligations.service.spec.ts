@@ -1,7 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ObligationsService } from './obligations.service';
+import {
+  ObligationsService,
+  informationsManquantes,
+} from './obligations.service';
 import { Obligation } from './entities/obligation.entity';
 import { Document } from '../documents/entities/document.entity';
 import { Client } from '../clients/entities/client.entity';
@@ -12,6 +15,8 @@ import {
   StatutQuestionnaire,
 } from '../questionnaires/entities/questionnaire-acceptation.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AcceptationMission } from '../acceptations/entities/acceptation-mission.entity';
+import { Prospect } from '../prospects/entities/prospect.entity';
 import {
   Role,
   StatutKyc,
@@ -34,6 +39,13 @@ describe('ObligationsService', () => {
   const documentRepoMock = { find: jest.fn() };
   const clientRepoMock = { findOneBy: jest.fn(), update: jest.fn() };
   const questionnaireRepoMock = { findOne: jest.fn().mockResolvedValue(null) };
+  // Par défaut : acceptation décidée récemment (pas de maintien à faire).
+  const acceptationRepoMock = {
+    findOne: jest.fn().mockResolvedValue({
+      statut: 'ACCEPTEE',
+      decideeAt: new Date(),
+    }),
+  };
   const notificationsMock = { creerPour: jest.fn(), creerPourRoles: jest.fn() };
 
   beforeEach(async () => {
@@ -58,6 +70,14 @@ describe('ObligationsService', () => {
           useValue: questionnaireRepoMock,
         },
         { provide: NotificationsService, useValue: notificationsMock },
+        {
+          provide: getRepositoryToken(AcceptationMission),
+          useValue: acceptationRepoMock,
+        },
+        {
+          provide: getRepositoryToken(Prospect),
+          useValue: { findOne: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -178,6 +198,9 @@ describe('ObligationsService', () => {
       ppe: false,
       kycStatut: StatutKyc.VALIDE,
       kycCompletedAt: ilYA(10),
+      regimeFiscal: 'IR',
+      regimeTva: 'Franchise',
+      existenceSalaries: false,
       ...override,
     });
 
@@ -255,6 +278,28 @@ describe('ObligationsService', () => {
         'Martin',
         '/dashboard/prospects/p-1',
       );
+    });
+  });
+
+  describe('informationsManquantes', () => {
+    it('liste les informations légales manquantes d’une société', () => {
+      expect(
+        informationsManquantes({
+          typeEntite: TypeEntite.PERSONNE_MORALE,
+          capitalSocial: null,
+          regimeFiscal: 'IS',
+          regimeTva: null,
+          tvaIntracommunautaire: 'FR00',
+          existenceSalaries: true,
+          conventionCollective: null,
+          euid: null,
+        }),
+      ).toEqual([
+        'Capital social',
+        'Régime TVA',
+        'Numéro EUID',
+        'Convention collective',
+      ]);
     });
   });
 });

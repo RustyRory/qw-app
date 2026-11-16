@@ -24,6 +24,9 @@ export type TypeDocument =
   | "PIECE_IDENTITE_BENEFICIAIRE"
   | "JUSTIFICATIF_DOMICILE"
   | "KBIS"
+  | "EXTRAIT_INPI"
+  | "AVIS_SIRENE"
+  | "LISTE_ACTIONNAIRES"
   | "STATUTS"
   | "LISTE_UBO"
   | "ATTESTATION_PPE"
@@ -49,7 +52,9 @@ export type TypeObligation =
   | "VALIDATION_RELATION"
   | "LETTRE_MISSION"
   | "VALIDATION_LETTRE_MISSION"
-  | "SIGNATURE_LETTRE_MISSION";
+  | "SIGNATURE_LETTRE_MISSION"
+  | "INFORMATIONS_A_COMPLETER"
+  | "QUESTIONNAIRES_A_COMPLETER";
 export type StatutObligation = "A_FAIRE" | "FAIT" | "EN_RETARD" | "EXPIRE";
 export type TypeOperationSensible =
   | "SANS_JUSTIFICATION"
@@ -130,6 +135,7 @@ export interface Prospect {
   client?: Client | null;
   createdAt: string;
   updatedAt: string;
+  euid?: string | null;
 }
 
 export interface QuestionnaireAcceptation {
@@ -190,6 +196,7 @@ export interface Client {
   dateFinRelation?: string | null;
   createdAt: string;
   updatedAt: string;
+  euid?: string | null;
 }
 
 export interface BeneficiaireEffectif {
@@ -296,6 +303,14 @@ export interface Mission {
   lettresMission?: LettreMission[];
   createdAt: string;
   updatedAt: string;
+  formuleAppel?: string;
+  repartitionCapital?: { associe: string; detention: string }[] | null;
+  dateClotureExercice?: string | null;
+  dateEffet?: string | null;
+  periodeHonoraires?: string | null;
+  fraisDeboursPct?: number | string;
+  rythmeFacturation?: string | null;
+  rythmePaiement?: string | null;
 }
 
 export interface LettreMission {

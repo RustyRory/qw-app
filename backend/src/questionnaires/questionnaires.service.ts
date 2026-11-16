@@ -102,6 +102,7 @@ export class QuestionnairesService {
       `/dashboard/prospects/${dto.prospectId}/questionnaire`,
     );
 
+    await this.obligationsService.synchroniserPourProspect(q.prospect.id);
     return saved;
   }
 
@@ -141,6 +142,7 @@ export class QuestionnairesService {
 
     await this.scoringService.recalculateForProspect(q.prospect.id, userId);
 
+    await this.obligationsService.synchroniserPourProspect(q.prospect.id);
     return saved;
   }
 
@@ -240,6 +242,7 @@ export class QuestionnairesService {
     if (q.client) {
       await this.obligationsService.synchroniserPourClient(q.client.id);
     }
+    await this.obligationsService.synchroniserPourProspect(q.prospect.id);
     return saved;
   }
 
@@ -290,6 +293,7 @@ export class QuestionnairesService {
     if (q.client) {
       await this.obligationsService.synchroniserPourClient(q.client.id);
     }
+    await this.obligationsService.synchroniserPourProspect(q.prospect.id);
     return saved;
   }
 
@@ -343,6 +347,7 @@ export class QuestionnairesService {
     if (q.client) {
       await this.obligationsService.synchroniserPourClient(q.client.id);
     }
+    await this.obligationsService.synchroniserPourProspect(q.prospect.id);
     return saved;
   }
 }

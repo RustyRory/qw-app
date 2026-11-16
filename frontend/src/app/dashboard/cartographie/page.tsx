@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react";
 
 import { apiFetch } from "@/lib/apiFetch";
+import { CartographieMatrice } from "@/components/cartographie-matrice";
 import { RiskBadge } from "@/lib/status";
 
 import type { Client, NiveauRisque, Prospect, ScoreRisque } from "@/types";
@@ -100,6 +101,9 @@ const CARD_STYLES: Record<
 };
 
 export default function CartographiePage() {
+  const [onglet, setOnglet] = useState<"portefeuille" | "cabinet">(
+    "portefeuille",
+  );
   const [rows, setRows] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -382,425 +386,458 @@ export default function CartographiePage() {
           </div>
         </section>
 
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 text-sm shadow-sm">
+          {(
+            [
+              ["portefeuille", "Portefeuille clients"],
+              ["cabinet", "Cartographie des risques du cabinet"],
+            ] as const
+          ).map(([o, label]) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => setOnglet(o)}
+              className={`rounded-lg px-3 py-1.5 font-medium ${onglet === o ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        {/* Cartes de risque */}
-        <div className="grid gap-4 sm:grid-cols-3">
-          {RISK_LEVELS.map((niveau) => {
-            const styles = CARD_STYLES[niveau];
-            const percentage = getPercentage(niveau);
+        {onglet === "cabinet" ? (
+          <CartographieMatrice />
+        ) : (
+          <>
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
-            return (
-              <button
-                key={niveau}
-                type="button"
-                onClick={() =>
-                  setRiskFilter((current) =>
-                    current === niveau ? "TOUS" : niveau,
-                  )
-                }
-                className={`rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md ${styles.container} ${
-                  riskFilter === niveau ? "ring-2 ring-blue-500/20" : ""
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p
-                      className={`text-xs font-bold uppercase tracking-wide ${styles.title}`}
-                    >
-                      Risque {RISK_LABELS[niveau]}
-                    </p>
+            {/* Cartes de risque */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              {RISK_LEVELS.map((niveau) => {
+                const styles = CARD_STYLES[niveau];
+                const percentage = getPercentage(niveau);
 
-                    <p className={`mt-2 text-3xl font-bold ${styles.value}`}>
-                      {loading ? "—" : counts[niveau]}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      {percentage}% des dossiers évalués
-                    </p>
-                  </div>
-
-                  <div
-                    className={`flex size-11 items-center justify-center rounded-xl ${styles.iconContainer}`}
+                return (
+                  <button
+                    key={niveau}
+                    type="button"
+                    onClick={() =>
+                      setRiskFilter((current) =>
+                        current === niveau ? "TOUS" : niveau,
+                      )
+                    }
+                    className={`rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md ${styles.container} ${
+                      riskFilter === niveau ? "ring-2 ring-blue-500/20" : ""
+                    }`}
                   >
-                    {niveau === "FAIBLE" ? (
-                      <IconShieldCheck className={`size-6 ${styles.icon}`} />
-                    ) : niveau === "MOYEN" ? (
-                      <IconMapPin className={`size-6 ${styles.icon}`} />
-                    ) : (
-                      <IconAlertTriangle className={`size-6 ${styles.icon}`} />
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-5 h-2 overflow-hidden rounded-full bg-white">
-                  <div
-                    className={`h-full rounded-full ${styles.progress}`}
-                    style={{
-                      width: `${percentage}%`,
-                    }}
-                  />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Filtres */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-3">
-            <select
-              value={riskFilter}
-              onChange={(event) =>
-                setRiskFilter(
-                  event.target.value as "TOUS" | NiveauRisque | "SANS_SCORE",
-                )
-              }
-              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-            >
-              <option value="TOUS">Tous les niveaux</option>
-              <option value="FAIBLE">Risque faible</option>
-              <option value="MOYEN">Risque moyen</option>
-              <option value="ELEVE">Risque élevé</option>
-              <option value="SANS_SCORE">Sans scoring</option>
-            </select>
-
-            <select
-              value={typeFilter}
-              onChange={(event) =>
-                setTypeFilter(event.target.value as "TOUS" | EntityKind)
-              }
-              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-            >
-              <option value="TOUS">Clients et prospects</option>
-              <option value="client">Clients uniquement</option>
-              <option value="prospect">Prospects uniquement</option>
-            </select>
-
-            <select
-              value={sectorFilter}
-              onChange={(event) => setSectorFilter(event.target.value)}
-              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-            >
-              <option value="TOUS">Tous les secteurs</option>
-
-              {sectors.map((sector) => (
-                <option key={sector} value={sector}>
-                  {sector}
-                </option>
-              ))}
-            </select>
-
-            <div className="relative md:col-span-3">
-              <IconSearch className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Rechercher un client, un prospect, une référence, un secteur..."
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Tableau */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-blue-100">
-                <IconChartDots className="size-5 text-blue-700" />
-              </div>
-
-              <div>
-                <h2 className="font-semibold text-slate-900">
-                  Portefeuille analysé
-                </h2>
-
-                <p className="text-xs text-slate-500">
-                  {loading
-                    ? "Chargement..."
-                    : `${filteredRows.length} dossier${
-                        filteredRows.length > 1 ? "s" : ""
-                      } affiché${filteredRows.length > 1 ? "s" : ""}`}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Ordinateur */}
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[950px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("ref")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Réf.
-                      {renderSortIcon("ref")}
-                    </button>
-                  </th>
-
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("nom")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Nom / Raison sociale
-                      {renderSortIcon("nom")}
-                    </button>
-                  </th>
-
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("type")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Type
-                      {renderSortIcon("type")}
-                    </button>
-                  </th>
-
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("secteur")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Secteur
-                      {renderSortIcon("secteur")}
-                    </button>
-                  </th>
-
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("score")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Score
-                      {renderSortIcon("score")}
-                    </button>
-                  </th>
-
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("niveau")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Niveau
-                      {renderSortIcon("niveau")}
-                    </button>
-                  </th>
-
-                  <th className="px-5 py-4 text-left font-semibold text-slate-500">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("date")}
-                      className="inline-flex items-center gap-1 transition hover:text-slate-700"
-                    >
-                      Dernière évaluation
-                      {renderSortIcon("date")}
-                    </button>
-                  </th>
-
-                  <th className="w-16 px-5 py-4" />
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-12 text-center text-slate-400"
-                    >
-                      Chargement…
-                    </td>
-                  </tr>
-                ) : filteredRows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-12 text-center text-slate-400"
-                    >
-                      Aucun client ou prospect trouvé
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRows.map((row) => (
-                    <tr
-                      key={`${row.kind}-${row.id}`}
-                      className="transition hover:bg-blue-50/30"
-                    >
-                      <td className="px-5 py-4 font-mono text-xs text-slate-500">
-                        {row.ref}
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-900">
-                          {row.nom}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p
+                          className={`text-xs font-bold uppercase tracking-wide ${styles.title}`}
+                        >
+                          Risque {RISK_LABELS[niveau]}
                         </p>
 
-                        {row.ville && (
-                          <p className="mt-1 text-xs text-slate-400">
-                            {row.ville}
-                          </p>
-                        )}
-                      </td>
+                        <p
+                          className={`mt-2 text-3xl font-bold ${styles.value}`}
+                        >
+                          {loading ? "—" : counts[niveau]}
+                        </p>
 
-                      <td className="px-5 py-4">
+                        <p className="mt-1 text-xs text-slate-500">
+                          {percentage}% des dossiers évalués
+                        </p>
+                      </div>
+
+                      <div
+                        className={`flex size-11 items-center justify-center rounded-xl ${styles.iconContainer}`}
+                      >
+                        {niveau === "FAIBLE" ? (
+                          <IconShieldCheck
+                            className={`size-6 ${styles.icon}`}
+                          />
+                        ) : niveau === "MOYEN" ? (
+                          <IconMapPin className={`size-6 ${styles.icon}`} />
+                        ) : (
+                          <IconAlertTriangle
+                            className={`size-6 ${styles.icon}`}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 h-2 overflow-hidden rounded-full bg-white">
+                      <div
+                        className={`h-full rounded-full ${styles.progress}`}
+                        style={{
+                          width: `${percentage}%`,
+                        }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filtres */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-3">
+                <select
+                  value={riskFilter}
+                  onChange={(event) =>
+                    setRiskFilter(
+                      event.target.value as
+                        | "TOUS"
+                        | NiveauRisque
+                        | "SANS_SCORE",
+                    )
+                  }
+                  className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                >
+                  <option value="TOUS">Tous les niveaux</option>
+                  <option value="FAIBLE">Risque faible</option>
+                  <option value="MOYEN">Risque moyen</option>
+                  <option value="ELEVE">Risque élevé</option>
+                  <option value="SANS_SCORE">Sans scoring</option>
+                </select>
+
+                <select
+                  value={typeFilter}
+                  onChange={(event) =>
+                    setTypeFilter(event.target.value as "TOUS" | EntityKind)
+                  }
+                  className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                >
+                  <option value="TOUS">Clients et prospects</option>
+                  <option value="client">Clients uniquement</option>
+                  <option value="prospect">Prospects uniquement</option>
+                </select>
+
+                <select
+                  value={sectorFilter}
+                  onChange={(event) => setSectorFilter(event.target.value)}
+                  className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                >
+                  <option value="TOUS">Tous les secteurs</option>
+
+                  {sectors.map((sector) => (
+                    <option key={sector} value={sector}>
+                      {sector}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="relative md:col-span-3">
+                  <IconSearch className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Rechercher un client, un prospect, une référence, un secteur..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Tableau */}
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-blue-100">
+                    <IconChartDots className="size-5 text-blue-700" />
+                  </div>
+
+                  <div>
+                    <h2 className="font-semibold text-slate-900">
+                      Portefeuille analysé
+                    </h2>
+
+                    <p className="text-xs text-slate-500">
+                      {loading
+                        ? "Chargement..."
+                        : `${filteredRows.length} dossier${
+                            filteredRows.length > 1 ? "s" : ""
+                          } affiché${filteredRows.length > 1 ? "s" : ""}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ordinateur */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[950px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("ref")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Réf.
+                          {renderSortIcon("ref")}
+                        </button>
+                      </th>
+
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("nom")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Nom / Raison sociale
+                          {renderSortIcon("nom")}
+                        </button>
+                      </th>
+
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("type")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Type
+                          {renderSortIcon("type")}
+                        </button>
+                      </th>
+
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("secteur")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Secteur
+                          {renderSortIcon("secteur")}
+                        </button>
+                      </th>
+
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("score")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Score
+                          {renderSortIcon("score")}
+                        </button>
+                      </th>
+
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("niveau")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Niveau
+                          {renderSortIcon("niveau")}
+                        </button>
+                      </th>
+
+                      <th className="px-5 py-4 text-left font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("date")}
+                          className="inline-flex items-center gap-1 transition hover:text-slate-700"
+                        >
+                          Dernière évaluation
+                          {renderSortIcon("date")}
+                        </button>
+                      </th>
+
+                      <th className="w-16 px-5 py-4" />
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="px-5 py-12 text-center text-slate-400"
+                        >
+                          Chargement…
+                        </td>
+                      </tr>
+                    ) : filteredRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="px-5 py-12 text-center text-slate-400"
+                        >
+                          Aucun client ou prospect trouvé
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row) => (
+                        <tr
+                          key={`${row.kind}-${row.id}`}
+                          className="transition hover:bg-blue-50/30"
+                        >
+                          <td className="px-5 py-4 font-mono text-xs text-slate-500">
+                            {row.ref}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <p className="font-semibold text-slate-900">
+                              {row.nom}
+                            </p>
+
+                            {row.ville && (
+                              <p className="mt-1 text-xs text-slate-400">
+                                {row.ville}
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ENTITY_BADGE_CLASS[row.kind]}`}
+                            >
+                              {ENTITY_LABELS[row.kind]}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-500">
+                            {row.secteur ?? "—"}
+                          </td>
+
+                          <td className="px-5 py-4 font-mono font-medium text-slate-700">
+                            {row.score ? `${row.score.score}/100` : "—"}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {row.score ? (
+                              <RiskBadge level={row.score.niveau} />
+                            ) : (
+                              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
+                                Non évalué
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-500">
+                            {row.score
+                              ? new Date(
+                                  row.score.createdAt,
+                                ).toLocaleDateString("fr-FR")
+                              : "—"}
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <Link
+                              href={
+                                row.kind === "client"
+                                  ? `/dashboard/clients/${row.id}`
+                                  : `/dashboard/prospects/${row.id}`
+                              }
+                              title="Voir le dossier"
+                              className="inline-flex size-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-100 hover:text-blue-700"
+                            >
+                              <IconChevronRight className="size-5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile */}
+              <div className="divide-y divide-slate-100 md:hidden">
+                {loading ? (
+                  <div className="p-10 text-center text-sm text-slate-400">
+                    Chargement…
+                  </div>
+                ) : filteredRows.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-slate-400">
+                    Aucun client ou prospect trouvé
+                  </div>
+                ) : (
+                  filteredRows.map((row) => (
+                    <Link
+                      key={`${row.kind}-${row.id}`}
+                      href={
+                        row.kind === "client"
+                          ? `/dashboard/clients/${row.id}`
+                          : `/dashboard/prospects/${row.id}`
+                      }
+                      className="block p-4 transition hover:bg-blue-50/30"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">
+                            {row.nom}
+                          </p>
+
+                          <p className="mt-1 font-mono text-xs text-slate-400">
+                            {row.ref}
+                          </p>
+                        </div>
+
+                        <IconChevronRight className="size-5 shrink-0 text-slate-300" />
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ENTITY_BADGE_CLASS[row.kind]}`}
                         >
                           {ENTITY_LABELS[row.kind]}
                         </span>
-                      </td>
 
-                      <td className="px-5 py-4 text-slate-500">
-                        {row.secteur ?? "—"}
-                      </td>
-
-                      <td className="px-5 py-4 font-mono font-medium text-slate-700">
-                        {row.score ? `${row.score.score}/100` : "—"}
-                      </td>
-
-                      <td className="px-5 py-4">
                         {row.score ? (
                           <RiskBadge level={row.score.niveau} />
                         ) : (
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
-                            Non évalué
+                            Sans scoring
                           </span>
                         )}
-                      </td>
+                      </div>
 
-                      <td className="px-5 py-4 text-slate-500">
-                        {row.score
-                          ? new Date(row.score.createdAt).toLocaleDateString(
-                              "fr-FR",
-                            )
-                          : "—"}
-                      </td>
+                      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-slate-400">Secteur</p>
 
-                      <td className="px-5 py-4 text-right">
-                        <Link
-                          href={
-                            row.kind === "client"
-                              ? `/dashboard/clients/${row.id}`
-                              : `/dashboard/prospects/${row.id}`
-                          }
-                          title="Voir le dossier"
-                          className="inline-flex size-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-100 hover:text-blue-700"
-                        >
-                          <IconChevronRight className="size-5" />
-                        </Link>
-                      </td>
-                    </tr>
+                          <p className="mt-1 truncate text-slate-600">
+                            {row.secteur ?? "—"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-slate-400">Score</p>
+
+                          <p className="mt-1 font-mono text-slate-600">
+                            {row.score ? `${row.score.score}/100` : "—"}
+                          </p>
+                        </div>
+
+                        <div className="col-span-2">
+                          <p className="text-xs text-slate-400">
+                            Dernière évaluation
+                          </p>
+
+                          <p className="mt-1 text-slate-600">
+                            {row.score
+                              ? new Date(
+                                  row.score.createdAt,
+                                ).toLocaleDateString("fr-FR")
+                              : "Aucune évaluation"}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
                   ))
                 )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile */}
-          <div className="divide-y divide-slate-100 md:hidden">
-            {loading ? (
-              <div className="p-10 text-center text-sm text-slate-400">
-                Chargement…
               </div>
-            ) : filteredRows.length === 0 ? (
-              <div className="p-10 text-center text-sm text-slate-400">
-                Aucun client ou prospect trouvé
-              </div>
-            ) : (
-              filteredRows.map((row) => (
-                <Link
-                  key={`${row.kind}-${row.id}`}
-                  href={
-                    row.kind === "client"
-                      ? `/dashboard/clients/${row.id}`
-                      : `/dashboard/prospects/${row.id}`
-                  }
-                  className="block p-4 transition hover:bg-blue-50/30"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-900">
-                        {row.nom}
-                      </p>
-
-                      <p className="mt-1 font-mono text-xs text-slate-400">
-                        {row.ref}
-                      </p>
-                    </div>
-
-                    <IconChevronRight className="size-5 shrink-0 text-slate-300" />
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ENTITY_BADGE_CLASS[row.kind]}`}
-                    >
-                      {ENTITY_LABELS[row.kind]}
-                    </span>
-
-                    {row.score ? (
-                      <RiskBadge level={row.score.niveau} />
-                    ) : (
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">
-                        Sans scoring
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-slate-400">Secteur</p>
-
-                      <p className="mt-1 truncate text-slate-600">
-                        {row.secteur ?? "—"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-slate-400">Score</p>
-
-                      <p className="mt-1 font-mono text-slate-600">
-                        {row.score ? `${row.score.score}/100` : "—"}
-                      </p>
-                    </div>
-
-                    <div className="col-span-2">
-                      <p className="text-xs text-slate-400">
-                        Dernière évaluation
-                      </p>
-
-                      <p className="mt-1 text-slate-600">
-                        {row.score
-                          ? new Date(row.score.createdAt).toLocaleDateString(
-                              "fr-FR",
-                            )
-                          : "Aucune évaluation"}
-                      </p>
-                    </div>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

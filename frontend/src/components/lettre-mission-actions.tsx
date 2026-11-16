@@ -229,6 +229,13 @@ export function LettreMissionActions({
         )}
       </div>
 
+      {l.signeeParExpert && !l.signeeParClientAt && (
+        <p className="rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600">
+          À indiquer au client dans votre mail : « Ouvrez ce PDF avec Microsoft
+          Edge, puis utilisez l’outil <strong>Dessiner</strong> pour parapher
+          chaque page et signer, enregistrez et renvoyez-le-nous. »
+        </p>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
       {info && <p className="text-xs text-emerald-700">{info}</p>}
 

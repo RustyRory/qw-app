@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AcceptationMission } from '../acceptations/entities/acceptation-mission.entity';
 import { QuestionnaireAcceptation } from '../questionnaires/entities/questionnaire-acceptation.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BeneficiaireEffectif } from '../beneficiaires/entities/beneficiaire-effectif.entity';
@@ -21,6 +22,7 @@ import { ObligationsController } from './obligations.controller';
       BeneficiaireEffectif,
       ScoreRisque,
       QuestionnaireAcceptation,
+      AcceptationMission,
     ]),
     NotificationsModule,
   ],

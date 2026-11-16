@@ -23,12 +23,44 @@ import {
   StatutQuestionnaire,
 } from '../questionnaires/entities/questionnaire-acceptation.entity';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Role } from '../common/enums';
+import {
+  AcceptationMission,
+  StatutAcceptation,
+} from '../acceptations/entities/acceptation-mission.entity';
+import { Role, StatutKanban, TypeEntite } from '../common/enums';
 
 // Revue annuelle du dossier client (KYC + questionnaire LAB) : rappel
 // ouvert 30 jours avant la date anniversaire.
 const DUREE_VALIDITE_REVUE_MOIS = 12;
 const RAPPEL_REVUE_JOURS = 30;
+
+// Informations légales requises par la lettre de mission (mêmes règles
+// que l'encart « À compléter » de la fiche prospect).
+export function informationsManquantes(e: {
+  typeEntite: TypeEntite;
+  capitalSocial: number | null;
+  regimeFiscal: string | null;
+  regimeTva: string | null;
+  tvaIntracommunautaire: string | null;
+  existenceSalaries: boolean | null;
+  conventionCollective: string | null;
+  euid: string | null;
+}): string[] {
+  const manquants: string[] = [];
+  const societe = e.typeEntite === TypeEntite.PERSONNE_MORALE;
+  if (societe && e.capitalSocial == null) manquants.push('Capital social');
+  if (!e.regimeFiscal) manquants.push('Régime fiscal');
+  if (!e.regimeTva) manquants.push('Régime TVA');
+  if (societe && !e.tvaIntracommunautaire) {
+    manquants.push('N° TVA intracommunautaire');
+  }
+  if (societe && !e.euid) manquants.push('Numéro EUID');
+  if (e.existenceSalaries == null) manquants.push('Existence de salariés');
+  if (e.existenceSalaries !== false && !e.conventionCollective) {
+    manquants.push('Convention collective');
+  }
+  return manquants;
+}
 
 function anniversaire(date: Date): Date {
   const d = new Date(date);
@@ -61,6 +93,10 @@ export class ObligationsService {
     private readonly scoreRepo: Repository<ScoreRisque>,
     @InjectRepository(QuestionnaireAcceptation)
     private readonly questionnaireRepo: Repository<QuestionnaireAcceptation>,
+    @InjectRepository(AcceptationMission)
+    private readonly acceptationRepo: Repository<AcceptationMission>,
+    @InjectRepository(Prospect)
+    private readonly prospectRepo: Repository<Prospect>,
     private readonly notificationsService: NotificationsService,
   ) {}
 
@@ -197,25 +233,79 @@ export class ObligationsService {
       echeanceKyc,
     );
 
-    // Questionnaire LAB : à refaire chaque année (rouvert depuis la fiche).
-    const questionnaire = await this.questionnaireRepo.findOne({
-      where: [{ client: { id: clientId } }],
-    });
-    let lab = false;
-    let echeanceLab: Date | undefined;
+    // Questionnaires de maintien de mission (LAB + acceptation) : à
+    // compléter chaque année par le collaborateur (rouverts depuis la fiche).
+    const [questionnaire, acceptation] = await Promise.all([
+      this.questionnaireRepo.findOne({ where: { client: { id: clientId } } }),
+      this.acceptationRepo.findOne({
+        where: { client: { id: clientId } },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+    let maintien = false;
+    let echeanceMaintien: Date | undefined;
+    const revues: (Date | null | undefined)[] = [];
     if (questionnaire?.statut === StatutQuestionnaire.VALIDE) {
-      if (questionnaire.validatedAt) {
-        echeanceLab = anniversaire(questionnaire.validatedAt);
-        lab = rappelDu(echeanceLab, maintenant);
-      }
-    } else if (questionnaire?.statut === StatutQuestionnaire.EN_COURS) {
-      lab = true; // rouvert pour la revue, pas encore revalidé
+      revues.push(questionnaire.validatedAt);
+    } else if (questionnaire) {
+      maintien = true; // rouvert pour la revue, pas encore revalidé
+    }
+    if (acceptation?.statut === StatutAcceptation.ACCEPTEE) {
+      revues.push(acceptation.decideeAt);
+    } else {
+      maintien = true; // jamais rempli, ou rouvert
+    }
+    for (const d of revues) {
+      if (!d) continue;
+      const e = anniversaire(d);
+      if (!echeanceMaintien || e < echeanceMaintien) echeanceMaintien = e;
+      if (rappelDu(e, maintenant)) maintien = true;
     }
     await this.syncType(
       clientId,
       TypeObligation.EVALUATION_RISQUE,
-      lab,
-      echeanceLab,
+      maintien,
+      echeanceMaintien,
+    );
+    await this.syncType(
+      clientId,
+      TypeObligation.INFORMATIONS_A_COMPLETER,
+      informationsManquantes(client).length > 0,
+    );
+  }
+
+  // Prospect en cours : informations légales et questionnaires (LAB,
+  // acceptation de la mission) à compléter avant la lettre de mission.
+  async synchroniserPourProspect(prospectId: string): Promise<void> {
+    const prospect = await this.prospectRepo.findOne({
+      where: { id: prospectId },
+      relations: ['client'],
+    });
+    if (!prospect) return;
+    const actif =
+      !prospect.client && prospect.statutKanban !== StatutKanban.REFUSE;
+    const [questionnaire, acceptation] = await Promise.all([
+      this.questionnaireRepo.findOne({
+        where: { prospect: { id: prospectId } },
+      }),
+      this.acceptationRepo.findOne({
+        where: { prospect: { id: prospectId } },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+    const questionnairesAFaire =
+      questionnaire?.statut !== StatutQuestionnaire.VALIDE ||
+      acceptation?.statut !== StatutAcceptation.ACCEPTEE;
+    const cible = { prospectId };
+    await this.syncType(
+      cible,
+      TypeObligation.INFORMATIONS_A_COMPLETER,
+      actif && informationsManquantes(prospect).length > 0,
+    );
+    await this.syncType(
+      cible,
+      TypeObligation.QUESTIONNAIRES_A_COMPLETER,
+      actif && questionnairesAFaire,
     );
   }
 
@@ -246,14 +336,18 @@ export class ObligationsService {
   }
 
   private async syncType(
-    clientId: string,
+    cible: string | { prospectId: string },
     type: TypeObligation,
     doitEtreOuverte: boolean,
     echeance?: Date,
   ): Promise<void> {
+    const sur =
+      typeof cible === 'string'
+        ? { client: { id: cible } }
+        : { prospect: { id: cible.prospectId } };
     const ouverte = await this.repo.findOne({
       where: {
-        client: { id: clientId },
+        ...sur,
         type,
         statut: In([StatutObligation.A_FAIRE, StatutObligation.EN_RETARD]),
       },
@@ -269,7 +363,8 @@ export class ObligationsService {
 
       await this.repo.save(
         this.repo.create({
-          client: { id: clientId } as Client,
+          client: typeof cible === 'string' ? { id: cible } : null,
+          prospect: typeof cible === 'string' ? null : { id: cible.prospectId },
           type,
           dateEcheance,
         }),
