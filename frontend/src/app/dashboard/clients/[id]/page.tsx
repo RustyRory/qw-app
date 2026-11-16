@@ -28,6 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
+import { useBloquerDefilement } from "@/hooks/useBloquerDefilement";
 import { RepartitionEditor } from "@/components/repartition-editor";
 import {
   ParametresLettreFields,
@@ -2246,6 +2247,7 @@ function TabMissions({ clientId }: { clientId: string }) {
     id: string;
     url: string;
   } | null>(null);
+  useBloquerDefilement(!!previewLettre);
   const [catalogue, setCatalogue] = useState<RepartitionTravauxCategorie[]>([]);
   const [selectedType, setSelectedType] =
     useState<TypeMission>("COMPTES_ANNUELS");
@@ -2783,7 +2785,7 @@ function TabMissions({ clientId }: { clientId: string }) {
                 <iframe
                   src={previewLettre.url}
                   title="Aperçu de la lettre de mission"
-                  className="flex-1 bg-slate-100"
+                  className="block min-h-0 w-full flex-1 border-0 bg-slate-100"
                 />
               </div>
             </div>

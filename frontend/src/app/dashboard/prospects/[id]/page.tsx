@@ -14,6 +14,7 @@ import {
 } from "@tabler/icons-react";
 import { apiFetch, downloadFile, fetchBlobUrl } from "@/lib/apiFetch";
 import { useRole } from "@/hooks/useRole";
+import { useBloquerDefilement } from "@/hooks/useBloquerDefilement";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -111,6 +112,7 @@ export default function ProspectDetailPage() {
     id: string;
     url: string;
   } | null>(null);
+  useBloquerDefilement(!!previewLettre);
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [etapes, setEtapes] = useState<PlanningEtape[]>([]);
 
@@ -1830,7 +1832,7 @@ export default function ProspectDetailPage() {
                 <iframe
                   src={previewLettre.url}
                   title="Aperçu de la lettre de mission"
-                  className="flex-1 bg-slate-100"
+                  className="block min-h-0 w-full flex-1 border-0 bg-slate-100"
                 />
               </div>
             </div>

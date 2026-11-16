@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as fs from 'fs';
-import { LettresMissionService } from './lettres-mission.service';
+import { LettresMissionService, initiales } from './lettres-mission.service';
 import { LettreMission } from './entities/lettre-mission.entity';
 import { Mission } from '../missions/entities/mission.entity';
 import { Prospect } from '../prospects/entities/prospect.entity';
@@ -279,6 +279,13 @@ describe('LettresMissionService', () => {
       await service.removeByMission('m-1');
       expect(fs.rmSync).toHaveBeenCalledWith('/tmp/l-1.pdf', { force: true });
       expect(repoMock.remove).toHaveBeenCalledWith(lettres);
+    });
+  });
+
+  describe('initiales', () => {
+    it('forme les initiales de l’expert-comptable', () => {
+      expect(initiales('Anne', 'Dupont')).toBe('A.D.');
+      expect(initiales('jean-pierre', 'Martin')).toBe('J.P.M.');
     });
   });
 });
