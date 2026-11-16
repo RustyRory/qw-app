@@ -16,7 +16,7 @@ import {
   flagsFromQuestionnaire,
   computeAutoScore,
 } from './auto-score.util';
-import { NiveauRisque } from '../common/enums';
+import { NiveauRisque, ScreeningStatut } from '../common/enums';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 
@@ -79,6 +79,8 @@ export class ScoringService {
       prospect.typeEntite,
       uboPpe,
     );
+    flags.alertesNationales =
+      prospect.screeningStatut === ScreeningStatut.ALERTE;
     const { score, niveau, reponses } = computeAutoScore(
       { flags, chiffreAffaires: prospect.chiffreAffaires },
       ajustementDe(prospect),

@@ -8,6 +8,7 @@ import { Not, Repository } from 'typeorm';
 import { BeneficiaireEffectif } from './entities/beneficiaire-effectif.entity';
 import { Client } from '../clients/entities/client.entity';
 import { ScoringService } from '../scoring/scoring.service';
+import { ScreeningService } from '../screening/screening.service';
 import { CreateBeneficiaireDto } from './dto/create-beneficiaire.dto';
 import { UpdateBeneficiaireDto } from './dto/update-beneficiaire.dto';
 
@@ -25,6 +26,7 @@ export class BeneficiairesService {
     @InjectRepository(Client)
     private readonly clientRepo: Repository<Client>,
     private readonly scoringService: ScoringService,
+    private readonly screeningService: ScreeningService,
   ) {}
 
   private filtre(p: Proprietaire) {
@@ -60,6 +62,13 @@ export class BeneficiairesService {
   // Effets de bord d'une modification : indicateur « UBO saisi » et score
   // du client (un prospect n'a pas de score dépendant de ses UBO).
   private async apresModification(p: Proprietaire, userId: string) {
+    this.screeningService
+      .controler(
+        p.clientId ? 'client' : 'prospect',
+        (p.clientId ?? p.prospectId)!,
+        userId,
+      )
+      .catch(() => undefined);
     if (!p.clientId) return;
     const count = await this.repo.count({
       where: { client: { id: p.clientId } },

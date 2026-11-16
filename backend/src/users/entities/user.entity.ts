@@ -16,7 +16,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  // Jamais chargé par défaut : un utilisateur rattaché à un dossier
+  // (decidePar, signataire…) est renvoyé tel quel par l'API.
+  @Column({ type: 'varchar', length: 255, select: false })
   passwordHash: string;
 
   @Column({ type: 'enum', enum: Role, default: Role.COLLABORATEUR })

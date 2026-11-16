@@ -18,7 +18,12 @@ import { ScoreRisque } from '../../scoring/entities/score-risque.entity';
 import { Mission } from '../../missions/entities/mission.entity';
 import { Obligation } from '../../obligations/entities/obligation.entity';
 import { PlanningEtape } from '../../planning/entities/planning-etape.entity';
-import { TypeEntite, StatutKanban, NiveauRisque } from '../../common/enums';
+import {
+  TypeEntite,
+  StatutKanban,
+  NiveauRisque,
+  ScreeningStatut,
+} from '../../common/enums';
 
 @Entity('prospects')
 @Index('idx_prospect_statut', ['statutKanban'], {
@@ -98,6 +103,21 @@ export class Prospect {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  // Contrôle automatique sur le registre national des gels (cf. module
+  // screening) ; repris sur le client à la conversion.
+  @Column({
+    type: 'enum',
+    enum: ScreeningStatut,
+    default: ScreeningStatut.NON_EFFECTUE,
+  })
+  screeningStatut: ScreeningStatut;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  screeningDate: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  screeningRegistreDu: Date | null;
 
   // ── Champs requis sur la lettre de mission (mêmes que Client, cf. celui-ci
   // pour que la LM puisse être préparée avant conversion) ─────────────────
